@@ -5,6 +5,7 @@ package com.tooheavy.app.ui.active
 import android.content.Context
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +18,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,16 +35,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -49,8 +47,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -87,11 +83,20 @@ import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.volume
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.GradientButton
 import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.NumberFont
+import com.tooheavy.app.ui.theme.Overline
+import com.tooheavy.app.ui.theme.StatNumber
 import com.tooheavy.app.ui.theme.Success
+import com.tooheavy.app.ui.theme.Surface3
 import com.tooheavy.app.ui.theme.Warmup
+import com.tooheavy.app.ui.theme.brandHorizontal
 import kotlinx.coroutines.delay
 
 private val SetColW = 36.dp
@@ -190,10 +195,9 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
 
     Scaffold(
         modifier = Modifier.imePadding(),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            AppTopBar(
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -210,18 +214,18 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                         )
                         Text(
                             formatClock(now - workout.startTime),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelMedium.copy(fontFamily = NumberFont),
+                            color = Success,
                         )
                     }
                 },
                 actions = {
-                    Button(
+                    GradientButton(
                         onClick = { showFinish = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Success, contentColor = Color.White),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        modifier = Modifier.padding(end = 8.dp).height(36.dp),
-                    ) { Text("Finish", fontWeight = FontWeight.SemiBold) }
+                        contentPadding = PaddingValues(horizontal = 18.dp),
+                        modifier = Modifier.padding(end = 8.dp),
+                        height = 38.dp,
+                    ) { Text("Finish") }
                 },
             )
         },
@@ -230,15 +234,23 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SummaryItem("Duration", formatDuration(now - workout.startTime), Modifier.weight(1f))
-                SummaryItem("Volume", "${formatVolume(workout.volume())} $unit", Modifier.weight(1f))
-                SummaryItem("Sets", workout.completedSetCount().toString(), Modifier.weight(1f))
+            val totalSets = workout.exercises.sumOf { it.sets.size }
+            val doneSets = workout.completedSetCount()
+            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SummaryItem("Duration", formatDuration(now - workout.startTime), Modifier.weight(1f))
+                        SummaryItem("Volume", "${formatVolume(workout.volume())} $unit", Modifier.weight(1f))
+                        SummaryItem("Sets", "$doneSets / $totalSets", Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(Surface3)) {
+                        val frac = if (totalSets > 0) doneSets.toFloat() / totalSets else 0f
+                        val animated by animateFloatAsState(frac, label = "sets")
+                        Box(Modifier.fillMaxWidth(animated).height(8.dp).clip(CircleShape).background(brandHorizontal()))
+                    }
+                }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 120.dp),
@@ -257,15 +269,13 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                             )
                         }
-                        Button(
+                        GradientButton(
                             onClick = { nav.navigate(Routes.picker(Routes.PICK_FOR_ACTIVE)) },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Add Exercise", fontWeight = FontWeight.SemiBold)
+                            Text("Add Exercise")
                         }
                         TextButton(onClick = { showDiscard = true }, modifier = Modifier.fillMaxWidth()) {
                             Text("Discard Workout", color = Danger, fontWeight = FontWeight.SemiBold)
@@ -359,8 +369,9 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
 @Composable
 private fun SummaryItem(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(label.uppercase(), style = Overline, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(2.dp))
+        Text(value, style = StatNumber.copy(fontSize = 22.sp), maxLines = 1)
     }
 }
 
@@ -388,28 +399,24 @@ private fun RestTimerBar() {
     val progress = (remaining / total).coerceIn(0f, 1f)
 
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 3.dp) {
-        Column {
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth(),
-                color = Accent,
-                trackColor = MaterialTheme.colorScheme.outline,
-            )
+        Column(Modifier.navigationBarsPadding()) {
+            Box(Modifier.fillMaxWidth().height(4.dp).background(Surface3)) {
+                Box(Modifier.fillMaxWidth(progress).height(4.dp).background(brandHorizontal()))
+            }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Rest", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(formatClock(remaining), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(formatClock(remaining), style = StatNumber)
                 }
                 TextButton(onClick = { Repo.adjustRest(-15) }) { Text("-15") }
                 TextButton(onClick = { Repo.adjustRest(15) }) { Text("+15") }
-                Button(
+                GradientButton(
                     onClick = { Repo.stopRest() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    height = 38.dp,
                 ) { Text("Skip") }
             }
         }
@@ -426,10 +433,8 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
     var restDialog by remember { mutableStateOf(false) }
     var notes by remember(we.id) { mutableStateOf(we.notes) }
 
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -437,7 +442,7 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                 Spacer(Modifier.width(10.dp))
                 Text(
                     exercise?.name ?: "Unknown exercise",
-                    color = Accent,
+                    color = AccentBright,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier
@@ -612,7 +617,7 @@ private fun ProgramTargetBox(we: WorkoutExercise, t: SetTarget, unit: String) {
                 },
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
-                color = if (t.deload) Warmup else Accent,
+                color = if (t.deload) Warmup else AccentBright,
             )
             if (hint != null) {
                 Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

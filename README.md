@@ -4,6 +4,8 @@ An offline Android workout and calorie tracker. Kotlin + Jetpack Compose, no acc
 
 ## Features
 
+- **Home dashboard**: a customizable grid of widgets (up next, week streak, calories and macros today, weekly volume, workouts per week, training calendar heatmap, body-weight trend, weekly calories and macro split, muscle focus, personal records, top-lift 1RM progress, daily burn, recent workouts, lifetime stats, training time). Tap the tune icon to move, resize (full or half width), remove or add widgets.
+- **Charts everywhere**: animated, touch-scrubbable charts on history (weekly frequency, training calendar), workout detail (volume by exercise, muscles worked), exercise detail (1RM / heaviest / volume / reps progress, volume per session, rep ranges), food (calorie ring, 7-day intake vs goal, macro split), coach (14-day intake, weight trend, expenditure history) and profile.
 - **Workouts**: empty workouts or routines, sets with weight/reps/type, previous-session values, rest timer, history, personal records and progress charts.
 - **Adaptive training program**: answer four questions (goal, experience, days per week, equipment) and get a full-body, upper/lower or push/pull/legs plan. After each program workout the next session's targets are set from what you lifted: reps climb through the rep range, the weight goes up once every set reaches the top, three stalled sessions reset the weight by about 10 %, and sets are added or removed depending on whether you hit your targets. Four-week blocks build effort (3 → 1 reps in reserve) and end in a deload week. Exercises can be swapped or edited at any time.
 - **Adaptive calorie coach**: estimates your real energy expenditure from logged intake and the smoothed body-weight trend (shrunk toward the Mifflin-St Jeor estimate until there are about three weeks of data), then sets calorie and macro targets for your goal, weekly rate, protein level and diet style at a weekly check-in.
@@ -53,6 +55,6 @@ Pushing a version tag builds a signed APK and publishes it as a GitHub release (
 git tag v1.1.0 && git push origin v1.1.0
 ```
 
-The tag sets `versionName` (`1.1.0`) and `versionCode` (`10100`). On start, the app checks the latest release. If it's newer, the app downloads the APK in the background (on mobile data it asks first) and offers to install it. Profile → About has a manual "Check for updates".
+The tag sets `versionName` (`1.1.0`) and `versionCode` (`10100`). On start, the app checks the latest release. If it's newer, the app downloads the APK in the background (on mobile data it asks first) and offers to install it. Profile (the avatar on Home) → About has a manual "Check for updates".
 
 CI signs with the keystore in the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` repository secrets. It must be the same key that signed the installed app (currently the local debug key), or Android refuses the update.

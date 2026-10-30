@@ -17,23 +17,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,9 +59,21 @@ import com.tooheavy.app.data.shiftDate
 import com.tooheavy.app.data.today
 import com.tooheavy.app.data.weeklyChangeKg
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.AreaChart
+import com.tooheavy.app.ui.common.BarChart
+import com.tooheavy.app.ui.common.ChartCard
+import com.tooheavy.app.ui.common.ChartPoint
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.GradientButton
+import com.tooheavy.app.ui.common.IconBubble
+import com.tooheavy.app.ui.common.Meter
 import com.tooheavy.app.ui.common.TrendChart
-import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.common.shortDateLabel
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.Ember
 import com.tooheavy.app.ui.theme.Success
 import java.util.Calendar
 import java.util.Locale
@@ -116,16 +125,15 @@ fun CoachScreen(nav: NavController) {
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text("Coach", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
     ) { pad ->
@@ -158,6 +166,8 @@ fun CoachScreen(nav: NavController) {
             }
 
             ExpenditureCard(proposal.expenditure)
+
+            IntakeCard(NutritionRepo.goals.kcal)
 
             SectionCard("Weight trend") {
                 val last = trend.lastOrNull()
@@ -221,7 +231,22 @@ fun CoachScreen(nav: NavController) {
                 }
             }
 
-            val history = NutritionRepo.checkIns.toList().asReversed()
+            val checkIns = NutritionRepo.checkIns.toList()
+            if (checkIns.size >= 2) {
+                ChartCard(
+                    "Expenditure history",
+                    caption = "Estimated daily burn at each check-in",
+                    icon = Icons.Filled.Speed,
+                    tint = Ember,
+                ) {
+                    AreaChart(
+                        checkIns.mapIndexed { i, c -> ChartPoint(i.toFloat(), c.expenditure.toDouble(), shortDateLabel(c.date)) },
+                        color = ChartColors.series[1],
+                        valueFormat = { intText(it.toInt()) },
+                    )
+                }
+            }
+            val history = checkIns.asReversed()
             if (history.isNotEmpty()) {
                 SectionCard("Check-ins") {
                     Column {
@@ -276,16 +301,15 @@ private fun changeColor(change: Double, goal: String): Color = when {
 
 @Composable
 private fun HighlightCard(title: String, body: String, action: String, onAction: () -> Unit) {
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(body, style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = onAction, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp)) {
-                Text(action, fontWeight = FontWeight.SemiBold)
+            GradientButton(onClick = onAction, modifier = Modifier.fillMaxWidth()) {
+                Text(action)
             }
         }
     }
@@ -316,14 +340,7 @@ private fun ExpenditureCard(e: Expenditure) {
                 "Your data says ${intText(data)} kcal, the profile formula ${intText(e.formulaKcal)} kcal.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            LinearProgressIndicator(
-                progress = { e.confidence.toFloat() },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = Accent,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-            )
+            Meter(e.confidence.toFloat(), Ember)
             Text(
                 "${(e.confidence * 100).roundToInt()} % data-driven, from ${e.loggedDays} logged days and ${e.weighIns} weigh-ins " +
                     "over the last ${e.spanDays} days. More consistent logging moves it toward 100 %.",
@@ -535,16 +552,15 @@ internal fun CoachSummaryCard(onOpen: () -> Unit) {
     val weighedToday = NutritionRepo.weights.any { it.date == day }
     var weighIn by remember { mutableStateOf(false) }
 
-    Card(
+    GlassCard(
         onClick = onOpen,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (due) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
         ),
     ) {
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Insights, contentDescription = null, tint = Accent)
+            IconBubble(Icons.Filled.Insights, AccentBright, size = 36.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 val (title, subtitle) = when {
@@ -568,4 +584,28 @@ internal fun CoachSummaryCard(onOpen: () -> Unit) {
         }
     }
     if (weighIn) WeighInDialog { weighIn = false }
+}
+
+@Composable
+private fun IntakeCard(goal: Int) {
+    val day = today()
+    val days = (13 downTo 0).map { shiftDate(day, -it) }
+    val kcals = days.map { NutritionRepo.totals(it).kcal }
+    val logged = kcals.filter { it > 0 }
+    ChartCard(
+        "Intake · last 14 days",
+        value = if (logged.isEmpty()) null else intText(logged.average().roundToInt()),
+        unit = if (logged.isEmpty()) null else "kcal / day avg",
+        caption = "Logged calories against your ${intText(goal)} kcal target",
+        icon = Icons.Filled.LocalFireDepartment,
+        tint = Ember,
+    ) {
+        BarChart(
+            kcals,
+            days.map { it.takeLast(2).trimStart('0') },
+            height = 150.dp,
+            goal = goal.toDouble(),
+            tooltipLabels = days.map { friendlyDate(it) },
+        )
+    }
 }

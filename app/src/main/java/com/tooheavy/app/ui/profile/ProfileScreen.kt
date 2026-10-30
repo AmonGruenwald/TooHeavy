@@ -15,19 +15,28 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.AccessibilityNew
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,72 +48,41 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.BuildConfig
 import com.tooheavy.app.data.Repo
-import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.Updater
-import com.tooheavy.app.data.Workout
 import com.tooheavy.app.data.completedSetCount
 import com.tooheavy.app.data.durationMs
-import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatDuration
-import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
+import com.tooheavy.app.data.muscleSets
+import com.tooheavy.app.data.personalRecords
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.data.volume
+import com.tooheavy.app.data.weekStreak
+import com.tooheavy.app.data.weeklyBuckets
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.BarChart
+import com.tooheavy.app.ui.common.BrandMark
+import com.tooheavy.app.ui.common.CardLabel
+import com.tooheavy.app.ui.common.ChartCard
+import com.tooheavy.app.ui.common.EmptyChartNote
 import com.tooheavy.app.ui.common.ExerciseThumbnail
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.RankedBars
+import com.tooheavy.app.ui.common.StatTile
+import com.tooheavy.app.ui.common.compact
 import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.BrandBrush
+import com.tooheavy.app.ui.theme.ChartColors
+import com.tooheavy.app.ui.theme.Ember
+import com.tooheavy.app.ui.theme.NumberFont
+import com.tooheavy.app.ui.theme.Success
+import com.tooheavy.app.ui.theme.TextMuted
+import com.tooheavy.app.ui.theme.Warmup
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-
-/** Local midnight of the Monday of the week containing [ms]. */
-private fun profWeekStart(ms: Long): Long {
-    val c = Calendar.getInstance()
-    c.firstDayOfWeek = Calendar.MONDAY
-    c.timeInMillis = ms
-    c.set(Calendar.HOUR_OF_DAY, 0)
-    c.set(Calendar.MINUTE, 0)
-    c.set(Calendar.SECOND, 0)
-    c.set(Calendar.MILLISECOND, 0)
-    // DAY_OF_WEEK: SUNDAY=1 .. SATURDAY=7 -> days since Monday
-    val diff = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
-    c.add(Calendar.DAY_OF_YEAR, -diff)
-    return c.timeInMillis
-}
-
-private fun profAddWeeks(ms: Long, n: Int): Long {
-    val c = Calendar.getInstance()
-    c.firstDayOfWeek = Calendar.MONDAY
-    c.timeInMillis = ms
-    c.add(Calendar.WEEK_OF_YEAR, n)
-    return c.timeInMillis
-}
-
-/** Consecutive weeks (Mon-Sun) with at least one workout, ending this week or last week. */
-private fun profStreak(workouts: List<Workout>, thisWeek: Long): Int {
-    fun has(n: Int): Boolean {
-        val lo = profAddWeeks(thisWeek, -n)
-        val hi = profAddWeeks(thisWeek, -n + 1)
-        return workouts.any { it.startTime >= lo && it.startTime < hi }
-    }
-    var n = if (has(0)) 0 else 1
-    var streak = 0
-    while (n < 2000 && has(n)) {
-        streak++
-        n++
-    }
-    return streak
-}
-
-private class ProfPR(
-    val id: String,
-    val name: String,
-    val sets: Int,
-    val bestWeight: Double?,
-    val best1RM: Double?,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,53 +90,10 @@ fun ProfileScreen(nav: NavController) {
     val context = LocalContext.current
     val unit = Repo.settings.unit
     val workouts = Repo.workouts.toList()
-    val now = System.currentTimeMillis()
-    val labelFmt = remember { SimpleDateFormat("M/d", Locale.getDefault()) }
-
-    // ---- week math ----
-    val thisWeek = profWeekStart(now)
-    val bounds = (-7..1).map { profAddWeeks(thisWeek, it) } // 9 boundaries -> 8 weeks
-    val weekWorkouts = (0 until 8).map { i -> workouts.filter { it.startTime >= bounds[i] && it.startTime < bounds[i + 1] } }
-    val weekCounts = weekWorkouts.map { it.size.toDouble() }
-    val weekVolumes = weekWorkouts.map { ws -> ws.sumOf { it.volume() } }
-    val weekLabels = (0 until 8).map { labelFmt.format(Date(bounds[it])) }
-    val thisWeekCount = weekWorkouts.last().size
-    val streak = profStreak(workouts, thisWeek)
-
-    // ---- totals ----
-    val totalVolume = workouts.sumOf { it.volume() }
-    val totalSets = workouts.sumOf { it.completedSetCount() }
-    val totalTime = workouts.sumOf { it.durationMs() }
-
-    // ---- muscle distribution (last 30 days) ----
-    val cutoff = now - 30L * 24L * 3600L * 1000L
-    val muscleSets = HashMap<String, Int>()
-    workouts.filter { it.startTime >= cutoff }.forEach { w ->
-        w.exercises.forEach { we ->
-            val n = we.sets.count { it.completed }
-            Repo.exercise(we.exerciseId)?.primaryMuscles?.forEach { m ->
-                muscleSets[m] = (muscleSets[m] ?: 0) + n
-            }
-        }
-    }
-    val topMuscles = muscleSets.toList().sortedByDescending { it.second }.take(8)
-    val maxMuscle = (topMuscles.firstOrNull()?.second ?: 1).coerceAtLeast(1)
-
-    // ---- personal records for the 10 most-trained exercises ----
-    val prs = workouts.flatMap { it.exercises }
-        .groupBy { it.exerciseId }
-        .map { (id, entries) ->
-            val sets = entries.flatMap { it.sets }.filter { it.completed && it.type != SetType.WARMUP }
-            ProfPR(
-                id = id,
-                name = Repo.exercise(id)?.name ?: "Unknown exercise",
-                sets = sets.size,
-                bestWeight = sets.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull(),
-                best1RM = sets.mapNotNull { it.estimated1RM() }.maxOrNull(),
-            )
-        }
-        .sortedByDescending { it.sets }
-        .take(10)
+    val weeks = weeklyBuckets(workouts, 8)
+    val streak = weekStreak(workouts)
+    val topMuscles = muscleSets(workouts, System.currentTimeMillis() - 30L * 86_400_000L, Repo::exercise).take(8)
+    val prs = personalRecords(workouts).take(10)
 
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = Accent,
@@ -166,103 +101,112 @@ fun ProfileScreen(nav: NavController) {
     )
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TopAppBar(title = { Text("Profile", fontWeight = FontWeight.Bold) }) },
+        containerColor = Color.Transparent,
+        topBar = {
+            AppTopBar(
+                title = { Text("Profile") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Stats grid
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ProfStatCard("Workouts", workouts.size.toString(), Modifier.weight(1f))
-                ProfStatCard("Volume ($unit)", formatVolume(totalVolume), Modifier.weight(1f))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ProfStatCard("Sets", totalSets.toString(), Modifier.weight(1f))
-                ProfStatCard("Total time", formatDuration(totalTime), Modifier.weight(1f))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ProfStatCard("This week", thisWeekCount.toString(), Modifier.weight(1f))
-                ProfStatCard(
-                    if (streak == 1) "Week streak" else "Weeks streak",
-                    streak.toString(),
-                    Modifier.weight(1f),
-                )
-            }
-
-            ProfSection("Workouts per week") {
-                BarChart(weekCounts, weekLabels)
-            }
-
-            ProfSection("Volume per week ($unit)") {
-                BarChart(weekVolumes, weekLabels)
-            }
-
-            ProfSection("Muscle distribution (last 30 days)") {
-                if (topMuscles.isEmpty()) {
-                    Text("No data in the last 30 days.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    topMuscles.forEach { (muscle, n) ->
-                        Column(Modifier.padding(vertical = 6.dp)) {
-                            Row(Modifier.fillMaxWidth()) {
-                                Text(muscle.titleCase(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "$n sets",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { n.toFloat() / maxMuscle.toFloat() },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            )
-                        }
+            GlassCard(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BrandMark(size = 60.dp)
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Your training", style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            workouts.lastOrNull()?.let { "Lifting since ${SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(it.startTime))}" }
+                                ?: "Your first workout is waiting",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("$streak", style = MaterialTheme.typography.displaySmall.copy(brush = BrandBrush))
+                        Text("week streak", style = MaterialTheme.typography.labelSmall, color = TextMuted)
                     }
                 }
             }
 
-            ProfSection("Personal records") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatTile("Workouts", workouts.size.toString(), Modifier.weight(1f), icon = Icons.Filled.FitnessCenter, tint = AccentBright)
+                StatTile("Volume", compact(workouts.sumOf { it.volume() }), Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart, tint = Ember)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatTile("Sets", compact(workouts.sumOf { it.completedSetCount() }.toDouble()), Modifier.weight(1f), icon = Icons.Filled.Repeat, tint = Success)
+                StatTile("Total time", formatDuration(workouts.sumOf { it.durationMs() }), Modifier.weight(1f), icon = Icons.Filled.Timer, tint = ChartColors.Protein)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatTile("This week", weeks.last().workouts.size.toString(), Modifier.weight(1f), icon = Icons.Filled.Today, tint = AccentBright)
+                StatTile(if (streak == 1) "Week streak" else "Weeks streak", streak.toString(), Modifier.weight(1f), icon = Icons.Filled.LocalFireDepartment, tint = Ember)
+            }
+
+            ChartCard("Workouts per week", icon = Icons.Filled.Insights, tint = AccentBright) {
+                BarChart(weeks.map { it.workouts.size.toDouble() }, weeks.map { it.label }, height = 140.dp, tooltipLabels = weeks.map { "Week of ${it.label}" })
+            }
+
+            ChartCard("Volume per week", unit = null, caption = "Total weight × reps in $unit", icon = Icons.Filled.BarChart, tint = Ember) {
+                BarChart(weeks.map { b -> b.workouts.sumOf { it.volume() } }, weeks.map { it.label }, height = 150.dp, tooltipLabels = weeks.map { "Week of ${it.label}" })
+            }
+
+            ChartCard("Muscle focus · last 30 days", icon = Icons.Filled.AccessibilityNew, tint = ChartColors.series[4]) {
+                if (topMuscles.isEmpty()) {
+                    EmptyChartNote("No data in the last 30 days.", height = 60.dp)
+                } else {
+                    RankedBars(topMuscles.map { it.first.titleCase() to it.second.toDouble() }, valueFormat = { "${it.toInt()} sets" })
+                }
+            }
+
+            ProfSection("Personal records", Icons.Filled.EmojiEvents, Warmup) {
                 if (prs.isEmpty()) {
                     Text("Complete a workout to see your records.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     prs.forEach { pr ->
-                        val parts = mutableListOf<String>()
-                        parts.add(if (pr.bestWeight != null) "Best ${formatWeight(pr.bestWeight)} $unit" else "Best —")
-                        if (pr.best1RM != null) parts.add("Est. 1RM ${formatWeight(Math.round(pr.best1RM * 10) / 10.0)} $unit")
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { nav.navigate(Routes.exercise(pr.id)) }
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { nav.navigate(Routes.exercise(pr.exerciseId)) }
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            ExerciseThumbnail(Repo.exercise(pr.id), 40.dp)
+                            ExerciseThumbnail(Repo.exercise(pr.exerciseId), 40.dp)
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    pr.name,
+                                    Repo.exercise(pr.exerciseId)?.name ?: "Unknown exercise",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
-                                    parts.joinToString("  ·  "),
+                                    if (pr.bestWeight != null) "Best ${formatWeight(pr.bestWeight)} $unit · ${pr.sets} sets" else "${pr.sets} sets",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                            }
+                            if (pr.best1RM != null) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        formatWeight(Math.round(pr.best1RM * 10) / 10.0),
+                                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFont, fontWeight = FontWeight.Bold),
+                                    )
+                                    Text("$unit e1RM", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                }
                             }
                         }
                     }
@@ -298,6 +242,11 @@ fun ProfileScreen(nav: NavController) {
                         )
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+                Text("Home dashboard", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { Repo.updateDashboard(null) }, modifier = Modifier.padding(start = 0.dp)) {
+                    Text("Reset widgets to the default layout")
+                }
             }
 
             ProfSection("About") {
@@ -322,41 +271,20 @@ fun ProfileScreen(nav: NavController) {
                     TextButton(onClick = { Updater.check(context, manual = true) }) { Text("Check for updates") }
                 }
             }
-
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun ProfStatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
+private fun ProfSection(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(
-                value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun ProfSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            CardLabel(title, icon = icon, tint = tint)
             Spacer(Modifier.height(12.dp))
             content()
         }

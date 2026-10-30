@@ -77,10 +77,18 @@ data class Routine(
     val notes: String = "",
 )
 
+/** One widget on the Home dashboard; [id] is a DashboardWidgets id, [wide] = full width (else half). */
+data class DashboardWidget(
+    val id: String = "",
+    val wide: Boolean = true,
+)
+
 data class Settings(
     /** "kg" or "lb" */
     val unit: String = "kg",
     val defaultRestSeconds: Int = 90,
+    /** Home dashboard widgets in display order; null until the user customizes it (default layout). */
+    val dashboard: List<DashboardWidget>? = null,
 )
 
 /** Everything persisted to filesDir/data.json. */

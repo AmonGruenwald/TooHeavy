@@ -20,8 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -33,8 +31,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
@@ -55,10 +52,13 @@ import com.tooheavy.app.data.NutritionGoals
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.friendlyDate
+import com.tooheavy.app.data.shiftDate
 import com.tooheavy.app.data.suggestedGoals
 import com.tooheavy.app.data.tdee
 import com.tooheavy.app.data.today
-import com.tooheavy.app.ui.common.LineChart
+import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.TrendChart
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Success
 import com.tooheavy.app.ui.theme.Warmup
@@ -109,16 +109,15 @@ fun NutritionGoalsScreen(nav: NavController) {
     LaunchedEffect(savedProfile.weightKg) { weightText = formatWeight(savedProfile.weightKg) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text("Goals & Body", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
     ) { pad ->
@@ -320,7 +319,7 @@ fun NutritionGoalsScreen(nav: NavController) {
                 }
 
                 val weights = NutritionRepo.weights.toList()
-                LineChart(values = weights.takeLast(90).map { it.kg })
+                TrendChart(NutritionRepo.trend().filter { it.date >= shiftDate(today(), -90) })
 
                 if (weights.isNotEmpty()) {
                     val recent = weights.takeLast(10).reversed()
@@ -367,13 +366,11 @@ fun NutritionGoalsScreen(nav: NavController) {
 
 @Composable
 internal fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleLarge)
             content()
         }
     }

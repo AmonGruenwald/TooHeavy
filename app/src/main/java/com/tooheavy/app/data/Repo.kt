@@ -232,6 +232,9 @@ object Repo {
         save()
     }
 
+    /** Saves the Home dashboard layout; null restores the default. */
+    fun updateDashboard(widgets: List<DashboardWidget>?) = updateSettings(settings.copy(dashboard = widgets))
+
     // ---------- rest timer ----------
 
     fun startRest(seconds: Int) {
