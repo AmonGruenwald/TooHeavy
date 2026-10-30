@@ -53,6 +53,7 @@ object ChartColors {
     val Protein = Color(0xFF5A7FD0)
     val Carbs = Color(0xFFB88A3A)
     val Fat = Color(0xFF2F9E7E)
+    val Water = Color(0xFF4F93B8)
     val Grid = Color(0xFF23211D)
     val Axis = TextMuted
     /** De-emphasized bars: everything except the one mark the chart is about. */

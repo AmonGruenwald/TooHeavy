@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -62,7 +63,13 @@ import com.tooheavy.app.ui.common.ScreenHeader
 fun ExerciseListScreen(nav: NavController) {
     Scaffold(
         containerColor = Color.Transparent,
-        topBar = { ScreenHeader("Library", overline = "${Repo.exercises.size} exercises") },
+        topBar = {
+            ScreenHeader("Library", overline = "${Repo.exercises.size} exercises") {
+                IconButton(onClick = { nav.navigate(Routes.exerciseEdit("new")) }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Create exercise")
+                }
+            }
+        },
     ) { pad ->
         ExerciseBrowser(
             selectedIds = null,
@@ -87,6 +94,11 @@ fun ExercisePickerScreen(nav: NavController, target: String) {
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { nav.navigate(Routes.exerciseEdit("new")) }) {
+                        Icon(Icons.Filled.Add, contentDescription = "Create exercise")
                     }
                 },
             )
@@ -138,17 +150,21 @@ private fun ExerciseBrowser(
     var query by rememberSaveable { mutableStateOf("") }
     var muscle by rememberSaveable { mutableStateOf<String?>(null) }
     var equipment by rememberSaveable { mutableStateOf<String?>(null) }
+    var customOnly by rememberSaveable { mutableStateOf(false) }
     val muscles = remember { Repo.muscles() }
     val equipments = remember { Repo.equipments() }
+    val hasCustom = Repo.customExercises.isNotEmpty()
 
     val m = muscle
     val e = equipment
-    val filtered = remember(query, m, e) {
+    val library = Repo.exercises
+    val filtered = remember(query, m, e, customOnly, library) {
         val q = query.trim().lowercase()
-        Repo.exercises.filter { ex ->
+        library.filter { ex ->
             (q.isEmpty() || ex.name.lowercase().contains(q)) &&
                 (m == null || ex.primaryMuscles.contains(m)) &&
-                (e == null || ex.equipment == e)
+                (e == null || ex.equipment == e) &&
+                (!customOnly || ex.isCustom)
         }
     }
 
@@ -174,6 +190,13 @@ private fun ExerciseBrowser(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (hasCustom) {
+                FilterChip(
+                    selected = customOnly,
+                    onClick = { customOnly = !customOnly },
+                    label = { Text("My exercises") },
+                )
+            }
             FilterChip(
                 selected = m == null,
                 onClick = { muscle = null },
@@ -258,7 +281,7 @@ private fun ExerciseListRow(
             val muscleLabel = ex.primaryMuscles.firstOrNull()?.titleCase() ?: "Other"
             val equipLabel = ex.equipment?.titleCase() ?: "No equipment"
             Text(
-                "$muscleLabel · $equipLabel",
+                (if (ex.isCustom) "Custom · " else "") + "$muscleLabel · $equipLabel",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

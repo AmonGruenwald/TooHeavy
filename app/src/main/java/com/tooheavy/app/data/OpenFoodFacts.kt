@@ -67,6 +67,7 @@ object OpenFoodFacts {
             fat = n.num("fat_100g") ?: 0.0,
             fiber = n.num("fiber_100g"),
             sugar = n.num("sugars_100g"),
+            salt = n.num("salt_100g") ?: n.num("sodium_100g")?.let { it * 2.5 },
             portions = portions.ifEmpty { null },
         )
         return Result.Found(food, complete = kcal != null && name.isNotEmpty())

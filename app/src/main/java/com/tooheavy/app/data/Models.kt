@@ -19,7 +19,15 @@ data class Exercise(
     val category: String? = null,
     /** Asset paths, e.g. "exercises/Barbell_Squat/0.webp". 0 = start position, 1 = end position. May be empty. */
     val images: List<String> = emptyList(),
-)
+) {
+    /** Created by the user (stored in AppData.customExercises) rather than bundled. */
+    val isCustom: Boolean get() = id.startsWith(CUSTOM_PREFIX)
+
+    companion object {
+        const val CUSTOM_PREFIX = "custom-"
+        fun newCustomId() = CUSTOM_PREFIX + newId()
+    }
+}
 
 object SetType {
     const val NORMAL = "normal"
@@ -98,6 +106,8 @@ data class AppData(
     val activeWorkout: Workout? = null,
     val settings: Settings = Settings(),
     val program: Program? = null,
+    /** Exercises the user created; ids start with Exercise.CUSTOM_PREFIX. */
+    val customExercises: List<Exercise> = emptyList(),
 )
 
 // ---------- helpers ----------

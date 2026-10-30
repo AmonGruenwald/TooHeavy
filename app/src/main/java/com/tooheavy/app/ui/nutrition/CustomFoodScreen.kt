@@ -1,5 +1,6 @@
 package com.tooheavy.app.ui.nutrition
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.journeyapps.barcodescanner.ScanContract
 import com.tooheavy.app.data.Food
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.Portion
@@ -92,7 +94,7 @@ fun CustomFoodScreen(
     nav: NavController,
     key: String,
     barcode: String? = null,
-    meal: String? = null,
+    mode: String? = null,
     prefillName: String? = null,
     prefillBrand: String? = null,
 ) {
@@ -114,7 +116,7 @@ fun CustomFoodScreen(
             nav = nav,
             existing = existing,
             barcode = barcode?.trim()?.takeIf { it.isNotEmpty() },
-            meal = meal?.takeIf { it.isNotBlank() },
+            mode = mode?.takeIf { it.isNotBlank() },
             prefillName = prefillName,
             prefillBrand = prefillBrand,
         )
@@ -127,7 +129,7 @@ private fun CustomFoodForm(
     nav: NavController,
     existing: Food?,
     barcode: String?,
-    meal: String?,
+    mode: String?,
     prefillName: String?,
     prefillBrand: String?,
 ) {
@@ -144,10 +146,17 @@ private fun CustomFoodForm(
     var fat by remember { mutableStateOf(existing?.fat?.let { customNumText(it) }.orEmpty()) }
     var fiber by remember { mutableStateOf(existing?.fiber?.let { customNumText(it) }.orEmpty()) }
     var sugar by remember { mutableStateOf(existing?.sugar?.let { customNumText(it) }.orEmpty()) }
+    var salt by remember { mutableStateOf(existing?.salt?.let { customNumText(it) }.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     val decimal = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        result.contents?.trim()?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }?.let {
+            barcodeText = it
+            error = null
+        }
+    }
     val barcodeClean = barcodeText.trim()
     // Another stored food that already uses this barcode (scanning it would be ambiguous).
     val duplicate =
@@ -184,10 +193,12 @@ private fun CustomFoodForm(
         }
         val fiberValue = customParse(fiber)
         val sugarValue = customParse(sugar)
+        val saltValue = customParse(salt)
         if ((fiber.isNotBlank() && (fiberValue == null || fiberValue < 0)) ||
-            (sugar.isNotBlank() && (sugarValue == null || sugarValue < 0))
+            (sugar.isNotBlank() && (sugarValue == null || sugarValue < 0)) ||
+            (salt.isNotBlank() && (saltValue == null || saltValue < 0))
         ) {
-            error = "Fiber and sugar must be numbers."
+            error = "Fiber, sugar and salt must be numbers."
             return
         }
         val servingValue = if (servingNeeded) (sg ?: 0.0) else 0.0
@@ -211,11 +222,12 @@ private fun CustomFoodForm(
                 fat = customRound(f * factor),
                 fiber = if (fiber.isBlank()) null else fiberValue?.let { customRound(it * factor) },
                 sugar = if (sugar.isBlank()) null else sugarValue?.let { customRound(it * factor) },
+                salt = if (salt.isBlank()) null else saltValue?.let { customRound(it * factor) },
                 portions = portions,
             )
         )
-        if (meal != null) {
-            nav.navigate(Routes.foodAmount(saved.key, meal)) {
+        if (mode != null) {
+            nav.navigate(Routes.foodAmount(saved.key, mode)) {
                 popUpTo(Routes.CUSTOM_FOOD_PATTERN) { inclusive = true }
             }
         } else {
@@ -296,6 +308,11 @@ private fun CustomFoodForm(
                 },
                 label = { Text("Barcode (optional)") },
                 singleLine = true,
+                trailingIcon = {
+                    IconButton(onClick = { scanLauncher.launch(foodScanOptions("Scan the barcode on the package")) }) {
+                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "Scan barcode with the camera")
+                    }
+                },
                 isError = duplicate != null,
                 supportingText = if (duplicate != null) {
                     { Text("Already used by \"${duplicate.name}\".") }
@@ -399,6 +416,14 @@ private fun CustomFoodForm(
                         value = sugar,
                         onValueChange = { sugar = it; error = null },
                         label = { Text("Sugar (g)") },
+                        singleLine = true,
+                        keyboardOptions = decimal,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = salt,
+                        onValueChange = { salt = it; error = null },
+                        label = { Text("Salt (g)") },
                         singleLine = true,
                         keyboardOptions = decimal,
                         modifier = Modifier.weight(1f),

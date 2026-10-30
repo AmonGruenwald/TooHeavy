@@ -12,6 +12,18 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.5.0", "2026-10-30",
+            listOf(
+                "The food diary is now one timeline instead of meal sections: everything you eat and drink in the " +
+                    "order you had it. Set the time when adding food, and copy yesterday in one tap.",
+                "Recipes: combine foods into a dish, set the servings and the cooked weight, and log it like any food.",
+                "Hydration: log water with one tap, set a daily water goal, and add the new Hydration widget to Home.",
+                "Salt joins fiber and sugar as an optional nutrient, from barcode scans and your own foods.",
+                "Scan a product's barcode with the camera while creating a food.",
+                "Create your own exercises in the Library, with muscles, equipment and instructions.",
+            ),
+        ),
+        ChangelogEntry(
             "1.4.0", "2026-10-30",
             listOf(
                 "A quieter, classier look: warm black, ivory and champagne gold instead of the bright gradients.",

@@ -39,11 +39,15 @@ data class Food(
     @SerializedName("f") val fat: Double = 0.0,
     @SerializedName("fb") val fiber: Double? = null,
     @SerializedName("s") val sugar: Double? = null,
+    /** Salt in g per 100 g (Open Food Facts and user-entered foods; the bundled USDA foods don't carry it). */
+    @SerializedName("sa") val salt: Double? = null,
     /** Household portions, e.g. "1 cup" = 240 g. May be null/empty; grams are always available. */
     @SerializedName("u") val portions: List<Portion>? = null,
     /** EAN/UPC barcode for scanned or user-entered packaged foods. */
     @SerializedName("bc") val barcode: String? = null,
     @SerializedName("b") val brand: String? = null,
+    /** Set for recipes (source "recipe"): the ingredients the per-100 g values were computed from. */
+    @SerializedName("rc") val recipe: Recipe? = null,
 ) {
     /** Stable key used in routes and FoodEntry.foodKey: "usda:<fdcId>" or "custom:<customId>" (custom and Open Food Facts foods). */
     val key: String get() = if (customId != null) "custom:$customId" else "usda:$fdcId"
@@ -51,34 +55,100 @@ data class Food(
     /** True for foods stored on the device (user-created or saved from Open Food Facts); these can be edited/deleted. */
     val isLocal: Boolean get() = customId != null
 
+    val isRecipe: Boolean get() = source == SOURCE_RECIPE
+
     fun macrosFor(grams: Double): Macros {
         val f = grams / 100.0
         return Macros(kcal * f, protein * f, carbs * f, fat * f)
+    }
+
+    /** Fiber, sugar and salt in [grams] of this food; null where the food doesn't say. */
+    fun extrasFor(grams: Double): Extras {
+        val f = grams / 100.0
+        return Extras(fiber?.times(f), sugar?.times(f), salt?.times(f))
     }
 
     companion object {
         const val SOURCE_CUSTOM = "custom"
         /** Saved from an Open Food Facts barcode lookup. */
         const val SOURCE_OFF = "off"
+        /** Built from other foods in the recipe editor. */
+        const val SOURCE_RECIPE = "recipe"
     }
+}
+
+/** Optional nutrients in grams; null = unknown. */
+data class Extras(val fiber: Double? = null, val sugar: Double? = null, val salt: Double? = null) {
+    /** Sums known values; a nutrient stays null only if it is unknown on both sides. */
+    operator fun plus(o: Extras) = Extras(addOpt(fiber, o.fiber), addOpt(sugar, o.sugar), addOpt(salt, o.salt))
+
+    private fun addOpt(a: Double?, b: Double?): Double? = if (a == null && b == null) null else (a ?: 0.0) + (b ?: 0.0)
+}
+
+/** One ingredient of a recipe: a snapshot of [grams] of a food, like a FoodEntry. */
+data class RecipeIngredient(
+    val foodKey: String? = null,
+    val name: String = "",
+    val grams: Double = 0.0,
+    /** Human-readable amount, e.g. "2 × 1 cup" or "150 g". */
+    val amountLabel: String = "",
+    val kcal: Double = 0.0,
+    val protein: Double = 0.0,
+    val carbs: Double = 0.0,
+    val fat: Double = 0.0,
+    val fiber: Double? = null,
+    val sugar: Double? = null,
+    val salt: Double? = null,
+) {
+    val macros: Macros get() = Macros(kcal, protein, carbs, fat)
+    val extras: Extras get() = Extras(fiber, sugar, salt)
+}
+
+data class Recipe(
+    val ingredients: List<RecipeIngredient> = emptyList(),
+    /** How many servings the whole recipe makes. */
+    val servings: Double = 1.0,
+    /** Weight of the finished dish when it differs from the raw ingredients (e.g. after cooking); null = their sum. */
+    val cookedGrams: Double? = null,
+) {
+    val rawGrams: Double get() = ingredients.sumOf { it.grams }
+    val totalGrams: Double get() = cookedGrams?.takeIf { it > 0 } ?: rawGrams
+}
+
+/** Recipe being edited; [key] is the stored recipe's Food.key, null for a new one. */
+data class RecipeDraft(val key: String? = null, val name: String = "", val recipe: Recipe = Recipe())
+
+fun Food.toIngredient(grams: Double, amountLabel: String): RecipeIngredient {
+    val m = macrosFor(grams)
+    val x = extrasFor(grams)
+    return RecipeIngredient(key, name, grams, amountLabel, m.kcal, m.protein, m.carbs, m.fat, x.fiber, x.sugar, x.salt)
+}
+
+/**
+ * The food a recipe is logged as: nutrition per 100 g of the finished dish, with "1 serving" and "Whole recipe"
+ * portions. [customId] keeps the key stable when an existing recipe is edited.
+ */
+fun recipeFood(name: String, recipe: Recipe, customId: String? = null): Food {
+    val total = recipe.totalGrams
+    val f = if (total > 0) 100.0 / total else 0.0
+    val m = recipe.ingredients.fold(Macros()) { acc, i -> acc + i.macros }
+    val x = recipe.ingredients.fold(Extras()) { acc, i -> acc + i.extras }
+    fun per100(v: Double) = Math.round(v * f * 100.0) / 100.0
+    val servings = recipe.servings.takeIf { it > 0 } ?: 1.0
+    val portions = buildList {
+        if (total > 0) add(Portion("1 serving", total / servings))
+        if (total > 0 && servings != 1.0) add(Portion("Whole recipe", total))
+    }
+    return Food(
+        customId = customId, name = name, source = Food.SOURCE_RECIPE,
+        kcal = per100(m.kcal), protein = per100(m.protein), carbs = per100(m.carbs), fat = per100(m.fat),
+        fiber = x.fiber?.let(::per100), sugar = x.sugar?.let(::per100), salt = x.salt?.let(::per100),
+        portions = portions.ifEmpty { null }, recipe = recipe,
+    )
 }
 
 data class Macros(val kcal: Double = 0.0, val protein: Double = 0.0, val carbs: Double = 0.0, val fat: Double = 0.0) {
     operator fun plus(o: Macros) = Macros(kcal + o.kcal, protein + o.protein, carbs + o.carbs, fat + o.fat)
-}
-
-object Meal {
-    const val BREAKFAST = "breakfast"
-    const val LUNCH = "lunch"
-    const val DINNER = "dinner"
-    const val SNACK = "snack"
-    val all = listOf(BREAKFAST, LUNCH, DINNER, SNACK)
-    fun label(meal: String) = when (meal) {
-        BREAKFAST -> "Breakfast"
-        LUNCH -> "Lunch"
-        DINNER -> "Dinner"
-        else -> "Snacks"
-    }
 }
 
 /** One logged food. Nutrition is a snapshot, so history survives deleting a custom food. */
@@ -86,7 +156,8 @@ data class FoodEntry(
     val id: String = newId(),
     /** Local date "yyyy-MM-dd". */
     val date: String = "",
-    val meal: String = Meal.BREAKFAST,
+    /** Meal section of entries logged before 1.5.0 ("breakfast", ...); unused since the diary became a timeline. */
+    val meal: String = "",
     /** Food.key, or null for a quick-add entry. */
     val foodKey: String? = null,
     val name: String = "",
@@ -98,16 +169,32 @@ data class FoodEntry(
     val protein: Double = 0.0,
     val carbs: Double = 0.0,
     val fat: Double = 0.0,
+    /** When it was eaten (epoch ms on [date]); orders the day's timeline. */
     val createdAt: Long = System.currentTimeMillis(),
+    val fiber: Double? = null,
+    val sugar: Double? = null,
+    val salt: Double? = null,
 ) {
     val macros: Macros get() = Macros(kcal, protein, carbs, fat)
+    val extras: Extras get() = Extras(fiber, sugar, salt)
 }
+
+/** Water drunk; one entry per tap of a glass or bottle button. */
+data class WaterEntry(
+    val id: String = newId(),
+    /** Local date "yyyy-MM-dd". */
+    val date: String = "",
+    val ml: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+)
 
 data class NutritionGoals(
     val kcal: Int = 2200,
     val protein: Int = 150,
     val carbs: Int = 230,
     val fat: Int = 70,
+    /** Daily water goal in ml. */
+    val waterMl: Int = 2500,
 )
 
 data class BodyProfile(
@@ -132,6 +219,7 @@ data class NutritionData(
     val weights: List<WeightEntry> = emptyList(),
     val coach: CoachSettings = CoachSettings(),
     val checkIns: List<CheckIn> = emptyList(),
+    val water: List<WaterEntry> = emptyList(),
 )
 
 // ---------- dates ----------
@@ -162,6 +250,25 @@ fun dayOfWeek(date: String): Int {
     c.time = dayFormat.parse(date) ?: return c.get(Calendar.DAY_OF_WEEK)
     return c.get(Calendar.DAY_OF_WEEK)
 }
+
+/** Epoch ms of [date] at the time of day of [timeOfDay] (default: now). */
+fun timeOn(date: String, timeOfDay: Long = System.currentTimeMillis()): Long {
+    val t = Calendar.getInstance().apply { timeInMillis = timeOfDay }
+    return timeOn(date, t.get(Calendar.HOUR_OF_DAY), t.get(Calendar.MINUTE), t.get(Calendar.SECOND))
+}
+
+/** Epoch ms of [date] at [hour]:[minute]. */
+fun timeOn(date: String, hour: Int, minute: Int, second: Int = 0): Long {
+    val c = Calendar.getInstance()
+    c.time = dayFormat.parse(date) ?: return System.currentTimeMillis()
+    c.set(Calendar.HOUR_OF_DAY, hour)
+    c.set(Calendar.MINUTE, minute)
+    c.set(Calendar.SECOND, second)
+    return c.timeInMillis
+}
+
+/** "07:45" */
+fun clockTime(epochMs: Long): String = SimpleDateFormat("HH:mm", Locale.US).format(epochMs)
 
 /** "Today", "Yesterday", "Tomorrow" or e.g. "Mon, Oct 27". */
 fun friendlyDate(date: String): String = when (date) {
@@ -220,6 +327,10 @@ object NutritionRepo {
         private set
     /** Weekly check-ins, oldest first, at most one per date. */
     val checkIns = mutableStateListOf<CheckIn>()
+    val water = mutableStateListOf<WaterEntry>()
+
+    /** Recipe being edited in RecipeScreen (survives trips to the ingredient search). */
+    var recipeDraft by mutableStateOf<RecipeDraft?>(null)
 
     /** Diary date currently shown ("yyyy-MM-dd"); food screens log into this date. */
     var selectedDate by mutableStateOf(today())
@@ -236,6 +347,7 @@ object NutritionRepo {
                 profile = d.profile ?: BodyProfile()
                 coach = d.coach ?: CoachSettings()
                 checkIns.addAll(d.checkIns.orEmpty().sortedBy { it.date })
+                water.addAll(d.water.orEmpty())
             }
         }
         val app = context.applicationContext
@@ -258,7 +370,7 @@ object NutritionRepo {
 
     private fun save() {
         val snapshot = gson.toJson(
-            NutritionData(entries.toList(), customFoods.toList(), goals, profile, weights.toList(), coach, checkIns.toList())
+            NutritionData(entries.toList(), customFoods.toList(), goals, profile, weights.toList(), coach, checkIns.toList(), water.toList())
         )
         io.execute {
             val tmp = File(file.parentFile, "nutrition.json.tmp")
@@ -314,7 +426,7 @@ object NutritionRepo {
 
     fun saveCustomFood(f: Food): Food {
         val food = f.copy(
-            source = if (f.source == Food.SOURCE_OFF) Food.SOURCE_OFF else Food.SOURCE_CUSTOM,
+            source = if (f.source == Food.SOURCE_OFF || f.source == Food.SOURCE_RECIPE) f.source else Food.SOURCE_CUSTOM,
             customId = f.customId ?: newId(),
             barcode = f.barcode?.trim()?.takeIf { it.isNotEmpty() },
         )
@@ -334,20 +446,31 @@ object NutritionRepo {
 
     // ---------- diary ----------
 
+    /** The day's entries in the order they were eaten. */
     fun entriesFor(date: String): List<FoodEntry> = entries.filter { it.date == date }.sortedBy { it.createdAt }
-
-    fun entriesFor(date: String, meal: String): List<FoodEntry> = entriesFor(date).filter { it.meal == meal }
 
     fun totals(date: String): Macros = entries.filter { it.date == date }.fold(Macros()) { acc, e -> acc + e.macros }
 
+    /** Fiber, sugar and salt of the day, counting only entries whose food lists them. */
+    fun extras(date: String): Extras = entries.filter { it.date == date }.fold(Extras()) { acc, e -> acc + e.extras }
+
     fun entry(id: String): FoodEntry? = entries.firstOrNull { it.id == id }
 
-    /** Builds an entry for [grams] of [food]; caller passes it to addEntry/updateEntry. */
-    fun makeEntry(food: Food, grams: Double, amountLabel: String, meal: String, date: String = selectedDate, id: String = newId()): FoodEntry {
+    /** Builds an entry for [grams] of [food] eaten at [time]; caller passes it to addEntry/updateEntry. */
+    fun makeEntry(
+        food: Food,
+        grams: Double,
+        amountLabel: String,
+        date: String = selectedDate,
+        time: Long = timeOn(date),
+        id: String = newId(),
+    ): FoodEntry {
         val m = food.macrosFor(grams)
+        val x = food.extrasFor(grams)
         return FoodEntry(
-            id = id, date = date, meal = meal, foodKey = food.key, name = food.name, grams = grams,
+            id = id, date = date, foodKey = food.key, name = food.name, grams = grams,
             amountLabel = amountLabel, kcal = m.kcal, protein = m.protein, carbs = m.carbs, fat = m.fat,
+            createdAt = time, fiber = x.fiber, sugar = x.sugar, salt = x.salt,
         )
     }
 
@@ -367,16 +490,64 @@ object NutritionRepo {
         save()
     }
 
-    /** Copies all entries of [meal] on [fromDate] into the same meal on [toDate]. */
-    fun copyMeal(fromDate: String, toDate: String, meal: String) {
-        entriesFor(fromDate, meal).forEach { entries.add(it.copy(id = newId(), date = toDate, createdAt = System.currentTimeMillis())) }
+    /** Copies every entry of [fromDate] to [toDate], keeping the times of day. */
+    fun copyDay(fromDate: String, toDate: String) {
+        entriesFor(fromDate).forEach { entries.add(it.copy(id = newId(), date = toDate, createdAt = timeOn(toDate, it.createdAt))) }
         save()
+    }
+
+    // ---------- water ----------
+
+    fun waterFor(date: String): List<WaterEntry> = water.filter { it.date == date }.sortedBy { it.createdAt }
+
+    fun waterTotal(date: String): Int = water.filter { it.date == date }.sumOf { it.ml }
+
+    fun addWater(ml: Int, date: String = selectedDate) {
+        if (ml <= 0) return
+        water.add(WaterEntry(date = date, ml = ml, createdAt = timeOn(date)))
+        save()
+    }
+
+    fun deleteWater(id: String) {
+        water.removeAll { it.id == id }
+        save()
+    }
+
+    // ---------- recipes ----------
+
+    /** Opens a recipe for editing: "new" starts a blank one (keeping an unsaved new draft), otherwise a stored recipe. */
+    fun beginRecipeEdit(key: String) {
+        val d = recipeDraft
+        if (key == "new") {
+            if (d == null || d.key != null) recipeDraft = RecipeDraft()
+        } else if (d?.key != key) {
+            val f = food(key)?.takeIf { it.isRecipe }
+            recipeDraft = RecipeDraft(key = f?.key, name = f?.name.orEmpty(), recipe = f?.recipe ?: Recipe())
+        }
+    }
+
+    fun addIngredient(i: RecipeIngredient) {
+        val d = recipeDraft ?: return
+        recipeDraft = d.copy(recipe = d.recipe.copy(ingredients = d.recipe.ingredients + i))
+    }
+
+    /** Saves the draft as a food (keeping the key of an edited recipe) and clears it. */
+    fun saveRecipe(d: RecipeDraft): Food {
+        val customId = d.key?.let { food(it) }?.customId
+        recipeDraft = null
+        return saveCustomFood(recipeFood(d.name.trim(), d.recipe, customId))
     }
 
     // ---------- goals / profile / weight ----------
 
+    /** Sets the calorie and macro goals; the water goal is kept (see updateWaterGoal). */
     fun updateGoals(g: NutritionGoals) {
-        goals = g
+        goals = g.copy(waterMl = goals.waterMl)
+        save()
+    }
+
+    fun updateWaterGoal(ml: Int) {
+        goals = goals.copy(waterMl = ml)
         save()
     }
 
@@ -419,7 +590,7 @@ object NutritionRepo {
         checkIns.removeAll { it.date == p.date }
         checkIns.add(p.toCheckIn())
         checkIns.sortBy { it.date }
-        goals = p.goals
+        goals = p.goals.copy(waterMl = goals.waterMl)
         save()
     }
 

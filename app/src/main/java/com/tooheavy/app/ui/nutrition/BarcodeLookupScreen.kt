@@ -52,7 +52,7 @@ private fun barcodeContinue(nav: NavController, route: String) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BarcodeLookupScreen(nav: NavController, code: String, meal: String) {
+fun BarcodeLookupScreen(nav: NavController, code: String, mode: String) {
     val context = LocalContext.current
     val barcode = code.trim()
     var attempt by remember { mutableIntStateOf(0) }
@@ -62,7 +62,7 @@ fun BarcodeLookupScreen(nav: NavController, code: String, meal: String) {
         error = null
         val local = NutritionRepo.foodByBarcode(barcode)
         if (local != null) {
-            barcodeContinue(nav, Routes.foodAmount(local.key, meal))
+            barcodeContinue(nav, Routes.foodAmount(local.key, mode))
             return@LaunchedEffect
         }
         when (val result = OpenFoodFacts.lookup(barcode)) {
@@ -70,14 +70,14 @@ fun BarcodeLookupScreen(nav: NavController, code: String, meal: String) {
                 if (result.complete) {
                     val saved = NutritionRepo.saveCustomFood(result.food)
                     Toast.makeText(context, "Saved ${saved.name} to your foods", Toast.LENGTH_SHORT).show()
-                    barcodeContinue(nav, Routes.foodAmount(saved.key, meal))
+                    barcodeContinue(nav, Routes.foodAmount(saved.key, mode))
                 } else {
                     barcodeContinue(
                         nav,
                         Routes.customFood(
                             "new",
                             barcode = barcode,
-                            meal = meal,
+                            mode = mode,
                             name = result.food.name.takeIf { it.isNotBlank() },
                             brand = result.food.brand?.takeIf { it.isNotBlank() },
                         ),
@@ -85,7 +85,7 @@ fun BarcodeLookupScreen(nav: NavController, code: String, meal: String) {
                 }
             }
             is OpenFoodFacts.Result.NotFound ->
-                barcodeContinue(nav, Routes.customFood("new", barcode = barcode, meal = meal))
+                barcodeContinue(nav, Routes.customFood("new", barcode = barcode, mode = mode))
             is OpenFoodFacts.Result.Error -> error = result.message
         }
     }
@@ -145,7 +145,7 @@ fun BarcodeLookupScreen(nav: NavController, code: String, meal: String) {
                             ) { Text("Retry") }
                             OutlinedButton(
                                 onClick = {
-                                    barcodeContinue(nav, Routes.customFood("new", barcode = barcode, meal = meal))
+                                    barcodeContinue(nav, Routes.customFood("new", barcode = barcode, mode = mode))
                                 },
                                 modifier = Modifier.weight(1f).height(48.dp),
                                 shape = RoundedCornerShape(12.dp),

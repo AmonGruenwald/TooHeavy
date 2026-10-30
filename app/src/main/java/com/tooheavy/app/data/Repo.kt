@@ -19,10 +19,14 @@ object Repo {
     private val io = Executors.newSingleThreadExecutor()
     private lateinit var file: File
 
-    /** Full exercise library, sorted by name. */
-    var exercises: List<Exercise> = emptyList()
+    /** Full exercise library (bundled + custom), sorted by name. */
+    var exercises by mutableStateOf<List<Exercise>>(emptyList())
         private set
     private var byId: Map<String, Exercise> = emptyMap()
+    private var bundled: List<Exercise> = emptyList()
+    /** Exercises the user created, in creation order. */
+    var customExercises by mutableStateOf<List<Exercise>>(emptyList())
+        private set
 
     /** Completed workouts, newest first. */
     val workouts = mutableStateListOf<Workout>()
@@ -50,8 +54,7 @@ object Repo {
     fun init(context: Context) {
         if (::file.isInitialized) return
         val json = context.assets.open("exercises.json").bufferedReader().use { it.readText() }
-        exercises = gson.fromJson(json, object : TypeToken<List<Exercise>>() {}.type)
-        byId = exercises.associateBy { it.id }
+        bundled = gson.fromJson(json, object : TypeToken<List<Exercise>>() {}.type)
         file = File(context.filesDir, "data.json")
         if (file.exists()) {
             runCatching { gson.fromJson(file.readText(), AppData::class.java) }.getOrNull()?.let { d ->
@@ -60,12 +63,19 @@ object Repo {
                 activeWorkout = d.activeWorkout
                 settings = d.settings ?: Settings()
                 program = d.program
+                customExercises = d.customExercises.orEmpty()
             }
         }
+        rebuildLibrary()
+    }
+
+    private fun rebuildLibrary() {
+        exercises = (bundled + customExercises).sortedBy { it.name.lowercase() }
+        byId = exercises.associateBy { it.id }
     }
 
     private fun save() {
-        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings, program))
+        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings, program, customExercises))
         io.execute {
             val tmp = File(file.parentFile, "data.json.tmp")
             tmp.writeText(snapshot)
@@ -82,6 +92,38 @@ object Repo {
     fun muscles(): List<String> = exercises.flatMap { it.primaryMuscles }.distinct().sorted()
 
     fun equipments(): List<String> = exercises.mapNotNull { it.equipment }.distinct().sorted()
+
+    /** Adds or replaces a custom exercise (a new one needs an id from Exercise.newCustomId()). */
+    fun saveCustomExercise(e: Exercise) {
+        val list = customExercises.toMutableList()
+        val i = list.indexOfFirst { it.id == e.id }
+        if (i >= 0) list[i] = e else list.add(e)
+        customExercises = list
+        rebuildLibrary()
+        save()
+    }
+
+    /** Adds several custom exercises at once (e.g. from an import), skipping ids that already exist. */
+    fun addCustomExercises(list: List<Exercise>) {
+        val known = customExercises.map { it.id }.toSet()
+        customExercises = customExercises + list.filter { it.id !in known }
+        rebuildLibrary()
+        save()
+    }
+
+    /** How many workouts, routines and program days use this exercise; it can only be deleted when that is 0. */
+    fun exerciseUses(id: String): Int =
+        workouts.count { w -> w.exercises.any { it.exerciseId == id } } +
+            routines.count { r -> r.exercises.any { it.exerciseId == id } } +
+            (program?.days?.count { d -> d.exercises.any { it.exerciseId == id } } ?: 0) +
+            (if (activeWorkout?.exercises?.any { it.exerciseId == id } == true) 1 else 0)
+
+    fun deleteCustomExercise(id: String) {
+        if (exerciseUses(id) > 0) return
+        customExercises = customExercises.filter { it.id != id }
+        rebuildLibrary()
+        save()
+    }
 
     // ---------- active workout ----------
 

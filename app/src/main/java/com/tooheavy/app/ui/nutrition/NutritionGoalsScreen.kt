@@ -91,6 +91,7 @@ fun NutritionGoalsScreen(nav: NavController) {
     var proteinText by remember { mutableStateOf(savedGoals.protein.toString()) }
     var carbsText by remember { mutableStateOf(savedGoals.carbs.toString()) }
     var fatText by remember { mutableStateOf(savedGoals.fat.toString()) }
+    var waterText by remember { mutableStateOf(savedGoals.waterMl.toString()) }
 
     // Calculator fields
     var sex by remember { mutableStateOf(savedProfile.sex) }
@@ -164,16 +165,22 @@ fun NutritionGoalsScreen(nav: NavController) {
                     color = if (diff == null) MaterialTheme.colorScheme.onSurfaceVariant else if (close) Success else Warmup,
                 )
 
+                NumberField("Water", waterText, { waterText = it }, decimal = false, suffix = "ml", modifier = Modifier.fillMaxWidth())
+
                 Button(
                     onClick = {
                         val kcal = parseNum(kcalText)?.roundToInt()
                         val pr = parseNum(proteinText)?.roundToInt()
                         val ca = parseNum(carbsText)?.roundToInt()
                         val fa = parseNum(fatText)?.roundToInt()
-                        if (kcal == null || kcal <= 0 || pr == null || pr < 0 || ca == null || ca < 0 || fa == null || fa < 0) {
+                        val wa = parseNum(waterText)?.roundToInt()
+                        if (kcal == null || kcal <= 0 || pr == null || pr < 0 || ca == null || ca < 0 || fa == null || fa < 0 ||
+                            wa == null || wa < 0
+                        ) {
                             toast("Enter valid numbers")
                         } else {
                             NutritionRepo.updateGoals(NutritionGoals(kcal, pr, ca, fa))
+                            NutritionRepo.updateWaterGoal(wa)
                             focus.clearFocus()
                             toast("Goals saved")
                         }

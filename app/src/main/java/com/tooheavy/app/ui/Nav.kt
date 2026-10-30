@@ -81,6 +81,7 @@ import com.tooheavy.app.ui.theme.StatNumber
 import com.tooheavy.app.ui.theme.Success
 import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.TextSecondary
+import com.tooheavy.app.ui.exercises.CustomExerciseScreen
 import com.tooheavy.app.ui.exercises.ExerciseDetailScreen
 import com.tooheavy.app.ui.exercises.ExerciseListScreen
 import com.tooheavy.app.ui.exercises.ExercisePickerScreen
@@ -93,6 +94,7 @@ import com.tooheavy.app.ui.nutrition.FoodAmountScreen
 import com.tooheavy.app.ui.nutrition.FoodSearchScreen
 import com.tooheavy.app.ui.nutrition.NutritionGoalsScreen
 import com.tooheavy.app.ui.nutrition.NutritionScreen
+import com.tooheavy.app.ui.nutrition.RecipeScreen
 import com.tooheavy.app.ui.profile.ProfileScreen
 import com.tooheavy.app.ui.program.ProgramScreen
 import com.tooheavy.app.ui.program.ProgramSetupScreen
@@ -132,23 +134,27 @@ object Routes {
     const val PICK_FOR_ACTIVE = "active"
     const val PICK_FOR_ROUTINE = "routine"
 
-    /** Food search for a meal (Meal.BREAKFAST etc.); logs into NutritionRepo.selectedDate. */
-    fun foodSearch(meal: String) = "food_search/$meal"
+    /** Food picking modes: log the food into NutritionRepo.selectedDate, or add it to NutritionRepo.recipeDraft. */
+    const val MODE_LOG = "log"
+    const val MODE_INGREDIENT = "ingredient"
 
-    /** Amount picker for a food (Food.key) to add to [meal]. */
-    fun foodAmount(foodKey: String, meal: String) = "food_amount?food=${Uri.encode(foodKey)}&meal=$meal"
+    /** Food search; [mode] is MODE_LOG or MODE_INGREDIENT. */
+    fun foodSearch(mode: String = MODE_LOG) = "food_search/$mode"
+
+    /** Amount picker for a food (Food.key) to log or, in MODE_INGREDIENT, to add to the recipe. */
+    fun foodAmount(foodKey: String, mode: String = MODE_LOG) = "food_amount?food=${Uri.encode(foodKey)}&mode=$mode"
 
     /** Amount picker editing an existing FoodEntry. */
     fun editFoodEntry(entryId: String) = "food_amount?entry=$entryId"
 
     /**
      * Custom food editor; key = "new" or a local Food.key. Optional prefill: [barcode], [name], [brand].
-     * When [meal] is set, saving continues to the amount screen to log the food into that meal.
+     * When [mode] is set, saving continues to the amount screen in that mode.
      */
-    fun customFood(key: String, barcode: String? = null, meal: String? = null, name: String? = null, brand: String? = null): String {
+    fun customFood(key: String, barcode: String? = null, mode: String? = null, name: String? = null, brand: String? = null): String {
         val q = listOfNotNull(
             barcode?.let { "barcode=${Uri.encode(it)}" },
-            meal?.let { "meal=$it" },
+            mode?.let { "mode=$it" },
             name?.let { "name=${Uri.encode(it)}" },
             brand?.let { "brand=${Uri.encode(it)}" },
         ).joinToString("&")
@@ -156,13 +162,22 @@ object Routes {
     }
 
     /** Route pattern of the custom food editor (for popUpTo). */
-    const val CUSTOM_FOOD_PATTERN = "custom_food/{key}?barcode={barcode}&meal={meal}&name={name}&brand={brand}"
+    const val CUSTOM_FOOD_PATTERN = "custom_food/{key}?barcode={barcode}&mode={mode}&name={name}&brand={brand}"
 
     /** Barcode lookup (local foods first, then Open Food Facts) that ends on the amount screen or the custom food editor. */
-    fun barcode(code: String, meal: String) = "barcode/${Uri.encode(code)}/$meal"
+    fun barcode(code: String, mode: String = MODE_LOG) = "barcode/${Uri.encode(code)}/$mode"
 
     /** Route pattern of the barcode lookup screen (for popUpTo). */
-    const val BARCODE_PATTERN = "barcode/{code}/{meal}"
+    const val BARCODE_PATTERN = "barcode/{code}/{mode}"
+
+    /** Recipe editor; key = "new" or a recipe's Food.key. */
+    fun recipe(key: String) = "recipe/${Uri.encode(key)}"
+
+    /** Route pattern of the recipe editor (ingredient screens pop back to it). */
+    const val RECIPE_PATTERN = "recipe/{key}"
+
+    /** Custom exercise editor; id = "new" or a custom Exercise.id. */
+    fun exerciseEdit(id: String) = "exercise_edit/${Uri.encode(id)}"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -222,25 +237,25 @@ fun AppRoot() {
                 composable(Routes.COACH) { CoachScreen(nav) }
                 composable(Routes.PROGRAM) { ProgramScreen(nav) }
                 composable(Routes.PROGRAM_SETUP) { ProgramSetupScreen(nav) }
-                composable("food_search/{meal}") { FoodSearchScreen(nav, it.arguments?.getString("meal").orEmpty()) }
+                composable("food_search/{mode}") { FoodSearchScreen(nav, it.arguments?.getString("mode") ?: Routes.MODE_LOG) }
                 composable(
-                    "food_amount?food={food}&meal={meal}&entry={entry}",
+                    "food_amount?food={food}&mode={mode}&entry={entry}",
                     arguments = listOf(
                         navArgument("food") { type = NavType.StringType; nullable = true; defaultValue = null },
-                        navArgument("meal") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("mode") { type = NavType.StringType; nullable = true; defaultValue = null },
                         navArgument("entry") { type = NavType.StringType; nullable = true; defaultValue = null },
                     ),
                 ) {
                     FoodAmountScreen(
                         nav,
                         foodKey = it.arguments?.getString("food"),
-                        meal = it.arguments?.getString("meal") ?: com.tooheavy.app.data.Meal.SNACK,
+                        mode = it.arguments?.getString("mode") ?: Routes.MODE_LOG,
                         entryId = it.arguments?.getString("entry"),
                     )
                 }
                 composable(
                     Routes.CUSTOM_FOOD_PATTERN,
-                    arguments = listOf("barcode", "meal", "name", "brand").map { n ->
+                    arguments = listOf("barcode", "mode", "name", "brand").map { n ->
                         navArgument(n) { type = NavType.StringType; nullable = true; defaultValue = null }
                     },
                 ) {
@@ -249,14 +264,16 @@ fun AppRoot() {
                         nav,
                         key = a?.getString("key").orEmpty(),
                         barcode = a?.getString("barcode"),
-                        meal = a?.getString("meal"),
+                        mode = a?.getString("mode"),
                         prefillName = a?.getString("name"),
                         prefillBrand = a?.getString("brand"),
                     )
                 }
                 composable(Routes.BARCODE_PATTERN) {
-                    BarcodeLookupScreen(nav, it.arguments?.getString("code").orEmpty(), it.arguments?.getString("meal").orEmpty())
+                    BarcodeLookupScreen(nav, it.arguments?.getString("code").orEmpty(), it.arguments?.getString("mode") ?: Routes.MODE_LOG)
                 }
+                composable(Routes.RECIPE_PATTERN) { RecipeScreen(nav, it.arguments?.getString("key").orEmpty()) }
+                composable("exercise_edit/{id}") { CustomExerciseScreen(nav, it.arguments?.getString("id").orEmpty()) }
             }
         }
     }

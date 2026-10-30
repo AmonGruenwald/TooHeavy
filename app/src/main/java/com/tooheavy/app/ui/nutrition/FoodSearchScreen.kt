@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
@@ -60,10 +61,11 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.tooheavy.app.data.Food
 import com.tooheavy.app.data.FoodEntry
-import com.tooheavy.app.data.Meal
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
+import com.tooheavy.app.data.timeOn
+import com.tooheavy.app.data.toIngredient
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import kotlinx.coroutines.Dispatchers
@@ -72,33 +74,41 @@ import kotlinx.coroutines.withContext
 
 private fun searchParseNumber(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
 
-/** Logs the food's first portion (or 100 g) straight into the diary. */
-private fun searchQuickLog(context: Context, food: Food, meal: String) {
+/** ZXing options for scanning EAN/UPC product barcodes. */
+fun foodScanOptions(prompt: String = "Scan a food barcode"): ScanOptions = ScanOptions().apply {
+    setDesiredBarcodeFormats(ScanOptions.PRODUCT_CODE_TYPES)
+    setPrompt(prompt)
+    setBeepEnabled(false)
+    setOrientationLocked(false)
+}
+
+/** Logs the food's first portion (or 100 g) straight into the diary, or adds it to the recipe in MODE_INGREDIENT. */
+private fun searchQuickLog(context: Context, food: Food, mode: String) {
     val portion = food.portions.orEmpty().firstOrNull { it.grams > 0 }
     val grams = portion?.grams ?: 100.0
     val label = portion?.label?.ifBlank { null } ?: "${formatNutrient(grams)} g"
-    NutritionRepo.addEntry(NutritionRepo.makeEntry(food, grams, label, meal))
-    Toast.makeText(context, "Added", Toast.LENGTH_SHORT).show()
+    if (mode == Routes.MODE_INGREDIENT) {
+        NutritionRepo.addIngredient(food.toIngredient(grams, label))
+        Toast.makeText(context, "Added to recipe", Toast.LENGTH_SHORT).show()
+    } else {
+        NutritionRepo.addEntry(NutritionRepo.makeEntry(food, grams, label))
+        Toast.makeText(context, "Added", Toast.LENGTH_SHORT).show()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FoodSearchScreen(nav: NavController, meal: String) {
+fun FoodSearchScreen(nav: NavController, mode: String) {
     val context = LocalContext.current
+    val ingredientMode = mode == Routes.MODE_INGREDIENT
     var query by remember { mutableStateOf("") }
     var showQuickAdd by remember { mutableStateOf(false) }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.trim()?.takeIf { it.isNotEmpty() }?.let { nav.navigate(Routes.barcode(it, meal)) }
+        result.contents?.trim()?.takeIf { it.isNotEmpty() }?.let { nav.navigate(Routes.barcode(it, mode)) }
     }
-    fun startScan() {
-        val options = ScanOptions()
-        options.setDesiredBarcodeFormats(ScanOptions.PRODUCT_CODE_TYPES)
-        options.setPrompt("Scan a food barcode")
-        options.setBeepEnabled(false)
-        options.setOrientationLocked(false)
-        scanLauncher.launch(options)
-    }
+    fun startScan() = scanLauncher.launch(foodScanOptions())
+    fun editFood(food: Food) = nav.navigate(if (food.isRecipe) Routes.recipe(food.key) else Routes.customFood(food.key))
 
     val loaded = NutritionRepo.foodsLoaded
     val customCount = NutritionRepo.customFoods.size
@@ -114,7 +124,9 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
         value = withContext(Dispatchers.Default) { NutritionRepo.search(trimmed) }
     }
 
-    val myFoods = NutritionRepo.customFoods.toList()
+    // A recipe can't contain itself.
+    val editingKey = if (ingredientMode) NutritionRepo.recipeDraft?.key else null
+    val myFoods = NutritionRepo.customFoods.toList().filter { it.key != editingKey }
     val entryCount = NutritionRepo.entries.size
     val recent = remember(entryCount, loaded, customCount) { NutritionRepo.recentFoods() }
 
@@ -124,9 +136,10 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
             AppTopBar(
                 title = {
                     Column {
-                        Text("Add to " + Meal.label(meal), maxLines = 1)
+                        Text(if (ingredientMode) "Add ingredient" else "Add food", maxLines = 1)
                         Text(
-                            friendlyDate(NutritionRepo.selectedDate),
+                            if (ingredientMode) NutritionRepo.recipeDraft?.name?.ifBlank { null } ?: "New recipe"
+                            else friendlyDate(NutritionRepo.selectedDate),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -187,7 +200,7 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                     val shown = results.distinctBy { it.key }
                     if (shown.isEmpty() && trimmed.length >= 8 && trimmed.all { it.isDigit() }) {
                         item(key = "barcode_hint") {
-                            SearchBarcodeHintRow(trimmed, onClick = { nav.navigate(Routes.barcode(trimmed, meal)) })
+                            SearchBarcodeHintRow(trimmed, onClick = { nav.navigate(Routes.barcode(trimmed, mode)) })
                         }
                     }
                     if (shown.isEmpty() && loaded) {
@@ -207,7 +220,7 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                OutlinedButton(onClick = { nav.navigate(Routes.customFood("new")) }) {
+                                OutlinedButton(onClick = { nav.navigate(Routes.customFood("new", mode = mode)) }) {
                                     Icon(Icons.Filled.Add, contentDescription = null)
                                     Spacer(Modifier.width(6.dp))
                                     Text("Create food")
@@ -215,11 +228,11 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                             }
                         }
                     }
-                    items(shown, key = { it.key }) { food ->
+                    items(shown.filter { it.key != editingKey }, key = { it.key }) { food ->
                         SearchFoodRow(
                             food = food,
-                            onClick = { nav.navigate(Routes.foodAmount(food.key, meal)) },
-                            onQuickAdd = { searchQuickLog(context, food, meal) },
+                            onClick = { nav.navigate(Routes.foodAmount(food.key, mode)) },
+                            onQuickAdd = { searchQuickLog(context, food, mode) },
                             onEdit = null,
                         )
                     }
@@ -242,23 +255,39 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                OutlinedButton(
-                                    onClick = { showQuickAdd = true },
-                                    modifier = Modifier.weight(1f).height(48.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                ) {
-                                    Icon(Icons.Filled.FlashOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Quick add")
+                                if (!ingredientMode) {
+                                    OutlinedButton(
+                                        onClick = { showQuickAdd = true },
+                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                    ) {
+                                        Icon(Icons.Filled.FlashOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Quick add", maxLines = 1)
+                                    }
                                 }
                                 OutlinedButton(
-                                    onClick = { nav.navigate(Routes.customFood("new")) },
+                                    onClick = { nav.navigate(Routes.customFood("new", mode = mode)) },
                                     modifier = Modifier.weight(1f).height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
                                 ) {
                                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Create food")
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("New food", maxLines = 1)
+                                }
+                                if (!ingredientMode) {
+                                    OutlinedButton(
+                                        onClick = { nav.navigate(Routes.recipe("new")) },
+                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Recipe", maxLines = 1)
+                                    }
                                 }
                             }
                         }
@@ -278,19 +307,19 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                             items(myFoods, key = { "mine:${it.key}" }) { food ->
                                 SearchFoodRow(
                                     food = food,
-                                    onClick = { nav.navigate(Routes.foodAmount(food.key, meal)) },
-                                    onQuickAdd = { searchQuickLog(context, food, meal) },
-                                    onEdit = { nav.navigate(Routes.customFood(food.key)) },
+                                    onClick = { nav.navigate(Routes.foodAmount(food.key, mode)) },
+                                    onQuickAdd = { searchQuickLog(context, food, mode) },
+                                    onEdit = { editFood(food) },
                                 )
                             }
                         }
                         if (recent.isNotEmpty()) {
                             item(key = "header_recent") { SearchSectionHeader("Recent") }
-                            items(recent, key = { "recent:${it.key}" }) { food ->
+                            items(recent.filter { it.key != editingKey }, key = { "recent:${it.key}" }) { food ->
                                 SearchFoodRow(
                                     food = food,
-                                    onClick = { nav.navigate(Routes.foodAmount(food.key, meal)) },
-                                    onQuickAdd = { searchQuickLog(context, food, meal) },
+                                    onClick = { nav.navigate(Routes.foodAmount(food.key, mode)) },
+                                    onQuickAdd = { searchQuickLog(context, food, mode) },
                                     onEdit = null,
                                 )
                             }
@@ -298,7 +327,8 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                         if (myFoods.isEmpty() && recent.isEmpty()) {
                             item(key = "hint_empty") {
                                 Text(
-                                    "Search above to find foods in the bundled USDA database, or create your own food or quick-add calories.",
+                                    if (ingredientMode) "Search above to find an ingredient in the bundled USDA database, scan one, or create your own food."
+                                    else "Search above to find foods in the bundled USDA database, create your own food or recipe, or quick-add calories.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 8.dp),
@@ -319,7 +349,7 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                 NutritionRepo.addEntry(
                     FoodEntry(
                         date = NutritionRepo.selectedDate,
-                        meal = meal,
+                        createdAt = timeOn(NutritionRepo.selectedDate),
                         foodKey = null,
                         name = name,
                         amountLabel = "Quick add",
@@ -381,9 +411,10 @@ private fun SearchFoodRow(
     val sourceLabel = when (food.source) {
         Food.SOURCE_OFF -> "Open Food Facts"
         Food.SOURCE_CUSTOM -> "Custom"
+        Food.SOURCE_RECIPE -> "Recipe"
         else -> "USDA"
     }
-    val isLocalSource = food.source == Food.SOURCE_OFF || food.source == Food.SOURCE_CUSTOM
+    val isLocalSource = food.isLocal
     val brand = food.brand?.trim()?.takeIf { it.isNotEmpty() }
     Row(
         modifier = Modifier

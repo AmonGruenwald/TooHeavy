@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Insights
@@ -65,6 +66,7 @@ import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.titleCase
+import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.AreaChart
 import com.tooheavy.app.ui.common.AssetImage
@@ -102,6 +104,13 @@ fun ExerciseDetailScreen(nav: NavController, exerciseId: String, initialTab: Int
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (exercise?.isCustom == true) {
+                        IconButton(onClick = { nav.navigate(Routes.exerciseEdit(exercise.id)) }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit exercise")
+                        }
                     }
                 },
             )

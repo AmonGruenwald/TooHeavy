@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -130,6 +131,7 @@ object DashboardWidgets {
     const val RECENT = "recent"
     const val LIFETIME = "lifetime"
     const val TRAINING_TIME = "training_time"
+    const val HYDRATION = "hydration"
 
     val all = listOf(
         Def(UP_NEXT, "Up next", "Your next program day, routine or a quick start", Icons.Filled.Bolt),
@@ -149,6 +151,7 @@ object DashboardWidgets {
         Def(RECENT, "Recent workouts", "Your latest sessions at a glance", Icons.Filled.History),
         Def(LIFETIME, "Lifetime stats", "Workouts, volume, sets and time, all-time", Icons.AutoMirrored.Filled.ShowChart),
         Def(TRAINING_TIME, "Training time", "Minutes trained per week", Icons.Filled.Timer),
+        Def(HYDRATION, "Hydration", "Water today against your goal, with a quick +250 ml", Icons.Filled.WaterDrop),
     )
 
     fun def(id: String): Def? = all.firstOrNull { it.id == id }
@@ -192,6 +195,7 @@ fun WidgetBody(w: DashboardWidget, nav: NavController, modifier: Modifier = Modi
         DashboardWidgets.RECENT -> Recent(def, w.wide, m, nav)
         DashboardWidgets.LIFETIME -> Lifetime(def, w.wide, m)
         DashboardWidgets.TRAINING_TIME -> TrainingTime(def, w.wide, m)
+        DashboardWidgets.HYDRATION -> Hydration(def, w.wide, m) { nav.navigateTab(Routes.NUTRITION) }
     }
 }
 
@@ -399,6 +403,28 @@ private fun CaloriesToday(def: DashboardWidgets.Def, wide: Boolean, modifier: Mo
         } else {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Ring(112.dp) }
         }
+    }
+}
+
+@Composable
+private fun Hydration(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val t = today()
+    val total = NutritionRepo.waterTotal(t)
+    val goal = NutritionRepo.goals.waterMl
+    WidgetCard(
+        def, modifier, onClick = onClick,
+        trailing = {
+            Pill("+250 ml", ChartColors.Water, Modifier.clip(CircleShape).clickable { NutritionRepo.addWater(250, t) })
+        },
+    ) {
+        BigNumber(String.format(Locale.US, "%.2f", total / 1000.0).trimEnd('0').trimEnd('.'), "L", size = if (wide) 30 else 26)
+        Text(
+            "of ${String.format(Locale.US, "%.1f", goal / 1000.0)} L today",
+            style = MaterialTheme.typography.bodySmall, color = TextMuted,
+        )
+        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(10.dp))
+        Meter(if (goal > 0) total.toFloat() / goal else 0f, ChartColors.Water, height = 8.dp)
     }
 }
 

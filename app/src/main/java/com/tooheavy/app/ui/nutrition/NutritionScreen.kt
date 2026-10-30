@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -54,9 +63,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.tooheavy.app.data.Extras
 import com.tooheavy.app.data.FoodEntry
-import com.tooheavy.app.data.Meal
 import com.tooheavy.app.data.NutritionRepo
+import com.tooheavy.app.data.WaterEntry
+import com.tooheavy.app.data.clockTime
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
 import com.tooheavy.app.data.shiftDate
@@ -64,6 +75,8 @@ import com.tooheavy.app.data.today
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.BarChart
 import com.tooheavy.app.ui.common.BigNumber
+import com.tooheavy.app.ui.common.CardLabel
+import com.tooheavy.app.ui.common.Pill
 import com.tooheavy.app.ui.common.ChartCard
 import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.Meter
@@ -124,10 +137,14 @@ fun NutritionScreen(nav: NavController) {
                     goalProtein = goals.protein,
                     goalCarbs = goals.carbs,
                     goalFat = goals.fat,
+                    extras = NutritionRepo.extras(date),
                 )
             }
-            items(Meal.all, key = { it }) { meal ->
-                MealCard(nav, date, meal)
+            item(key = "timeline") {
+                TimelineCard(nav, date)
+            }
+            item(key = "water") {
+                WaterCard(date, goals.waterMl)
             }
             item(key = "week") {
                 WeekCard(date, goals.kcal)
@@ -179,6 +196,7 @@ private fun SummaryCard(
     goalProtein: Int,
     goalCarbs: Int,
     goalFat: Int,
+    extras: Extras,
 ) {
     val remaining = goalKcal - consumed
     val over = remaining < 0
@@ -203,6 +221,18 @@ private fun SummaryCard(
                 MacroBar("Protein", protein, goalProtein, ProteinColor)
                 MacroBar("Carbs", carbs, goalCarbs, CarbsColor)
                 MacroBar("Fat", fat, goalFat, FatColor)
+            }
+            val known = listOfNotNull(
+                extras.fiber?.let { "Fiber ${formatNutrient(it)} g" },
+                extras.sugar?.let { "Sugar ${formatNutrient(it)} g" },
+                extras.salt?.let { "Salt ${formatNutrient(it)} g" },
+            )
+            if (known.isNotEmpty()) {
+                Text(
+                    known.joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -254,123 +284,165 @@ private fun MacroBar(label: String, value: Double, goal: Int, color: Color) {
     }
 }
 
-@Composable
-private fun MealCard(nav: NavController, date: String, meal: String) {
-    val entries = NutritionRepo.entriesFor(date, meal)
-    val yesterday = shiftDate(date, -1)
-    val yesterdayHasEntries = entries.isEmpty() && NutritionRepo.entriesFor(yesterday, meal).isNotEmpty()
-    val mealKcal = entries.sumOf { it.kcal }
+/** A food or a glass of water on the day's timeline. */
+private sealed interface TimelineItem {
+    val time: Long
+    val id: String
 
-    GlassCard(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    data class Eaten(val entry: FoodEntry) : TimelineItem {
+        override val time get() = entry.createdAt
+        override val id get() = entry.id
+    }
+
+    data class Drank(val water: WaterEntry) : TimelineItem {
+        override val time get() = water.createdAt
+        override val id get() = water.id
+    }
+}
+
+/** Entries closer together than this share one time label, like a meal. */
+private const val TIMELINE_GROUP_MS = 30 * 60_000L
+
+@Composable
+private fun TimelineCard(nav: NavController, date: String) {
+    val items = (NutritionRepo.entriesFor(date).map { TimelineItem.Eaten(it) } +
+        NutritionRepo.waterFor(date).map { TimelineItem.Drank(it) }).sortedBy { it.time }
+    val yesterday = shiftDate(date, -1)
+    val canCopy = items.none { it is TimelineItem.Eaten } && NutritionRepo.entriesFor(yesterday).isNotEmpty()
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    Meal.label(meal),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "${kcalText(mealKcal)} kcal",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                IconButton(onClick = { nav.navigate(Routes.foodSearch(meal)) }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add food to ${Meal.label(meal)}", tint = AccentBright)
+                Text("Timeline", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = { nav.navigate(Routes.foodSearch()) }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add food", tint = AccentBright)
                 }
             }
-            if (entries.isEmpty()) {
-                if (yesterdayHasEntries) {
-                    TextButton(
-                        onClick = { NutritionRepo.copyMeal(yesterday, date, meal) },
-                        modifier = Modifier.padding(start = 8.dp),
-                    ) {
-                        Text("Copy from yesterday", style = MaterialTheme.typography.labelLarge)
+            if (items.isEmpty() || canCopy) {
+                Row(Modifier.padding(start = 8.dp, bottom = 4.dp)) {
+                    TextButton(onClick = { nav.navigate(Routes.foodSearch()) }) {
+                        Text("Add food", style = MaterialTheme.typography.labelLarge)
                     }
-                } else {
-                    TextButton(
-                        onClick = { nav.navigate(Routes.foodSearch(meal)) },
-                        modifier = Modifier.padding(start = 8.dp),
-                    ) {
-                        Text(
-                            "Add food",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    if (canCopy) {
+                        TextButton(onClick = { NutritionRepo.copyDay(yesterday, date) }) {
+                            Text(
+                                "Copy yesterday",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
-            } else {
-                entries.forEach { e ->
-                    EntryRow(
-                        entry = e,
-                        onClick = { nav.navigate(Routes.editFoodEntry(e.id)) },
-                        onEdit = { nav.navigate(Routes.editFoodEntry(e.id)) },
-                        onDelete = { NutritionRepo.deleteEntry(e.id) },
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
             }
+            var lastShown: Long? = null
+            items.forEachIndexed { i, item ->
+                val showTime = lastShown.let { it == null || item.time - it > TIMELINE_GROUP_MS }
+                if (showTime) lastShown = item.time
+                TimelineRow(
+                    item = item,
+                    timeLabel = if (showTime) clockTime(item.time) else null,
+                    first = i == 0,
+                    last = i == items.lastIndex,
+                    onClick = {
+                        if (item is TimelineItem.Eaten) nav.navigate(Routes.editFoodEntry(item.entry.id))
+                    },
+                    onDelete = {
+                        when (item) {
+                            is TimelineItem.Eaten -> NutritionRepo.deleteEntry(item.id)
+                            is TimelineItem.Drank -> NutritionRepo.deleteWater(item.id)
+                        }
+                    },
+                )
+            }
+            if (items.isNotEmpty()) Spacer(Modifier.height(6.dp))
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EntryRow(entry: FoodEntry, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun TimelineRow(
+    item: TimelineItem,
+    timeLabel: String?,
+    first: Boolean,
+    last: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
-    val subtitle = buildString {
-        if (entry.amountLabel.isNotBlank()) append(entry.amountLabel).append(" · ")
-        append("P ${formatNutrient(entry.protein)} · C ${formatNutrient(entry.carbs)} · F ${formatNutrient(entry.fat)}")
-    }
+    val entry = (item as? TimelineItem.Eaten)?.entry
+    val water = (item as? TimelineItem.Drank)?.water
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                entry.name,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        Text(
+            timeLabel.orEmpty(),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(44.dp),
+        )
+        // Rail: a hairline through the day with a dot per item (blue for water).
+        Box(Modifier.width(16.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            Column(Modifier.fillMaxHeight()) {
+                Box(Modifier.weight(1f).width(1.dp).background(if (first) Color.Transparent else Hairline))
+                Box(Modifier.weight(1f).width(1.dp).background(if (last) Color.Transparent else Hairline))
+            }
+            Box(
+                Modifier
+                    .size(if (timeLabel != null) 9.dp else 6.dp)
+                    .clip(CircleShape)
+                    .background(if (water != null) ChartColors.Water else AccentBright),
             )
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            "${entry.kcal.roundToInt()}",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Box {
-            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    Icons.Filled.MoreVert,
-                    contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        Column(Modifier.weight(1f).padding(vertical = 7.dp)) {
+            if (entry != null) {
+                Text(entry.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    buildString {
+                        if (entry.amountLabel.isNotBlank()) append(entry.amountLabel).append(" · ")
+                        append("P ${formatNutrient(entry.protein)} · C ${formatNutrient(entry.carbs)} · F ${formatNutrient(entry.fat)}")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else if (water != null) {
+                Text(
+                    "${String.format(Locale.US, "%,d", water.ml)} ml water",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        if (entry != null) {
+            Spacer(Modifier.width(8.dp))
+            Text("${entry.kcal.roundToInt()}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("Edit") },
-                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                    onClick = {
-                        menuOpen = false
-                        onEdit()
-                    },
-                )
+                if (entry != null) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onClick()
+                        },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Delete", color = Danger) },
                     leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = Danger) },
@@ -383,6 +455,80 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit, onEdit: () -> Unit, 
         }
     }
 }
+
+@Composable
+private fun WaterCard(date: String, goalMl: Int) {
+    val total = NutritionRepo.waterTotal(date)
+    var custom by remember { mutableStateOf(false) }
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CardLabel("Hydration", Modifier.weight(1f), icon = Icons.Filled.WaterDrop)
+                if (total >= goalMl && goalMl > 0) Pill("Goal reached", ChartColors.Water)
+            }
+            Row(verticalAlignment = Alignment.Bottom) {
+                BigNumber(litres(total), "L", size = 30)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "of ${litres(goalMl)} L",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
+            }
+            Meter(if (goalMl > 0) total.toFloat() / goalMl else 0f, ChartColors.Water)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                listOf(250, 500).forEach { ml ->
+                    OutlinedButton(
+                        onClick = { NutritionRepo.addWater(ml, date) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 6.dp),
+                    ) { Text("+$ml ml", maxLines = 1) }
+                }
+                OutlinedButton(
+                    onClick = { custom = true },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp),
+                ) { Text("Other", maxLines = 1) }
+                val last = NutritionRepo.waterFor(date).lastOrNull()
+                IconButton(onClick = { last?.let { NutritionRepo.deleteWater(it.id) } }, enabled = last != null) {
+                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo last drink")
+                }
+            }
+        }
+    }
+    if (custom) {
+        var text by remember { mutableStateOf("") }
+        val ml = text.trim().toIntOrNull()
+        AlertDialog(
+            onDismissRequest = { custom = false },
+            title = { Text("Add water") },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { v -> text = v.filter { it.isDigit() }.take(5) },
+                    label = { Text("Amount (ml)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = ml != null && ml > 0,
+                    onClick = {
+                        custom = false
+                        NutritionRepo.addWater(ml ?: 0, date)
+                    },
+                ) { Text("Add") }
+            },
+            dismissButton = { TextButton(onClick = { custom = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+/** 1250 -> "1.25", 2000 -> "2" */
+private fun litres(ml: Int): String =
+    java.math.BigDecimal(ml / 1000.0).setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 
 @Composable
 private fun WeekCard(date: String, goalKcal: Int) {

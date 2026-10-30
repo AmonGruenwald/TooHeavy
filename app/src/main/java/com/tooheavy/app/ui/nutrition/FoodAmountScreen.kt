@@ -24,6 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,10 +56,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Food
 import com.tooheavy.app.data.FoodEntry
-import com.tooheavy.app.data.Meal
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.Portion
+import com.tooheavy.app.data.clockTime
 import com.tooheavy.app.data.formatNutrient
+import com.tooheavy.app.data.friendlyDate
+import com.tooheavy.app.data.timeOn
+import com.tooheavy.app.data.toIngredient
+import java.util.Calendar
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.GlassCard
@@ -135,15 +144,56 @@ private fun AmountMessage(nav: NavController, title: String, loading: Boolean, t
     }
 }
 
+/** Time of day an entry was eaten; tapping opens a clock picker. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FoodAmountScreen(nav: NavController, foodKey: String?, meal: String, entryId: String?) {
+fun EatenAtField(date: String, time: Long, onChange: (Long) -> Unit) {
+    var picking by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AmountSectionLabel("Time")
+        FilterChip(
+            selected = true,
+            onClick = { picking = true },
+            leadingIcon = { Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            label = { Text("${clockTime(time)} · ${friendlyDate(date)}") },
+        )
+    }
+    if (picking) {
+        val c = Calendar.getInstance().apply { timeInMillis = time }
+        val state = rememberTimePickerState(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { picking = false },
+            title = { Text("Eaten at") },
+            text = { TimePicker(state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    picking = false
+                    onChange(timeOn(date, state.hour, state.minute))
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    picking = false
+                    onChange(timeOn(date))
+                }) { Text("Now") }
+            },
+        )
+    }
+}
+
+@Composable
+fun FoodAmountScreen(nav: NavController, foodKey: String?, mode: String, entryId: String?) {
     val loaded = NutritionRepo.foodsLoaded
     val entry = remember(entryId) { entryId?.let { NutritionRepo.entry(it) } }
     val resolvedKey = if (entryId != null) entry?.foodKey else foodKey
     // Re-resolve when stored foods change (e.g. after "Edit food"); equal lists don't trigger a recompute.
     val localFoods = NutritionRepo.customFoods.toList()
     val food = remember(resolvedKey, loaded, localFoods) { resolvedKey?.let { NutritionRepo.food(it) } }
-    val title = if (entryId != null) "Edit entry" else "Add food"
+    val title = when {
+        entryId != null -> "Edit entry"
+        mode == Routes.MODE_INGREDIENT -> "Add ingredient"
+        else -> "Add food"
+    }
 
     when {
         entryId != null && entry == null -> AmountMessage(nav, title, loading = false, text = "Entry not found")
@@ -151,20 +201,20 @@ fun FoodAmountScreen(nav: NavController, foodKey: String?, meal: String, entryId
         food == null && !loaded -> AmountMessage(nav, title, loading = true, text = "Loading food database…")
         food == null && entry != null -> AmountRawEditor(nav, entry)
         food == null -> AmountMessage(nav, title, loading = false, text = "Food not found")
-        else -> AmountEditor(nav, food, meal, entry)
+        else -> AmountEditor(nav, food, mode, entry)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: FoodEntry?) {
+private fun AmountEditor(nav: NavController, food: Food, mode: String, entry: FoodEntry?) {
     val portions = remember(food) { food.portions.orEmpty().filter { it.grams > 0 } }
     val init = remember(food.key, entry?.id) { amountInit(portions, entry) }
     var unitIndex by remember { mutableIntStateOf(init.unitIndex) }
     var qtyText by remember { mutableStateOf(init.quantity) }
-    var selectedMeal by remember {
-        mutableStateOf(entry?.meal ?: meal.takeIf { it in Meal.all } ?: Meal.SNACK)
-    }
+    val ingredient = mode == Routes.MODE_INGREDIENT && entry == null
+    val date = entry?.date ?: NutritionRepo.selectedDate
+    var time by remember { mutableLongStateOf(entry?.createdAt ?: timeOn(date)) }
 
     val unit = portions.getOrNull(unitIndex)
     val qty = amountParse(qtyText)
@@ -184,21 +234,25 @@ private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: Fo
         } else {
             "${amountNumText(q)} × ${unit.label}"
         }
-        if (entry == null) {
-            NutritionRepo.addEntry(NutritionRepo.makeEntry(food, g, label, selectedMeal))
+        if (ingredient) {
+            NutritionRepo.addIngredient(food.toIngredient(g, label))
+            if (!nav.popBackStack(Routes.RECIPE_PATTERN, inclusive = false)) nav.popBackStack()
+        } else if (entry == null) {
+            NutritionRepo.addEntry(NutritionRepo.makeEntry(food, g, label, date = date, time = time))
             if (!nav.popBackStack(Routes.NUTRITION, inclusive = false)) nav.popBackStack()
         } else {
-            NutritionRepo.updateEntry(
-                NutritionRepo.makeEntry(food, g, label, selectedMeal, date = entry.date, id = entry.id)
-                    .copy(createdAt = entry.createdAt)
-            )
+            NutritionRepo.updateEntry(NutritionRepo.makeEntry(food, g, label, date = entry.date, time = time, id = entry.id))
             nav.popBackStack()
         }
     }
 
     AmountScaffold(
         nav = nav,
-        title = if (isEdit) "Edit entry" else "Add food",
+        title = when {
+            isEdit -> "Edit entry"
+            ingredient -> "Add ingredient"
+            else -> "Add food"
+        },
         actions = {
             IconButton(onClick = { confirm() }, enabled = valid) {
                 Icon(
@@ -231,6 +285,7 @@ private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: Fo
                         when (food.source) {
                             Food.SOURCE_OFF -> "Open Food Facts"
                             Food.SOURCE_CUSTOM -> "Custom food"
+                            Food.SOURCE_RECIPE -> "Recipe · ${food.recipe?.ingredients?.size ?: 0} ingredients"
                             else -> "USDA FoodData Central"
                         },
                         style = MaterialTheme.typography.bodyMedium,
@@ -239,9 +294,9 @@ private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: Fo
                     )
                     if (food.isLocal) {
                         TextButton(
-                            onClick = { nav.navigate(Routes.customFood(food.key)) },
+                            onClick = { nav.navigate(if (food.isRecipe) Routes.recipe(food.key) else Routes.customFood(food.key)) },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        ) { Text("Edit food", style = MaterialTheme.typography.labelLarge) }
+                        ) { Text(if (food.isRecipe) "Edit recipe" else "Edit food", style = MaterialTheme.typography.labelLarge) }
                     }
                 }
             }
@@ -292,22 +347,7 @@ private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: Fo
                 }
             }
 
-            // Meal
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AmountSectionLabel("Meal")
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Meal.all.forEach { mealId ->
-                        FilterChip(
-                            selected = selectedMeal == mealId,
-                            onClick = { selectedMeal = mealId },
-                            label = { Text(Meal.label(mealId)) },
-                        )
-                    }
-                }
-            }
+            if (!ingredient) EatenAtField(date, time) { time = it }
 
             // Live nutrition card
             GlassCard(
@@ -339,12 +379,12 @@ private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: Fo
                         AmountMacroStat("Carbs", m.carbs, CarbsColor, pct(ck), Modifier.weight(1f))
                         AmountMacroStat("Fat", m.fat, FatColor, pct(fk), Modifier.weight(1f))
                     }
-                    val fiber = food.fiber
-                    val sugar = food.sugar
-                    if (fiber != null || sugar != null) {
+                    val x = food.extrasFor(grams)
+                    if (x.fiber != null || x.sugar != null || x.salt != null) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (fiber != null) AmountDetailRow("Fiber", "${formatNutrient(fiber * grams / 100.0)} g")
-                            if (sugar != null) AmountDetailRow("Sugar", "${formatNutrient(sugar * grams / 100.0)} g")
+                            x.fiber?.let { AmountDetailRow("Fiber", "${formatNutrient(it)} g") }
+                            x.sugar?.let { AmountDetailRow("Sugar", "${formatNutrient(it)} g") }
+                            x.salt?.let { AmountDetailRow("Salt", "${formatNutrient(it)} g") }
                         }
                     }
                 }
@@ -357,7 +397,11 @@ private fun AmountEditor(nav: NavController, food: Food, meal: String, entry: Fo
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Text(
-                    if (isEdit) "Save changes" else "Add to ${Meal.label(selectedMeal)}",
+                    when {
+                        isEdit -> "Save changes"
+                        ingredient -> "Add to recipe"
+                        else -> "Add at ${clockTime(time)}"
+                    },
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -385,7 +429,7 @@ private fun AmountRawEditor(nav: NavController, entry: FoodEntry) {
     var protein by remember { mutableStateOf(amountNumText(entry.protein)) }
     var carbs by remember { mutableStateOf(amountNumText(entry.carbs)) }
     var fat by remember { mutableStateOf(amountNumText(entry.fat)) }
-    var selectedMeal by remember { mutableStateOf(entry.meal) }
+    var time by remember { mutableLongStateOf(entry.createdAt) }
 
     val kcalValue = amountParse(kcal)
     val valid = kcalValue != null && kcalValue >= 0
@@ -396,7 +440,7 @@ private fun AmountRawEditor(nav: NavController, entry: FoodEntry) {
         NutritionRepo.updateEntry(
             entry.copy(
                 name = name.trim().ifBlank { entry.name.ifBlank { "Quick add" } },
-                meal = selectedMeal,
+                createdAt = time,
                 kcal = k,
                 protein = amountParse(protein) ?: 0.0,
                 carbs = amountParse(carbs) ?: 0.0,
@@ -475,21 +519,7 @@ private fun AmountRawEditor(nav: NavController, entry: FoodEntry) {
                 )
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AmountSectionLabel("Meal")
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Meal.all.forEach { mealId ->
-                        FilterChip(
-                            selected = selectedMeal == mealId,
-                            onClick = { selectedMeal = mealId },
-                            label = { Text(Meal.label(mealId)) },
-                        )
-                    }
-                }
-            }
+            EatenAtField(entry.date, time) { time = it }
 
             Button(
                 onClick = { save() },
