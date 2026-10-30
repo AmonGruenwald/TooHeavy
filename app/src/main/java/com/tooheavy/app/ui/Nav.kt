@@ -73,6 +73,7 @@ import com.tooheavy.app.ui.common.AppBackground
 import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.Pill
 import com.tooheavy.app.ui.common.UpdateDialog
+import com.tooheavy.app.ui.common.WhatsNewDialog
 import com.tooheavy.app.ui.home.DashboardScreen
 import com.tooheavy.app.ui.theme.BrandColors
 import com.tooheavy.app.ui.theme.Ink
@@ -264,6 +265,7 @@ fun AppRoot() {
         }
     }
     UpdateDialog()
+    WhatsNewDialog()
 }
 
 /** Switches to a bottom-bar tab, keeping each tab's back stack and state. */

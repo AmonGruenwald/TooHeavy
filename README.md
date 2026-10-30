@@ -49,12 +49,17 @@ Unit tests for the coach and program engines (`app/src/test`) run on the JVM:
 
 ## Releases and updates
 
+Before tagging, add the version's notes at the top of `Changelog.entries` in `app/src/main/java/com/tooheavy/app/data/Changelog.kt`. The app shows them once after updating, and any time under Profile (the avatar on Home) → About → What's new.
+
 Pushing a version tag builds a signed APK and publishes it as a GitHub release (`.github/workflows/release.yml`):
 
 ```bash
-git tag v1.1.0 && git push origin v1.1.0
+git tag v1.3.0 && git push origin v1.3.0
 ```
 
-The tag sets `versionName` (`1.1.0`) and `versionCode` (`10100`). On start, the app checks the latest release. If it's newer, the app downloads the APK in the background (on mobile data it asks first) and offers to install it. Profile (the avatar on Home) → About has a manual "Check for updates".
+The tag sets `versionName` (`1.3.0`) and `versionCode` (`10300`). The app looks for a newer release in two ways:
+
+- **On start**: it downloads the APK (on mobile data it asks first) and offers to install it through the system installer. Profile (the avatar on Home) → About has a manual "Check for updates".
+- **Once a day in the background** (JobScheduler, survives reboots): on unmetered networks it downloads the update. On Android 12+ it then installs it without a confirmation screen, but only while the app is closed and no workout is in progress, and posts a notification when done. This needs TooHeavy to be allowed to install apps, which Android asks for during the first in-app update. Otherwise, or on older Android, a notification opens the app to install with one tap.
 
 CI signs with the keystore in the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` repository secrets. It must be the same key that signed the installed app (currently the local debug key), or Android refuses the update.

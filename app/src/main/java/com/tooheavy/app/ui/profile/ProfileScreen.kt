@@ -1,5 +1,6 @@
 package com.tooheavy.app.ui.profile
 
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +69,7 @@ import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.BarChart
 import com.tooheavy.app.ui.common.BrandMark
 import com.tooheavy.app.ui.common.CardLabel
+import com.tooheavy.app.ui.common.ChangelogDialog
 import com.tooheavy.app.ui.common.ChartCard
 import com.tooheavy.app.ui.common.EmptyChartNote
 import com.tooheavy.app.ui.common.ExerciseThumbnail
@@ -88,6 +94,7 @@ import java.util.Locale
 @Composable
 fun ProfileScreen(nav: NavController) {
     val context = LocalContext.current
+    var showChangelog by remember { mutableStateOf(false) }
     val unit = Repo.settings.unit
     val workouts = Repo.workouts.toList()
     val weeks = weeklyBuckets(workouts, 8)
@@ -260,19 +267,30 @@ fun ProfileScreen(nav: NavController) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Version ${BuildConfig.VERSION_NAME}",
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Version ${BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        "Checks for updates daily and installs them in the background while TooHeavy is closed."
+                    } else {
+                        "Checks for updates daily and lets you know when one is ready to install."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row {
+                    TextButton(onClick = { showChangelog = true }) { Text("What's new") }
                     TextButton(onClick = { Updater.check(context, manual = true) }) { Text("Check for updates") }
                 }
             }
         }
     }
+
+    if (showChangelog) ChangelogDialog { showChangelog = false }
 }
 
 @Composable

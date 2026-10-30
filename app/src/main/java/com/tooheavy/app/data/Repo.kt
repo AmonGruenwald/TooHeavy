@@ -85,6 +85,13 @@ object Repo {
 
     // ---------- active workout ----------
 
+    /** Whether a workout is in progress. Safe off the main thread and before init (reads the saved file). */
+    fun hasActiveWorkout(context: Context): Boolean =
+        if (::file.isInitialized) activeWorkout != null
+        else runCatching {
+            gson.fromJson(File(context.filesDir, "data.json").readText(), AppData::class.java)?.activeWorkout != null
+        }.getOrDefault(false)
+
     fun startWorkout(routine: Routine? = null) {
         val w = if (routine == null) Workout(name = "Workout")
         else Workout(

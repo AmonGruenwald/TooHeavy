@@ -1,14 +1,27 @@
 package com.tooheavy.app.data
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.job.JobInfo
+import android.app.job.JobScheduler
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import com.tooheavy.app.BuildConfig
+import com.tooheavy.app.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,16 +33,26 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.TimeUnit
 
 /**
  * Self-update from the GitHub releases built by .github/workflows/release.yml.
- * On start the latest release is checked; a newer APK is downloaded in the background (after asking first on
- * metered networks) and the user is offered to install it. Android always shows its own install confirmation,
- * and only accepts the update if it is signed with the same key as the installed app.
+ *
+ * In the app: the latest release is checked on start; a newer APK is downloaded in the background (after asking
+ * first on metered networks) and the user is offered to install it through the system installer.
+ *
+ * In the background: [UpdateJobService] checks once a day. On unmetered networks it downloads the update; on
+ * Android 12+ it then installs it without a confirmation screen while the app is closed and no workout is in
+ * progress. Otherwise a notification says the update is ready. Android only accepts updates signed with the
+ * same key as the installed app.
  */
 object Updater {
     private const val LATEST_RELEASE = "https://api.github.com/repos/AmonGruenwald/TooHeavy/releases/latest"
     private const val USER_AGENT = "TooHeavy/${BuildConfig.VERSION_NAME} (Android)"
+    private const val JOB_ID = 1001
+    private const val CHANNEL_ID = "updates"
+    private const val NOTIFICATION_ID = 1001
+    const val ACTION_INSTALL_STATUS = "com.tooheavy.app.INSTALL_STATUS"
 
     data class Release(val version: String, val apkUrl: String, val size: Long)
 
@@ -51,6 +74,10 @@ object Updater {
     var showDialog by mutableStateOf(false)
         private set
 
+    /** True while an activity of the app is on screen (set by MainActivity); silent installs wait until it isn't. */
+    @Volatile
+    var appVisible = false
+
     private val scope: CoroutineScope = MainScope()
     private var job: Job? = null
     private lateinit var app: Context
@@ -58,6 +85,7 @@ object Updater {
     /** Looks for a newer release. Automatic checks run once per app start and fail silently; [manual] ones show every result. */
     fun check(context: Context, manual: Boolean = false) {
         app = context.applicationContext
+        cancelNotification(app)
         if (manual) showDialog = true
         if (job?.isActive == true || (!manual && state != State.Idle)) return
         job = scope.launch {
@@ -76,12 +104,83 @@ object Updater {
             val cached = apkFile(release)
             when {
                 cached.length() == release.size -> verify(release, cached)
-                app.getSystemService(ConnectivityManager::class.java).isActiveNetworkMetered -> {
+                isMetered() -> {
                     state = State.Available(release)
                     showDialog = true
                 }
                 else -> fetch(release)
             }
+        }
+    }
+
+    /** Schedules the daily background check; does nothing if it is already scheduled. */
+    fun scheduleDailyCheck(context: Context) {
+        val scheduler = context.getSystemService(JobScheduler::class.java)
+        if (scheduler.getPendingJob(JOB_ID) != null) return
+        scheduler.schedule(
+            JobInfo.Builder(JOB_ID, ComponentName(context, UpdateJobService::class.java))
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setRequiresBatteryNotLow(true)
+                .setPeriodic(TimeUnit.HOURS.toMillis(24), TimeUnit.HOURS.toMillis(6))
+                .setPersisted(true)
+                .build(),
+        )
+    }
+
+    /** Background check from [UpdateJobService]; [done] runs when it has finished. */
+    fun checkInBackground(context: Context, done: () -> Unit) {
+        app = context.applicationContext
+        if (job?.isActive == true) {
+            done()
+            return
+        }
+        job = scope.launch {
+            try {
+                backgroundCheck()
+            } finally {
+                done()
+            }
+        }
+    }
+
+    fun cancelBackgroundCheck() {
+        job?.cancel()
+    }
+
+    private suspend fun backgroundCheck() {
+        val release = try {
+            latestRelease()
+        } catch (e: Exception) {
+            return // try again tomorrow
+        } ?: return
+        var apk = apkFile(release)
+        if (apk.length() != release.size) {
+            if (isMetered()) {
+                state = State.Available(release)
+                showDialog = true
+                notify(app, "TooHeavy ${release.version} is available", "Tap to download the update (${release.size / 1_000_000} MB).")
+                return
+            }
+            state = State.Downloading(release, 0f)
+            apk = try {
+                withContext(Dispatchers.IO) { downloadApk(release) }
+            } catch (e: Exception) {
+                state = State.Idle
+                return
+            }
+        }
+        if (!withContext(Dispatchers.IO) { isValidUpdate(apk) }) {
+            apk.delete()
+            state = State.Idle
+            return
+        }
+        state = State.Ready(release, apk)
+        showDialog = true
+        when {
+            appVisible -> Unit // the dialog shows right away
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && withContext(Dispatchers.IO) { canInstallSilently() } ->
+                installSilently(release, apk)
+            else -> notifyReady(app, release.version)
         }
     }
 
@@ -105,6 +204,104 @@ object Updater {
     fun dismiss() {
         showDialog = false
     }
+
+    // ---------- silent install (Android 12+) ----------
+
+    /**
+     * Android 12+ lets an app update itself without a confirmation screen once the user has allowed it to install
+     * apps (the first in-app update asks). Only done while the app is closed, so a workout isn't interrupted.
+     */
+    private fun canInstallSilently(): Boolean =
+        !appVisible && app.packageManager.canRequestPackageInstalls() && !Repo.hasActiveWorkout(app)
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private suspend fun installSilently(release: Release, apk: File) {
+        try {
+            withContext(Dispatchers.IO) {
+                val installer = app.packageManager.packageInstaller
+                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+                    setAppPackageName(app.packageName)
+                    setSize(apk.length())
+                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                }
+                val sessionId = installer.createSession(params)
+                installer.openSession(sessionId).use { session ->
+                    session.openWrite("base.apk", 0, apk.length()).use { out ->
+                        apk.inputStream().use { it.copyTo(out) }
+                        session.fsync(out)
+                    }
+                    // Read after the update by onPackageReplaced, in the new version's process.
+                    silentMarker(app).writeText(release.version)
+                    val status = PendingIntent.getBroadcast(
+                        app,
+                        sessionId,
+                        Intent(app, UpdateReceiver::class.java).setAction(ACTION_INSTALL_STATUS),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                    )
+                    session.commit(status.intentSender)
+                }
+            }
+        } catch (e: Exception) {
+            silentMarker(app).delete()
+            notifyReady(app, release.version)
+        }
+    }
+
+    /** Result of a silent install session. On success the app is replaced and this process ends. */
+    fun onInstallStatus(context: Context, intent: Intent) {
+        val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+        if (status == PackageInstaller.STATUS_SUCCESS) return
+        // Android wants a confirmation after all, or the install failed: abandon it and let the user install in the app.
+        val marker = silentMarker(context)
+        val version = marker.takeIf { it.exists() }?.readText()
+        marker.delete()
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
+        if (sessionId >= 0) runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
+        if (version != null) notifyReady(context, version)
+    }
+
+    /** Runs in the new version after any update; announces it if it was installed in the background. */
+    fun onPackageReplaced(context: Context) {
+        val marker = silentMarker(context)
+        if (!marker.exists()) return
+        marker.delete()
+        notify(context, "TooHeavy updated to ${BuildConfig.VERSION_NAME}", "Installed in the background. Tap to see what's new.")
+    }
+
+    private fun silentMarker(context: Context) = File(context.noBackupFilesDir, "silent-update")
+
+    // ---------- notifications ----------
+
+    private fun notifyReady(context: Context, version: String) =
+        notify(context, "TooHeavy $version is ready", "Tap to install the update. Your data is kept.")
+
+    private fun notify(context: Context, title: String, text: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "App updates", NotificationManager.IMPORTANCE_DEFAULT))
+        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+        val open = PendingIntent.getActivity(context, 0, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        manager.notify(
+            NOTIFICATION_ID,
+            Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_update)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build(),
+        )
+    }
+
+    private fun cancelNotification(context: Context) {
+        context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+    }
+
+    // ---------- download ----------
+
+    private fun isMetered() = app.getSystemService(ConnectivityManager::class.java).isActiveNetworkMetered
 
     private fun updatesDir() = File(app.cacheDir, "updates")
 
@@ -181,10 +378,15 @@ object Updater {
         return apk
     }
 
+    /** Whether [apk] is a newer build of this app. */
+    private fun isValidUpdate(apk: File): Boolean {
+        val info = app.packageManager.getPackageArchiveInfo(apk.path, 0) ?: return false
+        return info.packageName == app.packageName && PackageInfoCompat.getLongVersionCode(info) > BuildConfig.VERSION_CODE
+    }
+
     /** Makes sure the file is a newer build of this app before offering it. */
     private suspend fun verify(release: Release, apk: File) {
-        val info = withContext(Dispatchers.IO) { app.packageManager.getPackageArchiveInfo(apk.path, 0) }
-        if (info == null || info.packageName != app.packageName || PackageInfoCompat.getLongVersionCode(info) <= BuildConfig.VERSION_CODE) {
+        if (!withContext(Dispatchers.IO) { isValidUpdate(apk) }) {
             apk.delete()
             state = State.Failed("The downloaded file is not a valid update.")
             return
