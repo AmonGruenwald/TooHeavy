@@ -188,7 +188,7 @@ fun WidgetBody(w: DashboardWidget, nav: NavController, modifier: Modifier = Modi
         DashboardWidgets.BODY_WEIGHT -> BodyWeight(def, w.wide, m) { nav.navigate(Routes.COACH) }
         DashboardWidgets.CALORIES_WEEK -> CaloriesWeek(def, w.wide, m)
         DashboardWidgets.MACRO_SPLIT -> MacroSplit(def, w.wide, m)
-        DashboardWidgets.MUSCLES -> Muscles(def, w.wide, m)
+        DashboardWidgets.MUSCLES -> Muscles(def, w.wide, m) { nav.navigate(Routes.MUSCLES) }
         DashboardWidgets.RECORDS -> Records(def, w.wide, m, nav)
         DashboardWidgets.TOP_LIFT -> TopLift(def, w.wide, m, nav)
         DashboardWidgets.EXPENDITURE -> Expenditure(def, w.wide, m) { nav.navigate(Routes.COACH) }
@@ -600,9 +600,9 @@ private fun MacroSplit(def: DashboardWidgets.Def, wide: Boolean, modifier: Modif
 }
 
 @Composable
-private fun Muscles(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier) {
+private fun Muscles(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val sets = muscleSets(Repo.workouts.toList(), System.currentTimeMillis() - 30L * 86_400_000L, Repo::exercise)
-    WidgetCard(def, modifier) {
+    WidgetCard(def, modifier, onClick = onClick) {
         if (sets.isEmpty()) {
             EmptyChartNote("No sets in the last 30 days", height = 80.dp)
         } else {

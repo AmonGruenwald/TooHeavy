@@ -37,13 +37,30 @@ class HevyImportTest {
         assertEquals(listOf("Bench Press (Barbell)", "Triceps Rope Pushdown"), push.exercises.map { it.title })
         assertEquals("Pause, then press", push.exercises[0].notes)
         assertEquals(
-            listOf(HevyImport.ImportSet(SetType.WARMUP, 60.0, 10), HevyImport.ImportSet(SetType.NORMAL, 100.0, 5)),
+            // RPE 8 becomes 2 reps in reserve.
+            listOf(HevyImport.ImportSet(SetType.WARMUP, 60.0, 10), HevyImport.ImportSet(SetType.NORMAL, 100.0, 5, rir = 2)),
             push.exercises[0].sets,
         )
         assertEquals(SetType.DROP, push.exercises[1].sets[0].type)
         // The same exercise again later in a workout is a separate entry.
         assertEquals(listOf("Pull Up", "Zercher Carry (Barbell)", "Pull Up"), parsed.workouts[1].exercises.map { it.title })
         assertNull(parsed.workouts[1].exercises[0].sets[0].weightKg)
+    }
+
+    @Test
+    fun supersetsCarryOver() {
+        val parsed = HevyImport.parse(
+            "title,start_time,exercise_title,superset_id,set_type,weight_kg,reps\n" +
+                "Arms,2024-01-05 10:00:00,Bicep Curl (Dumbbell),0,normal,12,10\n" +
+                "Arms,2024-01-05 10:00:00,Triceps Rope Pushdown,0,normal,20,12\n" +
+                "Arms,2024-01-05 10:00:00,Plank,,normal,,60\n",
+        )
+        val ids = parsed.exerciseTitles.associate { (t, _) -> t to (HevyImport.match(t, library)?.id ?: "custom-x") }
+        val w = HevyImport.toWorkouts(parsed, ids, "kg", emptyList()).single()
+        val (curl, pushdown, plank) = w.exercises
+        assertNotNull(curl.supersetId)
+        assertEquals(curl.supersetId, pushdown.supersetId)
+        assertNull(plank.supersetId)
     }
 
     @Test
@@ -111,6 +128,8 @@ class HevyImportTest {
         assertEquals(220.46, bench.sets[1].weight!!, 0.01)
         assertTrue(bench.sets.all { it.completed })
         assertEquals(SetType.WARMUP, bench.sets[0].type)
+
+        assertEquals(2, bench.sets[1].rir)
 
         val again = HevyImport.toWorkouts(parsed, ids, "lb", workouts)
         assertTrue(again.isEmpty())

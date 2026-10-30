@@ -66,6 +66,7 @@ import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.titleCase
+import com.tooheavy.app.data.volume
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.AreaChart
@@ -184,6 +185,10 @@ private fun DetailAboutTab(ex: Exercise) {
             if (ex.secondaryMuscles.isNotEmpty()) {
                 DetailLabeled("Secondary: ", ex.secondaryMuscles.joinToString(", ") { it.titleCase() })
             }
+        }
+
+        if (ex.primaryMuscles.isNotEmpty()) {
+            com.tooheavy.app.ui.common.ExerciseMuscleMap(ex)
         }
 
         if (ex.instructions.isNotEmpty()) {
@@ -310,7 +315,7 @@ private fun DetailChartsTab(exerciseId: String) {
 
     val heaviest = sets.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull()
     val best1rm = sets.mapNotNull { it.estimated1RM() }.maxOrNull()
-    val bestVolume = sets.map { (it.weight ?: 0.0) * (it.reps ?: 0) }.filter { it > 0 }.maxOrNull()
+    val bestVolume = sets.map { it.volume }.filter { it > 0 }.maxOrNull()
     val mostReps = sets.mapNotNull { it.reps }.filter { it > 0 }.maxOrNull()
 
     val fmt = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
@@ -322,7 +327,7 @@ private fun DetailChartsTab(exerciseId: String) {
     val metrics = listOf(
         Metric("Est. 1RM", unit, Accent, series { s -> s.mapNotNull { it.estimated1RM() }.maxOrNull() }, one),
         Metric("Heaviest", unit, Accent, series { s -> s.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull() }, one),
-        Metric("Volume", unit, Accent, series { s -> s.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) }.takeIf { it > 0 } }, ::compact),
+        Metric("Volume", unit, Accent, series { s -> s.sumOf { it.volume }.takeIf { it > 0 } }, ::compact),
         Metric("Reps", "reps", Accent, series { s -> s.sumOf { it.reps ?: 0 }.toDouble().takeIf { it > 0 } }, { "${it.toInt()}" }),
     )
     var selected by rememberSaveable { mutableStateOf(0) }
@@ -360,7 +365,7 @@ private fun DetailChartsTab(exerciseId: String) {
         val recent = chrono.takeLast(10)
         ChartCard("Volume per session", caption = "Weight × reps of working sets, last ${recent.size} sessions", icon = Icons.Filled.BarChart) {
             BarChart(
-                recent.map { (_, we) -> we.sets.filter { it.type != SetType.WARMUP }.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) } },
+                recent.map { (_, we) -> we.sets.filter { it.type != SetType.WARMUP }.sumOf { it.volume } },
                 recent.map { (w, _) -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(w.startTime)) },
                 height = 150.dp,
                 tooltipLabels = recent.map { (w, _) -> fmt.format(Date(w.startTime)) },

@@ -2,6 +2,8 @@ package com.tooheavy.app.ui.program
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,38 +38,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Equipment
 import com.tooheavy.app.data.Experience
+import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.Split
 import com.tooheavy.app.data.TrainingGoal
 import com.tooheavy.app.data.generateProgram
+import com.tooheavy.app.data.sessionsPerWeek
+import com.tooheavy.app.data.weeklyGroupSets
+import com.tooheavy.app.data.weeklySetRange
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.Meter
+import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.TextMuted
+import com.tooheavy.app.ui.theme.Warmup
+import java.util.Locale
 
-private fun splitDescription(days: Int) = when (days) {
-    2 -> "Full body twice a week: two alternating sessions that each train everything."
-    3 -> "Full body three times a week: every muscle trained three times, with a different emphasis each day."
-    4 -> "Upper/lower split: each half of the body trained twice a week."
-    5 -> "Upper and lower days plus push, pull and legs: every muscle about twice a week."
-    else -> "Push/pull/legs twice a week: high frequency and volume for experienced lifters."
-}
+/** Groups that can be prioritised at once; prioritising more than two dilutes the priority. */
+private const val MAX_FOCUS = 2
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ProgramSetupScreen(nav: NavController) {
     val existing = Repo.program
     var goal by remember { mutableStateOf(existing?.goal ?: TrainingGoal.HYPERTROPHY) }
     var level by remember { mutableStateOf(existing?.experience ?: Experience.BEGINNER) }
-    var days by remember { mutableIntStateOf(existing?.days?.size ?: 3) }
+    var days by remember { mutableIntStateOf(existing?.sessionsPerWeek ?: 3) }
     var equipment by remember { mutableStateOf(existing?.equipment ?: Equipment.GYM) }
+    var split by remember { mutableStateOf(existing?.split ?: Split.AUTO) }
+    var focus by remember { mutableStateOf(existing?.focus.orEmpty()) }
+    var skip by remember { mutableStateOf(existing?.skip.orEmpty()) }
     var confirmReplace by remember { mutableStateOf(false) }
 
+    val unit = Repo.settings.unit
+    val preview = remember(goal, level, days, equipment, split, focus, skip, unit) {
+        generateProgram(goal, level, days, equipment, unit, Repo::exercise, split, focus, skip, Repo::best1RM)
+    }
+
     fun create() {
-        val p = generateProgram(goal, level, days, equipment, Repo.settings.unit, Repo::exercise, Repo::best1RM)
-        Repo.saveProgram(p)
+        Repo.saveProgram(preview)
         nav.navigate(Routes.PROGRAM) {
             popUpTo(Routes.PROGRAM_SETUP) { inclusive = true }
             launchSingleTop = true
@@ -95,8 +110,8 @@ fun ProgramSetupScreen(nav: NavController) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Answer four questions and TooHeavy builds your plan. After every workout it sets the next session's " +
-                    "weights, reps and sets from what you actually lifted.",
+                "Answer a few questions and TooHeavy builds your plan. After every workout it sets the next session's " +
+                    "weights, reps and sets from what you actually lifted, and after every block it adjusts your volume.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -122,7 +137,13 @@ fun ProgramSetupScreen(nav: NavController) {
                         FilterChip(selected = days == n, onClick = { days = n }, label = { Text("$n") })
                     }
                 }
-                Text(splitDescription(days), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            ProgramCard {
+                Text("Split", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Split.choices.forEach { s ->
+                    OptionRow(Split.label(s), Split.hint(s, days), split == s) { split = s }
+                }
             }
 
             ProgramCard {
@@ -131,6 +152,48 @@ fun ProgramSetupScreen(nav: NavController) {
                     OptionRow(Equipment.label(e), Equipment.hint(e), equipment == e) { equipment = e }
                 }
             }
+
+            ProgramCard {
+                Text("Focus on", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Up to $MAX_FOCUS muscle groups get about 4 more sets a week, an extra exercise and an early spot in each session.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MuscleGroup.all.forEach { g ->
+                        val selected = g in focus
+                        FilterChip(
+                            selected = selected,
+                            enabled = selected || (focus.size < MAX_FOCUS && g !in skip),
+                            onClick = { focus = if (selected) focus - g else focus + g },
+                            label = { Text(MuscleGroup.label(g)) },
+                        )
+                    }
+                }
+            }
+
+            ProgramCard {
+                Text("Leave out", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "For an injury, or muscles you train elsewhere. Their exercises are dropped and the sessions filled with the rest.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MuscleGroup.all.forEach { g ->
+                        val selected = g in skip
+                        FilterChip(
+                            selected = selected,
+                            enabled = selected || g !in focus,
+                            onClick = { skip = if (selected) skip - g else skip + g },
+                            label = { Text(MuscleGroup.label(g)) },
+                        )
+                    }
+                }
+            }
+
+            PreviewCard(preview, goal, level, focus)
 
             Text(
                 "Your first session at each exercise calibrates the weights: pick a load you could lift for 2 to 3 more reps. " +
@@ -141,11 +204,14 @@ fun ProgramSetupScreen(nav: NavController) {
 
             Button(
                 onClick = { if (existing != null) confirmReplace = true else create() },
+                enabled = preview.days.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Text(if (existing != null) "Replace program" else "Create program", fontWeight = FontWeight.SemiBold)
             }
+
+            HowItWorksCard()
         }
     }
 
@@ -161,6 +227,109 @@ fun ProgramSetupScreen(nav: NavController) {
                 }) { Text("Replace", color = Danger) }
             },
             dismissButton = { TextButton(onClick = { confirmReplace = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+/** The plan these answers produce: its days and the weekly sets each muscle group gets. */
+@Composable
+private fun PreviewCard(p: com.tooheavy.app.data.Program, goal: String, level: String, focus: List<String>) {
+    ProgramCard {
+        Text("Your plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (p.days.isEmpty()) {
+            Text("Nothing left to train. Leave out fewer muscle groups.", color = Danger, style = MaterialTheme.typography.bodyMedium)
+            return@ProgramCard
+        }
+        Text(
+            "${p.name} · ${p.days.size}-day rotation, ${p.sessionsPerWeek} sessions a week",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        p.days.forEach { d ->
+            Column {
+                Text(
+                    "${d.name} · ${d.exercises.size} exercises · ${d.exercises.sumOf { it.sets }} sets",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    d.exercises.joinToString(" · ") { Repo.exercise(it.exerciseId)?.name ?: "Exercise" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text("Weekly sets per muscle group", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Indirect work counts as half a set: bench press also trains triceps. The marker shows the range research suggests for you.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextMuted,
+        )
+        val weekly = p.weeklyGroupSets
+        MuscleGroup.all.filter { it !in p.skip }.forEach { g ->
+            val v = weekly[g] ?: 0.0
+            val range = weeklySetRange(goal, level, g in focus, g)
+            val color = when {
+                v < range.start - 0.01 -> Warmup
+                v > range.endInclusive + 0.01 -> Danger
+                else -> AccentBright
+            }
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        MuscleGroup.label(g) + if (g in focus) " · focus" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "${oneDecimal(v)} sets · aim ${range.start.toInt()}-${range.endInclusive.toInt()}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = color,
+                    )
+                }
+                Spacer(Modifier.height(3.dp))
+                Meter((v / (range.endInclusive * 1.25)).toFloat().coerceIn(0f, 1f), color, height = 5.dp)
+            }
+        }
+    }
+}
+
+private fun oneDecimal(v: Double) = String.format(Locale.US, "%.1f", v).removeSuffix(".0")
+
+/** What the plan is built on and how it adapts, in plain words. */
+@Composable
+private fun HowItWorksCard() {
+    ProgramCard {
+        Text("How your plan works", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        listOf(
+            "Volume" to "Muscles grow best on about 10 to 20 hard sets a week, with less needed when you're new to " +
+                "lifting. Every muscle group is balanced into a range for your experience, and sessions are kept short " +
+                "enough that the last sets still count.",
+            "Frequency" to "Each muscle is trained about twice a week, which beats once a week for the same total volume.",
+            "Effort" to "Sets should end 1 to 3 reps short of failure. Each block starts easier and gets harder week by " +
+                "week. Log your reps in reserve (RIR) and the plan speeds up when sets felt easy and holds back when " +
+                "they went to failure.",
+            "Progression" to "Reps climb through the range at the same weight; once every set reaches the top, the " +
+                "weight goes up. Three stalled sessions bring the weight down about 10 % to build back up.",
+            "Recovery" to "Every block ends in a deload week. If many lifts stall at once, the deload comes early.",
+            "Adapting to you" to "After each block, exercises that earned extra sets keep one and exercises that " +
+                "needed fewer start lower. Blocks get a week longer when you progress steadily (up to 6 weeks) and " +
+                "shorter after an early deload.",
+        ).forEach { (title, text) ->
+            Column {
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text(
+            "Based on meta-analyses and reviews by Schoenfeld et al. (volume, frequency, loading, rest), Pelland et al. " +
+                "2024 (volume dose-response), Refalo et al. 2023 (proximity to failure), Helms et al. 2016 (RIR) and " +
+                "Bell et al. 2023 (deloading).",
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted,
         )
     }
 }

@@ -5,10 +5,26 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-// Adaptive training programs. The generator builds a split from goal, experience, schedule and
-// equipment. After every program workout the progression engine sets the next session's load, reps
-// and sets from what was actually lifted: double progression, a reset after repeated stalls, volume
-// that follows performance, and mesocycles that end in a deload week.
+// Adaptive training programs, built on the main findings of resistance-training research:
+//
+// - Volume: hypertrophy rises with weekly hard sets per muscle up to roughly 10-20 sets, with
+//   diminishing returns beyond (Schoenfeld 2017, Baz-Valle 2022, Pelland 2024). Beginners grow on less.
+//   The generator balances every muscle group's weekly sets into a range for the lifter's experience,
+//   counting indirect work from compound lifts as half a set.
+// - Frequency: training a muscle at least twice a week beats once (Schoenfeld 2016), so the splits
+//   hit each group about twice per week.
+// - Load and reps: similar growth from about 6 to 30 reps when sets end close to failure (Schoenfeld
+//   2017); strength favours heavier loads. Rep ranges follow the goal and the exercise's role.
+// - Effort: 0-3 reps in reserve (Refalo 2023, Helms 2016). Blocks ramp from 3 RIR to 1 RIR, and logged
+//   RIR steers progression: reps to spare speed it up, sets ground out at failure hold it back.
+// - Rest: 2-3 minutes for compound lifts, shorter for isolation work (Schoenfeld 2016, Singer 2024).
+// - Fatigue: deloads every 4-6 weeks (Bell 2023). A deload comes early when stalls pile up.
+// - Order: prioritised muscles are trained early in the session, while fresh (Simão 2012).
+//
+// Adaptation runs at two speeds. After every workout, double progression sets load and reps, sets
+// follow performance, and repeated stalls reset the weight. At the end of every block, each exercise's
+// base volume moves toward what the lifter recovered from, and the next block gets longer when progress
+// was steady or shorter when the deload had to come early.
 
 object TrainingGoal {
     const val STRENGTH = "strength"
@@ -57,6 +73,37 @@ object Equipment {
     }
 }
 
+object Split {
+    const val AUTO = "auto"
+    const val FULL_BODY = "full_body"
+    const val UPPER_LOWER = "upper_lower"
+    const val PPL = "ppl"
+    /** Upper and lower days plus push, pull and legs; what AUTO picks for 5 days. */
+    const val HYBRID = "hybrid"
+    val choices = listOf(AUTO, FULL_BODY, UPPER_LOWER, PPL)
+    fun resolve(split: String, days: Int): String =
+        if (split != AUTO) split
+        else when (days) {
+            2, 3 -> FULL_BODY
+            4 -> UPPER_LOWER
+            5 -> HYBRID
+            else -> PPL
+        }
+    fun label(split: String) = when (split) {
+        FULL_BODY -> "Full body"
+        UPPER_LOWER -> "Upper/Lower"
+        PPL -> "Push/Pull/Legs"
+        HYBRID -> "Upper/Lower + PPL"
+        else -> "Recommended"
+    }
+    fun hint(split: String, days: Int) = when (split) {
+        FULL_BODY -> "Every session trains the whole body. Suits 2 to 4 days."
+        UPPER_LOWER -> "Alternating upper- and lower-body days. Suits 4 days."
+        PPL -> "Push, pull and leg days. Suits 3 or 6 days."
+        else -> "${label(resolve(AUTO, days))} for $days days a week"
+    }
+}
+
 object Role {
     const val PRIMARY = "primary"
     const val SECONDARY = "secondary"
@@ -80,6 +127,7 @@ object Pattern {
     const val REAR_DELTS = "rear_delts"
     const val CHEST_FLY = "chest_fly"
     const val CORE = "core"
+    const val GLUTES = "glutes"
     fun label(pattern: String) = pattern.replace('_', ' ').titleCase()
 }
 
@@ -125,12 +173,26 @@ data class Program(
     val experience: String = Experience.BEGINNER,
     val equipment: String = Equipment.GYM,
     val days: List<ProgramDay> = emptyList(),
-    /** Training weeks per mesocycle; a deload week follows. */
+    /** Training weeks per mesocycle before its deload week; adapts between 3 and 6 from block to block. */
     val mesoWeeks: Int = 4,
     val sessionsCompleted: Int = 0,
     /** Index into days of the last finished session, -1 before the first. */
     val lastDayIndex: Int = -1,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Split.* the lifter chose. */
+    val split: String = Split.AUTO,
+    /** MuscleGroup.* to prioritise: more weekly sets, trained first. */
+    val focus: List<String> = emptyList(),
+    /** MuscleGroup.* left out of the program. */
+    val skip: List<String> = emptyList(),
+    /** Sessions per week; 0 means one pass through [days]. */
+    val perWeek: Int = 0,
+    /** sessionsCompleted when the current mesocycle began. */
+    val mesoStart: Int = 0,
+    /** 0-based number of the current mesocycle. */
+    val mesoIndex: Int = 0,
+    /** Training weeks of the current block when fatigue brought the deload forward, else 0. */
+    val blockWeeks: Int = 0,
 )
 
 /** What a program workout asked for on one exercise; kept on WorkoutExercise.target. */
@@ -149,12 +211,23 @@ data class ProgramUpdate(val workoutName: String, val changes: List<String>)
 
 // ---------- schedule ----------
 
-/** 0-based program week; one pass through all days counts as a week. */
-val Program.weekIndex: Int get() = if (days.isEmpty()) 0 else sessionsCompleted / days.size
-val Program.mesocycle: Int get() = weekIndex / (mesoWeeks + 1) + 1
-/** 1-based week within the mesocycle; mesoWeeks + 1 is the deload. */
-val Program.mesoWeek: Int get() = weekIndex % (mesoWeeks + 1) + 1
-val Program.isDeload: Boolean get() = mesoWeek > mesoWeeks
+val Program.sessionsPerWeek: Int get() = if (perWeek > 0) perWeek else max(1, days.size)
+/** Training weeks before this block's deload. */
+val Program.trainingWeeks: Int get() = if (blockWeeks > 0) blockWeeks else mesoWeeks
+/** 0-based week within the current mesocycle. */
+val Program.weekIndex: Int get() = max(0, sessionsCompleted - mesoStart) / sessionsPerWeek
+val Program.mesocycle: Int get() = mesoIndex + 1
+/** 1-based week within the mesocycle; trainingWeeks + 1 is the deload. */
+val Program.mesoWeek: Int get() = weekIndex + 1
+val Program.isDeload: Boolean get() = weekIndex >= trainingWeeks
+
+/** Programs saved before 1.7.0 counted mesocycles from the start; this moves them to a stored block start. */
+fun Program.migrated(): Program {
+    if (perWeek != 0 || mesoStart != 0 || mesoIndex != 0 || days.isEmpty()) return this
+    val cycle = (mesoWeeks + 1) * days.size
+    val n = sessionsCompleted / cycle
+    return if (n == 0) this else copy(mesoIndex = n, mesoStart = n * cycle)
+}
 val Program.nextDayIndex: Int get() = if (days.isEmpty()) 0 else (lastDayIndex + 1).mod(days.size)
 
 /** Reps in reserve to aim for: 3 in the first week down to 1 in the last, 4 on deload. */
@@ -191,21 +264,10 @@ fun Program.buildWorkout(dayIndex: Int, unit: String, exercise: (String) -> Exer
                 restSeconds = pe.restSeconds,
                 programExerciseId = pe.id,
                 target = t,
-                sets = warmups(pe, t, equipment, unit) + List(t.sets) { SetEntry(weight = t.weight, reps = t.reps) },
+                sets = List(t.sets) { SetEntry(weight = t.weight, reps = t.reps) },
             )
         },
     )
-}
-
-/** Two ramp-up sets before a heavy barbell main lift. */
-private fun warmups(pe: ProgramExercise, t: SetTarget, equipment: String?, unit: String): List<SetEntry> {
-    val w = t.weight ?: return emptyList()
-    val bar = if (unit == "lb") 45.0 else 20.0
-    if (pe.role != Role.PRIMARY || equipment != "barbell" || w < bar * 2) return emptyList()
-    val step = loadStep(equipment, pe.pattern, unit).rounding
-    return listOf(0.5 to 8, 0.75 to 3).map { (f, r) ->
-        SetEntry(weight = max(bar, roundLoad(w * f, step)), reps = r, type = SetType.WARMUP)
-    }
 }
 
 fun Program.replaceExercise(updated: ProgramExercise): Program =
@@ -218,7 +280,7 @@ data class LoadStep(val increment: Double, val rounding: Double)
 
 fun loadStep(equipment: String?, pattern: String, unit: String): LoadStep {
     val lb = unit == "lb"
-    val lower = pattern == Pattern.SQUAT || pattern == Pattern.HINGE || pattern == Pattern.LUNGE
+    val lower = pattern == Pattern.SQUAT || pattern == Pattern.HINGE || pattern == Pattern.LUNGE || pattern == Pattern.GLUTES
     return when (equipment) {
         "barbell", "e-z curl bar" ->
             if (lower) (if (lb) LoadStep(10.0, 5.0) else LoadStep(5.0, 2.5))
@@ -276,13 +338,76 @@ fun Program.afterSession(workout: Workout, unit: String, exercise: (String) -> E
         sessionsCompleted = sessionsCompleted + 1,
         lastDayIndex = dayIndex,
     )
-    if (next.mesocycle > mesocycle) {
-        next = next.copy(days = next.days.map { d -> d.copy(exercises = d.exercises.map { it.copy(sets = it.baseSets, streak = 0) }) })
-        changes.add("Deload done. Mesocycle ${next.mesocycle} starts back at base volume.")
-    } else if (next.isDeload && !isDeload) {
-        changes.add("Next week is a deload: about half the sets at 90 % of the weight.")
+    when {
+        next.weekIndex > next.trainingWeeks -> {
+            val (reviewed, review) = next.nextBlock(exercise)
+            next = reviewed
+            changes.add("Deload done. Mesocycle ${next.mesocycle} starts with ${next.mesoWeeks} training weeks.")
+            changes.addAll(review)
+        }
+        next.isDeload && !isDeload -> changes.add("Next week is a deload: about half the sets at 90 % of the weight.")
+        !next.isDeload -> next.fatigueCheck()?.let { (p, message) ->
+            next = p
+            changes.add(message)
+        }
     }
     return next to changes
+}
+
+/** Share of trained exercises that missed their target twice in a row which brings the deload forward. */
+private const val FATIGUE_SHARE = 0.4
+
+/**
+ * Brings the deload forward when fatigue piles up: from the third week on, once 40 % of the trained
+ * exercises have missed their targets twice in a row, the current week becomes the block's last.
+ */
+private fun Program.fatigueCheck(): Pair<Program, String>? {
+    if (blockWeeks > 0 || weekIndex < 2 || weekIndex + 1 >= trainingWeeks) return null
+    val trained = days.flatMap { it.exercises }.filter { it.sessions > 0 }
+    if (trained.size < 3) return null
+    val stalled = trained.count { it.stalls >= 2 }
+    if (stalled < trained.size * FATIGUE_SHARE) return null
+    return copy(blockWeeks = weekIndex + 1) to
+        "Fatigue is building: $stalled of ${trained.size} exercises missed their targets twice in a row. " +
+        "The deload comes after this week instead of after week $trainingWeeks."
+}
+
+/**
+ * Starts the next mesocycle and adapts the plan to how the last one went. Exercises that earned extra sets
+ * without stalling keep one of them as their new base; exercises that had to drop a set start a set lower.
+ * The block gets a week longer after steady progress and a week shorter after an early deload.
+ */
+private fun Program.nextBlock(exercise: (String) -> Exercise?): Pair<Program, List<String>> {
+    val notes = ArrayList<String>()
+    val trained = days.flatMap { it.exercises }.filter { it.sessions > 0 }
+    val early = blockWeeks in 1 until mesoWeeks
+    val steady = trained.isNotEmpty() && trained.count { it.stalls == 0 } >= trained.size * 0.8
+    val weeks = when {
+        early -> max(MIN_BLOCK_WEEKS, mesoWeeks - 1)
+        steady -> min(MAX_BLOCK_WEEKS, mesoWeeks + 1)
+        else -> mesoWeeks
+    }
+    if (weeks > mesoWeeks) notes.add("You progressed steadily, so this block runs a week longer.")
+    if (weeks < mesoWeeks) notes.add("The last deload had to come early, so this block is a week shorter.")
+    val reviewed = days.map { d ->
+        d.copy(exercises = d.exercises.map { pe ->
+            val base = when {
+                pe.sessions == 0 -> pe.baseSets
+                pe.sets > pe.baseSets && pe.stalls == 0 -> min(MAX_SETS, pe.baseSets + 1)
+                pe.sets < pe.baseSets -> max(MIN_SETS, pe.baseSets - 1)
+                else -> pe.baseSets
+            }
+            val name = exercise(pe.exerciseId)?.name ?: "Exercise"
+            if (base > pe.baseSets) notes.add("$name: $base sets per session now, you recovered well from more.")
+            if (base < pe.baseSets) notes.add("$name: $base sets per session now, fewer suited you better.")
+            pe.copy(baseSets = base, sets = base, streak = 0)
+        })
+    }
+    val p = copy(
+        days = balanceVolume(reviewed, sessionsPerWeek, goal, experience, focus, raise = false),
+        mesoWeeks = weeks, mesoStart = sessionsCompleted, mesoIndex = mesoIndex + 1, blockWeeks = 0,
+    )
+    return p to notes
 }
 
 /**
@@ -293,6 +418,9 @@ fun Program.afterSession(workout: Workout, unit: String, exercise: (String) -> E
  * without hitting the target drop the weight by about 10 % to build back up.
  * Volume follows performance: two hits in a row add a set (up to baseSets + 2), falling below the
  * range removes one (down to baseSets - 1).
+ * Logged reps in reserve autoregulate the steps: when every set with a logged RIR had 2 or more reps to
+ * spare beyond the target, the step doubles (two reps, or two weight increments); when they were all
+ * ground out at 0 RIR although the target was 2 or more, the reps hold where they were.
  */
 internal fun progressExercise(pe: ProgramExercise, we: WorkoutExercise, unit: String, equipment: String?): ProgramExercise {
     val working = we.sets.filter { it.completed && it.type != SetType.WARMUP && (it.reps ?: 0) > 0 }
@@ -301,9 +429,23 @@ internal fun progressExercise(pe: ProgramExercise, we: WorkoutExercise, unit: St
     val tSets = target?.sets ?: pe.sets
     val tReps = target?.reps ?: pe.targetReps
     val tWeight = target?.weight ?: pe.weight
+    val effort = effortOf(working, target?.rir ?: 2)
     val top = working.maxOf { it.weight ?: 0.0 }
-    return if (top <= 0.0) progressBodyweight(pe, working, tSets, tReps)
-    else progressLoaded(pe, working, top, tSets, tReps, tWeight, loadStep(equipment, pe.pattern, unit), unit)
+    return if (top <= 0.0) progressBodyweight(pe, working, tSets, tReps, effort)
+    else progressLoaded(pe, working, top, tSets, tReps, tWeight, loadStep(equipment, pe.pattern, unit), unit, effort)
+}
+
+/** How hard the working sets felt from the logged RIR, NORMAL when none was logged. */
+private enum class Effort { NORMAL, EASY, GRINDING }
+
+private fun effortOf(working: List<SetEntry>, targetRir: Int): Effort {
+    val rirs = working.mapNotNull { it.rir }
+    return when {
+        rirs.isEmpty() -> Effort.NORMAL
+        rirs.min() >= targetRir + 2 -> Effort.EASY
+        targetRir >= 2 && rirs.max() == 0 -> Effort.GRINDING
+        else -> Effort.NORMAL
+    }
 }
 
 private fun progressLoaded(
@@ -315,6 +457,7 @@ private fun progressLoaded(
     tWeight: Double?,
     step: LoadStep,
     unit: String,
+    effort: Effort,
 ): ProgramExercise {
     val reps = working.filter { (it.weight ?: 0.0) >= top - EPS }.map { it.reps ?: 0 }
     val minReps = reps.min()
@@ -337,17 +480,23 @@ private fun progressLoaded(
     var note: String
     when {
         minReps >= pe.repMax && allSets -> {
-            weight = roundLoad(top + step.increment, step.rounding)
+            val jumps = if (effort == Effort.EASY) 2 else 1
+            weight = roundLoad(top + step.increment * jumps, step.rounding)
             nextReps = pe.repMin
-            note = "+${formatWeight(weight - top)} $unit after ${pe.repMax} reps on every set"
+            note = "+${formatWeight(weight - top)} $unit after ${pe.repMax} reps on every set" +
+                if (effort == Effort.EASY) " with reps to spare" else ""
         }
         minReps >= pe.repMax -> {
             nextReps = pe.repMax
             note = "Finish all $tSets sets at ${pe.repMax} reps to move up"
         }
+        minReps >= pe.repMin && effort == Effort.GRINDING -> {
+            nextReps = max(min(minReps, pe.repMax), min(tReps, pe.repMax))
+            note = "Same weight and $nextReps reps: the sets went to failure, so own them first"
+        }
         minReps >= pe.repMin -> {
-            nextReps = min(minReps + 1, pe.repMax)
-            note = "Same weight, aim for $nextReps reps"
+            nextReps = min(minReps + if (effort == Effort.EASY) 2 else 1, pe.repMax)
+            note = "Same weight, aim for $nextReps reps" + if (effort == Effort.EASY) " (you had reps to spare)" else ""
         }
         reps.max() < pe.repMin - 2 -> {
             weight = lighter(top, step)
@@ -374,7 +523,7 @@ private fun progressLoaded(
     )
 }
 
-private fun progressBodyweight(pe: ProgramExercise, working: List<SetEntry>, tSets: Int, tReps: Int): ProgramExercise {
+private fun progressBodyweight(pe: ProgramExercise, working: List<SetEntry>, tSets: Int, tReps: Int, effort: Effort): ProgramExercise {
     val reps = working.map { it.reps ?: 0 }
     val minReps = reps.min()
     val allSets = reps.size >= tSets
@@ -384,7 +533,11 @@ private fun progressBodyweight(pe: ProgramExercise, working: List<SetEntry>, tSe
         reps.sum() >= tSets * tReps * 0.9 -> Outcome.HELD
         else -> Outcome.MISSED
     }
-    val nextReps = if (allSets) minReps + 1 else minReps
+    val nextReps = when {
+        !allSets || effort == Effort.GRINDING -> minReps
+        effort == Effort.EASY -> minReps + 2
+        else -> minReps + 1
+    }
     var note = if (minReps >= pe.repMax) "Aim for $nextReps reps; past the range, so add weight or try a harder variation"
     else "Aim for $nextReps reps per set"
     var stalls = if (outcome == Outcome.HIT || outcome == Outcome.BASELINE) 0 else pe.stalls + 1
@@ -405,7 +558,7 @@ private fun adjustVolume(pe: ProgramExercise, outcome: Outcome): Triple<Int, Int
     return when {
         outcome == Outcome.MISSED && pe.sets > max(1, pe.baseSets - 1) ->
             Triple(pe.sets - 1, 0, ". One set fewer to recover")
-        streak >= HITS_PER_ADDED_SET && pe.sets < pe.baseSets + 2 ->
+        streak >= HITS_PER_ADDED_SET && pe.sets < min(pe.baseSets + 2, MAX_SETS + 1) ->
             Triple(pe.sets + 1, 0, ". One more set, you're recovering well")
         else -> Triple(pe.sets, streak, "")
     }
@@ -492,6 +645,10 @@ private val candidates: Map<String, List<Candidate>> = run {
             band("Band_Pull_Apart"),
         ),
         Pattern.CHEST_FLY to listOf(c("Cable_Crossover"), d("Dumbbell_Flyes"), m("Butterfly"), d("Incline_Dumbbell_Flyes")),
+        Pattern.GLUTES to listOf(
+            b("Barbell_Hip_Thrust"), c("Pull_Through"), b("Barbell_Glute_Bridge"), c("One-Legged_Cable_Kickback"),
+            bw("Single_Leg_Glute_Bridge"), bw("Glute_Kickback"), bw("Butt_Lift_Bridge"),
+        ),
         Pattern.CORE to listOf(c("Cable_Crunch"), bw("Reverse_Crunch"), bw("Hanging_Leg_Raise"), bw("Dead_Bug"), bw("Crunches")),
     )
 }
@@ -547,27 +704,184 @@ private val legs = listOf(
     accessory(Pattern.LEG_EXTENSION), accessory(Pattern.CALVES), accessory(Pattern.CORE, 1),
 )
 
-private class DayPlan(val name: String, val slots: List<Slot>, val variantOffset: Int = 0)
+private val allGroups = MuscleGroup.all.toSet()
+private val upperGroups = setOf(
+    MuscleGroup.CHEST, MuscleGroup.BACK, MuscleGroup.SHOULDERS, MuscleGroup.BICEPS, MuscleGroup.TRICEPS, MuscleGroup.ABS,
+)
+private val lowerGroups = setOf(MuscleGroup.QUADS, MuscleGroup.HAMSTRINGS, MuscleGroup.GLUTES, MuscleGroup.CALVES, MuscleGroup.ABS)
+private val pushGroups = setOf(MuscleGroup.CHEST, MuscleGroup.SHOULDERS, MuscleGroup.TRICEPS)
+private val pullGroups = setOf(MuscleGroup.BACK, MuscleGroup.BICEPS, MuscleGroup.SHOULDERS, MuscleGroup.ABS)
 
-private fun split(daysPerWeek: Int): List<DayPlan> = when (daysPerWeek) {
-    2 -> listOf(DayPlan("Full Body A", fullA), DayPlan("Full Body B", fullB))
-    3 -> listOf(DayPlan("Full Body A", fullA), DayPlan("Full Body B", fullB), DayPlan("Full Body C", fullC))
-    4 -> listOf(DayPlan("Upper A", upperA), DayPlan("Lower A", lowerA), DayPlan("Upper B", upperB), DayPlan("Lower B", lowerB))
-    5 -> listOf(
-        DayPlan("Upper", upperA), DayPlan("Lower", lowerA),
-        DayPlan("Push", push, 1), DayPlan("Pull", pull, 1), DayPlan("Legs", legs, 1),
+/** A day in the rotation; [groups] are the muscle groups it may train when filling or adding focus work. */
+private class DayPlan(val name: String, val slots: List<Slot>, val groups: Set<String>, val variantOffset: Int = 0)
+
+private fun fullBody(i: Int) = DayPlan("Full Body ${'A' + i}", listOf(fullA, fullB, fullC)[i % 3], allGroups, i / 3)
+
+/** The rotation of days for [split]; the program runs [daysPerWeek] sessions of it per week. */
+private fun rotation(split: String, daysPerWeek: Int): List<DayPlan> = when (split) {
+    Split.FULL_BODY -> List(daysPerWeek) { fullBody(it) }
+    Split.UPPER_LOWER -> {
+        val week = listOf(
+            DayPlan("Upper A", upperA, upperGroups), DayPlan("Lower A", lowerA, lowerGroups),
+            DayPlan("Upper B", upperB, upperGroups), DayPlan("Lower B", lowerB, lowerGroups),
+        )
+        when {
+            daysPerWeek <= 2 -> listOf(DayPlan("Upper", upperA, upperGroups), DayPlan("Lower", lowerA, lowerGroups))
+            daysPerWeek <= 5 -> week
+            else -> week + listOf(DayPlan("Upper C", upperA, upperGroups, 1), DayPlan("Lower C", lowerA, lowerGroups, 1))
+        }
+    }
+    Split.HYBRID -> listOf(
+        DayPlan("Upper", upperA, upperGroups), DayPlan("Lower", lowerA, lowerGroups),
+        DayPlan("Push", push, pushGroups, 1), DayPlan("Pull", pull, pullGroups, 1), DayPlan("Legs", legs, lowerGroups, 1),
     )
-    else -> listOf(
-        DayPlan("Push A", push), DayPlan("Pull A", pull), DayPlan("Legs A", legs),
-        DayPlan("Push B", push, 1), DayPlan("Pull B", pull, 1), DayPlan("Legs B", legs, 1),
-    )
+    else ->
+        if (daysPerWeek <= 3) listOf(DayPlan("Push", push, pushGroups), DayPlan("Pull", pull, pullGroups), DayPlan("Legs", legs, lowerGroups))
+        else listOf(
+            DayPlan("Push A", push, pushGroups), DayPlan("Pull A", pull, pullGroups), DayPlan("Legs A", legs, lowerGroups),
+            DayPlan("Push B", push, pushGroups, 1), DayPlan("Pull B", pull, pullGroups, 1), DayPlan("Legs B", legs, lowerGroups, 1),
+        )
 }
 
-private fun splitName(daysPerWeek: Int) = when (daysPerWeek) {
-    2, 3 -> "Full Body"
-    4 -> "Upper/Lower"
-    5 -> "Upper/Lower + PPL"
-    else -> "Push/Pull/Legs"
+/** Muscle groups each pattern works: the main one first, then those it trains indirectly. */
+private val patternGroups: Map<String, List<String>> = mapOf(
+    Pattern.SQUAT to listOf(MuscleGroup.QUADS, MuscleGroup.GLUTES),
+    Pattern.HINGE to listOf(MuscleGroup.HAMSTRINGS, MuscleGroup.GLUTES, MuscleGroup.BACK),
+    Pattern.LUNGE to listOf(MuscleGroup.QUADS, MuscleGroup.GLUTES),
+    Pattern.LEG_CURL to listOf(MuscleGroup.HAMSTRINGS),
+    Pattern.LEG_EXTENSION to listOf(MuscleGroup.QUADS),
+    Pattern.CALVES to listOf(MuscleGroup.CALVES),
+    Pattern.GLUTES to listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS),
+    Pattern.HORIZONTAL_PUSH to listOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS, MuscleGroup.SHOULDERS),
+    Pattern.VERTICAL_PUSH to listOf(MuscleGroup.SHOULDERS, MuscleGroup.TRICEPS),
+    Pattern.CHEST_FLY to listOf(MuscleGroup.CHEST),
+    Pattern.HORIZONTAL_PULL to listOf(MuscleGroup.BACK, MuscleGroup.BICEPS),
+    Pattern.VERTICAL_PULL to listOf(MuscleGroup.BACK, MuscleGroup.BICEPS),
+    Pattern.BICEPS to listOf(MuscleGroup.BICEPS),
+    Pattern.TRICEPS to listOf(MuscleGroup.TRICEPS),
+    Pattern.LATERAL_DELTS to listOf(MuscleGroup.SHOULDERS),
+    Pattern.REAR_DELTS to listOf(MuscleGroup.SHOULDERS),
+    Pattern.CORE to listOf(MuscleGroup.ABS),
+)
+
+/** The muscle group a pattern mainly trains. */
+fun patternGroup(pattern: String): String? = patternGroups[pattern]?.firstOrNull()
+
+/** Extra work per group, in order of preference, for prioritised groups and for days that skipping left thin. */
+private val groupSlots: Map<String, List<Slot>> = mapOf(
+    MuscleGroup.CHEST to listOf(secondary(Pattern.HORIZONTAL_PUSH, 1), accessory(Pattern.CHEST_FLY)),
+    MuscleGroup.BACK to listOf(secondary(Pattern.HORIZONTAL_PULL, 1), secondary(Pattern.VERTICAL_PULL, 1)),
+    MuscleGroup.SHOULDERS to listOf(accessory(Pattern.LATERAL_DELTS), secondary(Pattern.VERTICAL_PUSH, 1), accessory(Pattern.REAR_DELTS)),
+    MuscleGroup.BICEPS to listOf(accessory(Pattern.BICEPS, 1)),
+    MuscleGroup.TRICEPS to listOf(accessory(Pattern.TRICEPS, 1)),
+    MuscleGroup.ABS to listOf(accessory(Pattern.CORE, 1)),
+    MuscleGroup.QUADS to listOf(accessory(Pattern.LEG_EXTENSION), secondary(Pattern.SQUAT, 1), secondary(Pattern.LUNGE)),
+    MuscleGroup.HAMSTRINGS to listOf(accessory(Pattern.LEG_CURL), secondary(Pattern.HINGE, 1)),
+    MuscleGroup.GLUTES to listOf(secondary(Pattern.GLUTES), accessory(Pattern.GLUTES, 1)),
+    MuscleGroup.CALVES to listOf(accessory(Pattern.CALVES)),
+)
+
+private fun roleRank(role: String) = when (role) {
+    Role.PRIMARY -> 0
+    Role.SECONDARY -> 1
+    else -> 2
+}
+
+private const val MIN_SETS = 2
+private const val MAX_SETS = 5
+private const val MIN_BLOCK_WEEKS = 3
+private const val MAX_BLOCK_WEEKS = 6
+
+/**
+ * Weekly sets a muscle group should get: beginners grow on less, advanced lifters need more (Schoenfeld
+ * 2017, Baz-Valle 2022). Prioritised groups get about four more; strength programs lean on load over volume.
+ */
+fun weeklySetRange(goal: String, experience: String, focused: Boolean, group: String = ""): ClosedFloatingPointRange<Double> {
+    var (lo, hi) = when (experience) {
+        Experience.BEGINNER -> 6.0 to 12.0
+        Experience.ADVANCED -> 12.0 to 20.0
+        else -> 10.0 to 16.0
+    }
+    if (goal == TrainingGoal.STRENGTH) { lo -= 2; hi -= 2 }
+    // Abs and calves get plenty of indirect work from compound lifts, so they need less direct volume.
+    if (group == MuscleGroup.ABS || group == MuscleGroup.CALVES) { lo = max(4.0, lo - 4); hi -= 4 }
+    if (focused) { lo += 4; hi += 4 }
+    return lo..hi
+}
+
+/**
+ * Working sets per session: beyond about 20 the quality of later sets drops and sessions run long
+ * (per-session volume shows diminishing returns past roughly 10 sets per muscle). With 3 days or fewer a
+ * week, each session has to carry more of the week's work.
+ */
+private fun sessionBudget(experience: String, focused: Boolean, perWeek: Int) = when (experience) {
+    Experience.BEGINNER -> 15
+    Experience.ADVANCED -> 24
+    else -> 20
+} + (if (focused) 3 else 0) + (if (perWeek <= 3) 4 else 0)
+
+/** Planned weekly sets per muscle group: direct sets count fully, indirect work from compound lifts half. */
+fun weeklyGroupSets(days: List<ProgramDay>, perWeek: Int): Map<String, Double> {
+    val out = HashMap<String, Double>()
+    if (days.isEmpty()) return out
+    val f = perWeek.toDouble() / days.size
+    days.flatMap { it.exercises }.forEach { pe ->
+        patternGroups[pe.pattern].orEmpty().forEachIndexed { i, g ->
+            out[g] = (out[g] ?: 0.0) + pe.sets * f * (if (i == 0) 1.0 else 0.5)
+        }
+    }
+    return out
+}
+
+val Program.weeklyGroupSets: Map<String, Double> get() = weeklyGroupSets(days, sessionsPerWeek)
+
+/**
+ * Moves each group's weekly sets into its [weeklySetRange] one set at a time while every session stays
+ * within its set budget: sessions over budget lose a set from the group with the most to spare, groups
+ * above their range lose a set from their biggest accessory, and with [raise] groups below their range gain
+ * one on the exercise with the fewest sets, if its session has room. Exercises stay within MIN_SETS..MAX_SETS.
+ */
+private fun balanceVolume(
+    days: List<ProgramDay>,
+    perWeek: Int,
+    goal: String,
+    experience: String,
+    focus: List<String>,
+    raise: Boolean,
+): List<ProgramDay> {
+    val budget = sessionBudget(experience, focus.isNotEmpty(), perWeek)
+    var d = days
+    repeat(120) {
+        val weekly = weeklyGroupSets(d, perWeek)
+        val all = d.flatMap { it.exercises }
+        val dayOf = d.flatMap { day -> day.exercises.map { it.id to day.exercises.sumOf { e -> e.sets } } }.toMap()
+        fun direct(g: String) = all.filter { patternGroup(it.pattern) == g }
+        fun range(g: String) = weeklySetRange(goal, experience, g in focus, g)
+        fun surplus(pe: ProgramExercise) = patternGroup(pe.pattern)?.let { g -> (weekly[g] ?: 0.0) - range(g).start } ?: 0.0
+        val busy = d.firstOrNull { day -> day.exercises.sumOf { it.sets } > budget && day.exercises.any { it.sets > MIN_SETS } }
+        val over = MuscleGroup.all.firstOrNull { g ->
+            (weekly[g] ?: 0.0) > range(g).endInclusive + EPS && direct(g).any { it.sets > MIN_SETS }
+        }
+        // The group furthest below its range, relative to the range, gets the next set.
+        val under = if (busy != null || over != null || !raise) null else MuscleGroup.all.filter { g ->
+            (weekly[g] ?: 0.0) < range(g).start - EPS && direct(g).any { it.sets < MAX_SETS && dayOf.getValue(it.id) < budget }
+        }.maxByOrNull { g -> 1 - (weekly[g] ?: 0.0) / range(g).start }
+        val (id, delta) = when {
+            busy != null -> busy.exercises.filter { it.sets > MIN_SETS }
+                .maxWith(compareBy({ surplus(it) }, { roleRank(it.role) })).id to -1
+            over != null -> direct(over).filter { it.sets > MIN_SETS }
+                .maxWith(compareBy({ it.sets }, { roleRank(it.role) })).id to -1
+            under != null -> direct(under).filter { it.sets < MAX_SETS && dayOf.getValue(it.id) < budget }
+                .minWith(compareBy({ it.sets }, { roleRank(it.role) })).id to 1
+            else -> return d
+        }
+        d = d.map { day ->
+            day.copy(exercises = day.exercises.map {
+                if (it.id == id) it.copy(sets = it.sets + delta, baseSets = it.baseSets + delta) else it
+            })
+        }
+    }
+    return d
 }
 
 private fun repRange(goal: String, role: String, bodyweight: Boolean): IntRange = when {
@@ -651,6 +965,11 @@ private fun newProgramExercise(
 /**
  * Builds a program. [exercise] looks up the library (candidates missing from it are skipped);
  * [best1RM] gives an estimated one-rep max from the user's history, used for starting weights.
+ *
+ * [split] picks the day rotation (Split.AUTO chooses from the days per week). Muscle groups in [skip] are
+ * left out: their slots are dropped, thin days are filled with the day's other groups, and days with
+ * nothing left to train disappear. Groups in [focus] get an extra exercise on each day that trains them,
+ * come first after the main lifts, and aim for about four more weekly sets.
  */
 fun generateProgram(
     goal: String,
@@ -659,26 +978,82 @@ fun generateProgram(
     equipment: String,
     unit: String,
     exercise: (String) -> Exercise?,
+    split: String = Split.AUTO,
+    focus: List<String> = emptyList(),
+    skip: List<String> = emptyList(),
     best1RM: (String) -> Double? = { null },
 ): Program {
     val n = daysPerWeek.coerceIn(2, 6)
     val gear = gearFor(equipment)
-    val days = split(n).map { plan ->
-        val used = HashSet<String>()
-        val exercises = plan.slots.mapNotNull { slot ->
-            val c = pick(slot.pattern, slot.variant + plan.variantOffset, gear, used, experience, exercise)
-                ?: return@mapNotNull null
-            used.add(c.id)
-            newProgramExercise(c, slot.pattern, slot.role, goal, experience, unit, exercise, best1RM)
-        }.take(maxExercises(experience))
-        ProgramDay(name = plan.name, exercises = exercises)
+    val prioritised = focus.filter { it !in skip }
+    val resolved = Split.resolve(split, n)
+    val max = maxExercises(experience)
+    fun order(list: List<ProgramExercise>) = list.sortedWith(
+        compareBy({ roleRank(it.role) }, { if (patternGroup(it.pattern) in prioritised) 0 else 1 }),
+    )
+    /** The first exercise of [slots] the day doesn't have yet, for [plan]. */
+    fun make(plan: DayPlan, have: List<ProgramExercise>, slots: List<Slot>): ProgramExercise? {
+        val used = have.map { it.exerciseId }.toSet()
+        return slots.firstNotNullOfOrNull { slot ->
+            pick(slot.pattern, slot.variant + plan.variantOffset, gear, used, experience, exercise)?.let { c ->
+                newProgramExercise(c, slot.pattern, slot.role, goal, experience, unit, exercise, best1RM)
+            }
+        }
+    }
+
+    val built = rotation(resolved, n).mapNotNull { plan ->
+        val groups = plan.groups - skip.toSet()
+        // A day left with nothing but core work isn't worth a session of its own.
+        if (groups.isEmpty() || groups == setOf(MuscleGroup.ABS)) return@mapNotNull null
+        val list = ArrayList<ProgramExercise>()
+        for (slot in plan.slots.filter { patternGroup(it.pattern) !in skip }) {
+            if (list.size >= max) break
+            make(plan, list, listOf(slot))?.let(list::add)
+        }
+        // Days that lost exercises to skipped groups are filled with the day's remaining groups.
+        val missing = groups.filter { g -> list.none { patternGroup(it.pattern) == g } }
+        for (g in missing + groups) {
+            if (list.size >= min(4, max)) break
+            make(plan, list, groupSlots[g].orEmpty())?.let(list::add)
+        }
+        prioritised.filter { it in groups }.take(2).forEach { g -> make(plan, list, groupSlots[g].orEmpty())?.let(list::add) }
+        if (list.isEmpty()) null else plan to list
+    }
+
+    fun days() = built.map { (plan, list) -> ProgramDay(name = plan.name, exercises = order(list)) }
+    var days = balanceVolume(days(), n, goal, experience, prioritised, raise = true)
+    // A group still well short of its weekly range with every exercise at the set cap gets one more exercise
+    // on the least busy day that trains it and has room in its set budget, then the volume is balanced again.
+    val budget = sessionBudget(experience, prioritised.isNotEmpty(), n)
+    repeat(MuscleGroup.all.size) {
+        val weekly = weeklyGroupSets(days, n)
+        val all = days.flatMap { it.exercises }
+        val setsOf = all.associate { it.id to it.sets }
+        val short = MuscleGroup.all.filter { it !in skip }.firstOrNull { g ->
+            (weekly[g] ?: 0.0) < weeklySetRange(goal, experience, g in prioritised, g).start - 2 &&
+                all.filter { patternGroup(it.pattern) == g }.all { it.sets >= MAX_SETS }
+        } ?: return@repeat
+        val target = built.filter { (plan, list) ->
+            short in plan.groups && list.size < max && list.sumOf { setsOf[it.id] ?: it.sets } + MIN_SETS <= budget
+        }.minByOrNull { it.second.size } ?: return@repeat
+        val added = make(target.first, target.second, groupSlots[short].orEmpty()) ?: return@repeat
+        target.second.add(added)
+        val sets = days.flatMap { it.exercises }.associate { it.id to it.sets }
+        days = balanceVolume(
+            days().map { d -> d.copy(exercises = d.exercises.map { e -> sets[e.id]?.let { e.copy(sets = it, baseSets = it) } ?: e }) },
+            n, goal, experience, prioritised, raise = true,
+        )
     }
     return Program(
-        name = "${splitName(n)} · $n days",
+        name = "${Split.label(resolved)} · $n days",
         goal = goal,
         experience = experience,
         equipment = equipment,
         days = days,
+        split = split,
+        focus = prioritised,
+        skip = skip,
+        perWeek = n,
     )
 }
 

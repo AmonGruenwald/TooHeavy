@@ -86,6 +86,7 @@ import com.tooheavy.app.ui.exercises.ExerciseDetailScreen
 import com.tooheavy.app.ui.exercises.ExerciseListScreen
 import com.tooheavy.app.ui.exercises.ExercisePickerScreen
 import com.tooheavy.app.ui.history.HistoryScreen
+import com.tooheavy.app.ui.history.MusclesScreen
 import com.tooheavy.app.ui.history.WorkoutDetailScreen
 import com.tooheavy.app.ui.nutrition.BarcodeLookupScreen
 import com.tooheavy.app.ui.nutrition.CoachScreen
@@ -128,6 +129,12 @@ object Routes {
 
     /** Finished workout detail page. */
     fun workoutDetail(id: String) = "workout_detail/$id"
+
+    /** The detail page shown right after finishing a workout, headed as a summary. */
+    fun workoutSummary(id: String) = "workout_detail/$id?summary=true"
+
+    /** Sets per muscle group over time. */
+    const val MUSCLES = "muscles"
 
     /** Routine editor; id = "new" for a new routine. */
     fun routineEdit(id: String) = "routine_edit/$id"
@@ -232,7 +239,11 @@ fun AppRoot() {
                 composable(Routes.PROFILE) { ProfileScreen(nav) }
                 composable(Routes.ACTIVE) { ActiveWorkoutScreen(nav) }
                 composable("exercise/{id}") { ExerciseDetailScreen(nav, it.arguments?.getString("id").orEmpty()) }
-                composable("workout_detail/{id}") { WorkoutDetailScreen(nav, it.arguments?.getString("id").orEmpty()) }
+                composable(
+                    "workout_detail/{id}?summary={summary}",
+                    arguments = listOf(navArgument("summary") { type = NavType.BoolType; defaultValue = false }),
+                ) { WorkoutDetailScreen(nav, it.arguments?.getString("id").orEmpty(), it.arguments?.getBoolean("summary") == true) }
+                composable(Routes.MUSCLES) { MusclesScreen(nav) }
                 composable("routine_edit/{id}") { RoutineEditScreen(nav, it.arguments?.getString("id").orEmpty()) }
                 composable("picker/{target}") { ExercisePickerScreen(nav, it.arguments?.getString("target").orEmpty()) }
                 composable(Routes.NUTRITION) { NutritionScreen(nav) }

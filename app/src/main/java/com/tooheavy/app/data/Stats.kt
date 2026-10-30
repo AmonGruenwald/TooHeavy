@@ -117,5 +117,5 @@ fun oneRepMaxSeries(workouts: List<Workout>, exerciseId: String): List<Pair<Long
 /** Volume of each exercise in a workout, largest first (exerciseId to volume). */
 fun Workout.volumeByExercise(): List<Pair<String, Double>> =
     exercises.groupBy { it.exerciseId }
-        .map { (id, wes) -> id to wes.sumOf { we -> we.sets.filter { it.completed }.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) } } }
+        .map { (id, wes) -> id to wes.sumOf { we -> we.sets.filter { it.completed }.sumOf { it.volume } } }
         .sortedByDescending { it.second }

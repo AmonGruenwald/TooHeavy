@@ -35,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -165,7 +166,11 @@ fun ProfileScreen(nav: NavController) {
                 BarChart(weeks.map { b -> b.workouts.sumOf { it.volume() } }, weeks.map { it.label }, height = 150.dp, tooltipLabels = weeks.map { "Week of ${it.label}" })
             }
 
-            ChartCard("Muscle focus · last 30 days", icon = Icons.Filled.AccessibilityNew) {
+            ChartCard(
+                "Muscle focus · last 30 days",
+                icon = Icons.Filled.AccessibilityNew,
+                trailing = { TextButton(onClick = { nav.navigate(Routes.MUSCLES) }) { Text("Weekly") } },
+            ) {
                 if (topMuscles.isEmpty()) {
                     EmptyChartNote("No data in the last 30 days.", height = 60.dp)
                 } else {
@@ -230,7 +235,29 @@ fun ProfileScreen(nav: NavController) {
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-                Text("Default rest timer", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SettingSwitch(
+                    "Automatic rest times",
+                    "Longer rests for heavy compound lifts, shorter ones for isolation and core work. A rest time you " +
+                        "pick for an exercise is remembered and wins.",
+                    Repo.settings.autoRest,
+                ) { Repo.updateSettings(Repo.settings.copy(autoRest = it)) }
+                if (Repo.settings.restByExercise.isNotEmpty()) {
+                    TextButton(onClick = { Repo.updateSettings(Repo.settings.copy(restByExercise = emptyMap())) }) {
+                        Text("Forget ${Repo.settings.restByExercise.size} rest times you picked")
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                SettingSwitch(
+                    "Automatic warm-up sets",
+                    "Ramp-up sets before the first exercise for each muscle group in a workout.",
+                    Repo.settings.autoWarmups,
+                ) { Repo.updateSettings(Repo.settings.copy(autoWarmups = it)) }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    if (Repo.settings.autoRest) "Rest timer for exercises without a suggestion" else "Default rest timer",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(8.dp))
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
@@ -295,6 +322,18 @@ fun ProfileScreen(nav: NavController) {
     }
 
     if (showChangelog) ChangelogDialog { showChangelog = false }
+}
+
+@Composable
+private fun SettingSwitch(title: String, hint: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
 }
 
 @Composable

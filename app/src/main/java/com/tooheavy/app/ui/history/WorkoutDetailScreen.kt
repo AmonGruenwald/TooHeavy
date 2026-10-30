@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -62,8 +62,9 @@ import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatDuration
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
-import com.tooheavy.app.data.muscleSets
-import com.tooheavy.app.data.titleCase
+import com.tooheavy.app.data.groupCredit
+import com.tooheavy.app.data.muscleCredit
+import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.volume
 import com.tooheavy.app.data.volumeByExercise
 import com.tooheavy.app.ui.Routes
@@ -72,6 +73,7 @@ import com.tooheavy.app.ui.common.CardLabel
 import com.tooheavy.app.ui.common.ChartCard
 import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.MuscleOverview
 import com.tooheavy.app.ui.common.RankedBars
 import com.tooheavy.app.ui.common.compact
 import com.tooheavy.app.ui.theme.AccentBright
@@ -85,7 +87,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkoutDetailScreen(nav: NavController, workoutId: String) {
+fun WorkoutDetailScreen(nav: NavController, workoutId: String, summary: Boolean = false) {
     val context = LocalContext.current
     val w = Repo.workout(workoutId)
     val unit = Repo.settings.unit
@@ -96,7 +98,9 @@ fun WorkoutDetailScreen(nav: NavController, workoutId: String) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text(w?.name ?: "Workout", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Text(if (summary) "Workout complete" else w?.name ?: "Workout", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -154,8 +158,19 @@ fun WorkoutDetailScreen(nav: NavController, workoutId: String) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { DetailSummary(w, unit) }
-                item { DetailCharts(w, unit) }
-                items(w.exercises) { we -> DetailExerciseCard(nav, we, unit) }
+                val update = Repo.programUpdate
+                if (summary && update != null && update.workoutName == w.name && update.changes.isNotEmpty()) {
+                    item {
+                        ChartCard("Your program adapted", icon = Icons.Filled.EmojiEvents) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                update.changes.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                            }
+                        }
+                    }
+                }
+                item { DetailCharts(nav, w, unit) }
+                val letters = supersetLetters(w.exercises.map { it.supersetId })
+                itemsIndexed(w.exercises) { i, we -> DetailExerciseCard(nav, we, unit, letters[i]) }
             }
         }
     }
@@ -218,9 +233,9 @@ private fun DetailStat(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun DetailCharts(w: Workout, unit: String) {
+private fun DetailCharts(nav: NavController, w: Workout, unit: String) {
     val byExercise = w.volumeByExercise().filter { it.second > 0 }
-    val muscles = muscleSets(listOf(w), 0L, Repo::exercise)
+    val groups = groupCredit(w.exercises, Repo::exercise)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (byExercise.isNotEmpty()) {
             ChartCard("Volume by exercise", icon = Icons.Filled.BarChart) {
@@ -230,12 +245,13 @@ private fun DetailCharts(w: Workout, unit: String) {
                 )
             }
         }
-        if (muscles.isNotEmpty()) {
-            ChartCard("Muscles worked", icon = Icons.Filled.AccessibilityNew) {
-                RankedBars(
-                    muscles.map { it.first.titleCase() to it.second.toDouble() },
-                    valueFormat = { "${it.toInt()} sets" },
-                )
+        if (groups.isNotEmpty()) {
+            ChartCard(
+                "Muscles worked",
+                icon = Icons.Filled.AccessibilityNew,
+                trailing = { TextButton(onClick = { nav.navigate(Routes.MUSCLES) }) { Text("Weekly") } },
+            ) {
+                MuscleOverview(muscleCredit(w.exercises, Repo::exercise), groups)
             }
         }
     }
@@ -257,7 +273,7 @@ private fun detailSetLabels(sets: List<SetEntry>): List<String> {
 }
 
 @Composable
-private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: String) {
+private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: String, superset: String?) {
     val ex = Repo.exercise(we.exerciseId)
     val labels = detailSetLabels(we.sets)
     val bestId: String? = we.sets
@@ -269,6 +285,14 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp)) {
+            if (superset != null) {
+                Text(
+                    "Superset $superset",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Warmup,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -300,7 +324,9 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
             we.sets.forEachIndexed { i, s ->
                 val isBest = s.id == bestId
                 val weightText = if (s.weight != null) "${formatWeight(s.weight)} $unit" else "—"
-                val repsText = s.reps?.toString() ?: "—"
+                val repsText = (s.reps?.toString() ?: "—") +
+                    ((s.halfReps ?: 0).takeIf { it > 0 }?.let { " +$it½" } ?: "") +
+                    (s.rir?.let { "  ·  RIR $it" } ?: "")
                 val rm = s.estimated1RM()
                 val rmText = if (rm != null) formatWeight(Math.round(rm * 10) / 10.0) else "—"
                 val labelColor = when (s.type) {

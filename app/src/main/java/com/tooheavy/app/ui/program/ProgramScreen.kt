@@ -63,6 +63,11 @@ import com.tooheavy.app.data.TrainingGoal
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.isDeload
 import com.tooheavy.app.data.mesoWeek
+import com.tooheavy.app.data.MuscleGroup
+import com.tooheavy.app.data.sessionsPerWeek
+import com.tooheavy.app.data.weeklyGroupSets
+import com.tooheavy.app.ui.common.formatSets
+import com.tooheavy.app.data.trainingWeeks
 import com.tooheavy.app.data.mesocycle
 import com.tooheavy.app.data.nextDayIndex
 import com.tooheavy.app.data.prescription
@@ -247,7 +252,7 @@ private fun StatusCard(program: Program) {
     val deload = program.isDeload
     ProgramCard {
         Text(
-            if (deload) "Deload week" else "Week ${program.mesoWeek} of ${program.mesoWeeks}",
+            if (deload) "Deload week" else "Week ${program.mesoWeek} of ${program.trainingWeeks}",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = if (deload) Warmup else MaterialTheme.colorScheme.onSurface,
@@ -258,13 +263,35 @@ private fun StatusCard(program: Program) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        val weeks = program.mesoWeeks + 1
+        val weeks = program.trainingWeeks + 1
         Meter(program.mesoWeek / weeks.toFloat(), if (deload) Warmup else AccentBright)
         Text(
             if (deload) "Lighter week to shed fatigue: about half the sets at 90 % of the weight. Keep every set easy."
-            else "Stop each set with about ${program.targetRir} ${if (program.targetRir == 1) "rep" else "reps"} left in the tank. " +
-                "Effort builds through the block, then a deload week.",
+            else "Stop each set with about ${program.targetRir} ${if (program.targetRir == 1) "rep" else "reps"} left in the tank " +
+                "and log it in the RIR column. Effort builds through the block, then a deload week.",
             style = MaterialTheme.typography.bodyMedium,
+        )
+        if (program.blockWeeks > 0 && !deload) {
+            Text(
+                "Fatigue built up, so this block's deload comes after week ${program.trainingWeeks}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Warmup,
+            )
+        }
+        val details = listOfNotNull(
+            program.focus.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Focus: ") { MuscleGroup.label(it) },
+            program.skip.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Left out: ") { MuscleGroup.label(it) },
+            "${program.sessionsPerWeek} sessions a week".takeIf { program.sessionsPerWeek != program.days.size },
+        )
+        if (details.isNotEmpty()) {
+            Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        val weekly = program.weeklyGroupSets
+        Text(
+            "Weekly sets: " + MuscleGroup.all.filter { (weekly[it] ?: 0.0) > 0 }
+                .joinToString(" · ") { "${MuscleGroup.label(it)} ${formatSets(weekly.getValue(it))}" },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

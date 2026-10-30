@@ -43,6 +43,10 @@ data class SetEntry(
     val reps: Int? = null,
     val completed: Boolean = false,
     val type: String = SetType.NORMAL,
+    /** Reps in reserve the lifter reported, null when not logged. */
+    val rir: Int? = null,
+    /** Partial reps after the full ones; each counts as half a rep in volume. */
+    val halfReps: Int? = null,
 )
 
 data class WorkoutExercise(
@@ -55,6 +59,8 @@ data class WorkoutExercise(
     val programExerciseId: String? = null,
     /** What the program prescribed for this session. */
     val target: SetTarget? = null,
+    /** Consecutive exercises with the same id form a superset; null when the exercise stands alone. */
+    val supersetId: String? = null,
 )
 
 data class Workout(
@@ -76,6 +82,7 @@ data class RoutineExercise(
     val reps: Int? = null,
     val weight: Double? = null,
     val restSeconds: Int = 90,
+    val supersetId: String? = null,
 )
 
 data class Routine(
@@ -94,7 +101,14 @@ data class DashboardWidget(
 data class Settings(
     /** "kg" or "lb" */
     val unit: String = "kg",
+    /** Rest for exercises without a remembered or automatic time. */
     val defaultRestSeconds: Int = 90,
+    /** Pick rest times per exercise from the kind of lift (heavy compound, isolation, core...). */
+    val autoRest: Boolean = true,
+    /** Rest times the user chose per exercise id; they win over automatic ones. */
+    val restByExercise: Map<String, Int> = emptyMap(),
+    /** Add ramp-up sets to the first exercise of each muscle group in a workout. */
+    val autoWarmups: Boolean = true,
     /** Home dashboard widgets in display order; null until the user customizes it (default layout). */
     val dashboard: List<DashboardWidget>? = null,
 )
@@ -112,9 +126,15 @@ data class AppData(
 
 // ---------- helpers ----------
 
+/** Full reps plus half a rep per partial. */
+val SetEntry.effectiveReps: Double get() = (reps ?: 0) + (halfReps ?: 0) * 0.5
+
+/** Weight × reps of one set, partials counted as half reps. */
+val SetEntry.volume: Double get() = (weight ?: 0.0) * effectiveReps
+
 /** Total volume (weight x reps) of completed sets. */
 fun Workout.volume(): Double =
-    exercises.sumOf { we -> we.sets.filter { it.completed }.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) } }
+    exercises.sumOf { we -> we.sets.filter { it.completed }.sumOf { it.volume } }
 
 fun Workout.completedSetCount(): Int = exercises.sumOf { we -> we.sets.count { it.completed } }
 

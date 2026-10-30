@@ -47,6 +47,8 @@ import com.tooheavy.app.data.volume
 import com.tooheavy.app.data.weeklyBuckets
 import com.tooheavy.app.data.workoutsByDate
 import com.tooheavy.app.ui.Routes
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.AccessibilityNew
 import com.tooheavy.app.ui.common.ActivityHeatmap
 import com.tooheavy.app.ui.common.BarChart
 import com.tooheavy.app.ui.common.ChartCard
@@ -79,7 +81,13 @@ fun HistoryScreen(nav: NavController) {
             ScreenHeader(
                 "History",
                 overline = if (workouts.isEmpty()) "Your training log" else "${workouts.size} workouts logged",
-            )
+            ) {
+                if (workouts.isNotEmpty()) {
+                    IconButton(onClick = { nav.navigate(Routes.MUSCLES) }) {
+                        Icon(Icons.Filled.AccessibilityNew, contentDescription = "Muscles trained")
+                    }
+                }
+            }
         },
     ) { pad ->
         if (workouts.isEmpty()) {

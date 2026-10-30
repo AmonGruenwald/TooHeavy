@@ -59,6 +59,7 @@ import com.tooheavy.app.data.Routine
 import com.tooheavy.app.data.RoutineExercise
 import com.tooheavy.app.data.isDeload
 import com.tooheavy.app.data.mesoWeek
+import com.tooheavy.app.data.trainingWeeks
 import com.tooheavy.app.data.mesocycle
 import com.tooheavy.app.data.newId
 import com.tooheavy.app.data.nextDayIndex
@@ -315,14 +316,14 @@ private fun ProgramSummaryCard(onCreate: () -> Unit, onOpen: () -> Unit, onStart
                         )
                         Text(
                             if (program.isDeload) "Deload week · mesocycle ${program.mesocycle}"
-                            else "Week ${program.mesoWeek} of ${program.mesoWeeks} · mesocycle ${program.mesocycle}",
+                            else "Week ${program.mesoWeek} of ${program.trainingWeeks} · mesocycle ${program.mesocycle}",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (program.isDeload) Warmup else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     TextButton(onClick = onOpen) { Text("View", color = AccentBright) }
                 }
-                MesocycleTimeline(program.mesoWeek, program.mesoWeeks)
+                MesocycleTimeline(program.mesoWeek, program.trainingWeeks)
                 val index = program.nextDayIndex
                 val day = program.days.getOrNull(index)
                 if (day != null) {

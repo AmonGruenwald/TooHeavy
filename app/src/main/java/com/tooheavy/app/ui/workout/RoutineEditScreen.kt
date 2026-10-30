@@ -55,6 +55,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.linkWithNext
+import com.tooheavy.app.data.normalizeSupersets
+import com.tooheavy.app.data.supersetLetters
+import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.Routine
 import com.tooheavy.app.data.RoutineExercise
 import com.tooheavy.app.data.formatWeight
@@ -64,6 +68,7 @@ import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.Warmup
 
 private val REST_OPTIONS = listOf(0, 30, 60, 90, 120, 180)
 
@@ -87,13 +92,28 @@ private fun moveExercise(index: Int, delta: Int) {
             val list = d.exercises.toMutableList()
             val item = list.removeAt(index)
             list.add(to, item)
-            d.copy(exercises = list)
+            d.copy(exercises = list.normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) })
         }
     }
 }
 
 private fun removeExercise(index: Int) {
-    updateDraft { d -> d.copy(exercises = d.exercises.filterIndexed { i, _ -> i != index }) }
+    updateDraft { d ->
+        d.copy(exercises = d.exercises.filterIndexed { i, _ -> i != index }.normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) })
+    }
+}
+
+/** Links exercise [index] with the next one into a superset, or splits them apart when they already are. */
+private fun toggleSupersetWithNext(index: Int) {
+    updateDraft { d ->
+        val list = d.exercises
+        val linked = list[index].supersetId != null && list.getOrNull(index + 1)?.supersetId == list[index].supersetId
+        // Unlinking takes the next exercise out, so the run splits there and the exercises before it stay together.
+        d.copy(
+            exercises = if (linked) list.unlink(index + 1, { it.supersetId }) { e, s -> e.copy(supersetId = s) }
+            else list.linkWithNext(index, { it.supersetId }) { e, s -> e.copy(supersetId = s) },
+        )
+    }
 }
 
 private fun restLabel(sec: Int): String = when {
@@ -182,12 +202,15 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
                         )
                     }
                 }
+                val letters = supersetLetters(draft.exercises.map { it.supersetId })
                 itemsIndexed(draft.exercises, key = { i, re -> "$i-${re.exerciseId}" }) { index, re ->
                     RoutineExerciseCard(
                         nav = nav,
                         index = index,
                         count = draft.exercises.size,
                         re = re,
+                        superset = letters[index],
+                        linkedToNext = re.supersetId != null && draft.exercises.getOrNull(index + 1)?.supersetId == re.supersetId,
                     )
                 }
                 item(key = "add") {
@@ -207,7 +230,14 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
 }
 
 @Composable
-private fun RoutineExerciseCard(nav: NavController, index: Int, count: Int, re: RoutineExercise) {
+private fun RoutineExerciseCard(
+    nav: NavController,
+    index: Int,
+    count: Int,
+    re: RoutineExercise,
+    superset: String?,
+    linkedToNext: Boolean,
+) {
     val ex = Repo.exercise(re.exerciseId)
     val unit = Repo.settings.unit
     var repsText by remember { mutableStateOf(re.reps?.toString() ?: "") }
@@ -217,6 +247,9 @@ private fun RoutineExerciseCard(nav: NavController, index: Int, count: Int, re: 
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (superset != null) {
+                Text("Superset $superset", style = MaterialTheme.typography.labelMedium, color = Warmup)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ExerciseThumbnail(ex, 48.dp)
                 Spacer(Modifier.width(12.dp))
@@ -297,6 +330,12 @@ private fun RoutineExerciseCard(nav: NavController, index: Int, count: Int, re: 
                     onChange = { v -> updateExercise(index) { it.copy(restSeconds = v) } },
                     modifier = Modifier.weight(1f),
                 )
+            }
+
+            if (index < count - 1) {
+                TextButton(onClick = { toggleSupersetWithNext(index) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text(if (linkedToNext) "Unlink from the next exercise" else "Superset with the next exercise")
+                }
             }
         }
     }

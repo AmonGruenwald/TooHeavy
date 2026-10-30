@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -51,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,7 +73,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.RestTimes
 import com.tooheavy.app.data.SetEntry
 import com.tooheavy.app.data.SetTarget
 import com.tooheavy.app.data.SetType
@@ -81,12 +86,20 @@ import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatDuration
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
+import com.tooheavy.app.data.groupCredit
+import com.tooheavy.app.data.linkWithNext
+import com.tooheavy.app.data.muscleCredit
+import com.tooheavy.app.data.normalizeSupersets
+import com.tooheavy.app.data.supersetLetters
+import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.volume
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.GradientButton
+import com.tooheavy.app.ui.common.MuscleOverview
+import com.tooheavy.app.ui.common.MuscleTags
 import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
@@ -100,9 +113,10 @@ import com.tooheavy.app.ui.theme.Warmup
 import com.tooheavy.app.ui.theme.brandHorizontal
 import kotlinx.coroutines.delay
 
-private val SetColW = 36.dp
-private val CheckColW = 40.dp
-private const val PrevWeight = 1.3f
+private val SetColW = 34.dp
+private val CheckColW = 38.dp
+private const val PrevWeight = 1.15f
+private const val RirWeight = 0.62f
 
 // ---------- state update helpers ----------
 
@@ -129,13 +143,23 @@ private fun moveExercise(weId: String, delta: Int) {
             val tmp = list[i]
             list[i] = list[j]
             list[j] = tmp
-            w.copy(exercises = list)
+            w.copy(exercises = list.normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) })
         }
     }
 }
 
 private fun removeExercise(weId: String) {
-    Repo.updateActive { w -> w.copy(exercises = w.exercises.filter { it.id != weId }) }
+    Repo.updateActive { w ->
+        w.copy(exercises = w.exercises.filter { it.id != weId }.normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) })
+    }
+}
+
+private fun linkWithNext(index: Int) = Repo.updateActive { w ->
+    w.copy(exercises = w.exercises.linkWithNext(index, { it.supersetId }) { e, s -> e.copy(supersetId = s) })
+}
+
+private fun unlinkSuperset(index: Int) = Repo.updateActive { w ->
+    w.copy(exercises = w.exercises.unlink(index, { it.supersetId }) { e, s -> e.copy(supersetId = s) })
 }
 
 private fun parseWeight(t: String): Double? = t.replace(',', '.').toDoubleOrNull()
@@ -166,7 +190,8 @@ fun ActiveWorkoutScreen(nav: NavController) {
     val workout = Repo.activeWorkout
     val missing = workout == null
     LaunchedEffect(missing) {
-        if (missing) nav.popBackStack()
+        // Finishing navigates to the summary itself; only leave when this screen is still on top.
+        if (missing && nav.currentBackStackEntry?.destination?.route == Routes.ACTIVE) nav.popBackStack()
     }
     if (workout == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -193,6 +218,8 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
     var showRename by remember { mutableStateOf(false) }
     var showFinish by remember { mutableStateOf(false) }
     var showDiscard by remember { mutableStateOf(false) }
+    var showMuscles by remember { mutableStateOf(false) }
+    val letters = supersetLetters(workout.exercises.map { it.supersetId })
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -249,6 +276,25 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                         val animated by animateFloatAsState(frac, label = "sets")
                         Box(Modifier.fillMaxWidth(animated).height(8.dp).clip(CircleShape).background(brandHorizontal()))
                     }
+                    val groups = groupCredit(workout.exercises, Repo::exercise, completedOnly = doneSets > 0)
+                    if (groups.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { showMuscles = true }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                (if (doneSets > 0) "Trained: " else "Plan: ") +
+                                    groups.entries.sortedByDescending { it.value }.take(4).joinToString(" · ") { MuscleGroup.label(it.key) },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text("Muscles", style = MaterialTheme.typography.labelMedium, color = AccentBright)
+                        }
+                    }
                 }
             }
             LazyColumn(
@@ -257,7 +303,7 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 itemsIndexed(workout.exercises, key = { _, we -> we.id }) { index, we ->
-                    ExerciseCard(nav, we, index, workout.exercises.size, unit)
+                    ExerciseCard(nav, workout, we, index, letters[index], unit)
                 }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -342,12 +388,32 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                 confirmButton = {
                     TextButton(onClick = {
                         showFinish = false
-                        Repo.finishWorkout()
+                        val id = Repo.finishWorkout()
+                        if (id != null) {
+                            nav.navigate(Routes.workoutSummary(id)) { popUpTo(Routes.ACTIVE) { inclusive = true } }
+                        }
                     }) { Text("Finish", color = Success) }
                 },
                 dismissButton = { TextButton(onClick = { showFinish = false }) { Text("Cancel") } },
             )
         }
+    }
+
+    if (showMuscles) {
+        val done = workout.completedSetCount() > 0
+        AlertDialog(
+            onDismissRequest = { showMuscles = false },
+            title = { Text(if (done) "Muscles trained so far" else "Muscles in this workout") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    MuscleOverview(
+                        muscleCredit(workout.exercises, Repo::exercise, completedOnly = done),
+                        groupCredit(workout.exercises, Repo::exercise, completedOnly = done),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showMuscles = false }) { Text("Close") } },
+        )
     }
 
     if (showDiscard) {
@@ -426,17 +492,33 @@ private fun RestTimerBar() {
 // ---------- exercise card ----------
 
 @Composable
-private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, count: Int, unit: String) {
+private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExercise, index: Int, superset: String?, unit: String) {
+    val count = workout.exercises.size
     val exercise = Repo.exercise(we.exerciseId)
     val previous = remember(we.exerciseId) { Repo.previousSets(we.exerciseId) }
     var menuOpen by remember { mutableStateOf(false) }
     var restDialog by remember { mutableStateOf(false) }
     var notes by remember(we.id) { mutableStateOf(we.notes) }
+    val linkedToNext = we.supersetId != null && workout.exercises.getOrNull(index + 1)?.supersetId == we.supersetId
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(12.dp)) {
+            if (superset != null) {
+                val partners = workout.exercises.filterIndexed { i, e -> i != index && e.supersetId == we.supersetId }
+                Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(width = 4.dp, height = 14.dp).clip(RoundedCornerShape(2.dp)).background(Warmup))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Superset $superset · with " + partners.joinToString(", ") { Repo.exercise(it.exerciseId)?.name ?: "exercise" },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Warmup,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ExerciseThumbnail(exercise, 40.dp)
                 Spacer(Modifier.width(10.dp))
@@ -471,12 +553,37 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text(if (we.restSeconds <= 0) "Rest timer: Off" else "Rest timer: ${we.restSeconds}s") },
+                            text = { Text(if (we.restSeconds <= 0) "Rest timer: Off" else "Rest timer: ${restLabel(we.restSeconds)}") },
                             onClick = {
                                 menuOpen = false
                                 restDialog = true
                             },
                         )
+                        DropdownMenuItem(
+                            text = { Text("Add warm-up sets") },
+                            onClick = {
+                                menuOpen = false
+                                Repo.addWarmups(we.id)
+                            },
+                        )
+                        if (index < count - 1 && !linkedToNext) {
+                            DropdownMenuItem(
+                                text = { Text("Superset with next") },
+                                onClick = {
+                                    menuOpen = false
+                                    linkWithNext(index)
+                                },
+                            )
+                        }
+                        if (superset != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove from superset") },
+                                onClick = {
+                                    menuOpen = false
+                                    unlinkSuperset(index)
+                                },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text("Remove exercise", color = Danger) },
                             onClick = {
@@ -487,6 +594,9 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                     }
                 }
             }
+
+            Spacer(Modifier.height(6.dp))
+            MuscleTags(exercise)
 
             we.target?.let { t ->
                 Spacer(Modifier.height(8.dp))
@@ -516,6 +626,7 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                 HeaderCell("PREVIOUS", Modifier.weight(PrevWeight))
                 HeaderCell(unit.uppercase(), Modifier.weight(1f))
                 HeaderCell("REPS", Modifier.weight(1f))
+                HeaderCell("RIR", Modifier.weight(RirWeight))
                 Box(Modifier.width(CheckColW), contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Check,
@@ -526,16 +637,25 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                 }
             }
 
+            // Previous sets line up by kind: warm-ups with last time's warm-ups, working sets with working sets.
+            val prevWarmups = previous.filter { it.type == SetType.WARMUP }
+            val prevWorking = previous.filter { it.type != SetType.WARMUP }
             we.sets.forEachIndexed { idx, entry ->
                 key(entry.id) {
+                    val warm = entry.type == SetType.WARMUP
+                    val nth = we.sets.take(idx).count { (it.type == SetType.WARMUP) == warm }
                     val number = we.sets.take(idx + 1).count { it.type != SetType.WARMUP }
                     SetRow(
                         weId = we.id,
                         entry = entry,
                         setNumber = number,
-                        previous = previous.getOrNull(idx),
+                        previous = (if (warm) prevWarmups else prevWorking).getOrNull(nth),
                         unit = unit,
-                        restSeconds = we.restSeconds,
+                        targetRir = we.target?.rir,
+                        restAfter = {
+                            val w = Repo.activeWorkout ?: workout
+                            RestTimes.after(w, w.exercises.indexOfFirst { it.id == we.id }, entry.id)
+                        },
                     )
                 }
             }
@@ -563,13 +683,19 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
             onDismissRequest = { restDialog = false },
             title = { Text("Rest timer") },
             text = {
-                Column {
-                    listOf(0, 30, 60, 90, 120, 180).forEach { s ->
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Suggested for this exercise: ${restLabel(RestTimes.auto(exercise))}. Your choice is remembered for next time.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    (listOf(0, 30, 45, 60, 90, 120, 150, 180, 240, 300) + we.restSeconds).distinct().sorted().forEach { s ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    updateExercise(we.id) { e -> e.copy(restSeconds = s) }
+                                    Repo.setRest(we.id, s)
                                     restDialog = false
                                 }
                                 .padding(vertical = 2.dp),
@@ -578,11 +704,11 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                             RadioButton(
                                 selected = we.restSeconds == s,
                                 onClick = {
-                                    updateExercise(we.id) { e -> e.copy(restSeconds = s) }
+                                    Repo.setRest(we.id, s)
                                     restDialog = false
                                 },
                             )
-                            Text(if (s == 0) "Off" else "${s}s")
+                            Text(if (s == 0) "Off" else restLabel(s))
                         }
                     }
                 }
@@ -648,12 +774,15 @@ private fun SetRow(
     setNumber: Int,
     previous: SetEntry?,
     unit: String,
-    restSeconds: Int,
+    targetRir: Int?,
+    restAfter: () -> Int,
 ) {
     val focus = LocalFocusManager.current
     var weightText by remember(entry.id) { mutableStateOf(formatWeight(entry.weight)) }
     var repsText by remember(entry.id) { mutableStateOf(entry.reps?.toString() ?: "") }
+    var rirText by remember(entry.id) { mutableStateOf(entry.rir?.toString() ?: "") }
     var typeMenu by remember { mutableStateOf(false) }
+    var halfDialog by remember { mutableStateOf(false) }
 
     val label = when (entry.type) {
         SetType.WARMUP -> "W"
@@ -676,7 +805,8 @@ private fun SetRow(
             weightText = formatWeight(w)
             repsText = r?.toString() ?: ""
             updateSet(weId, entry.id) { it.copy(weight = w, reps = r, completed = true) }
-            Repo.startRest(restSeconds)
+            val rest = restAfter()
+            if (rest > 0) Repo.startRest(rest) else Repo.stopRest()
         } else {
             updateSet(weId, entry.id) { it.copy(completed = false) }
         }
@@ -733,6 +863,13 @@ private fun SetRow(
                     },
                 )
                 DropdownMenuItem(
+                    text = { Text(if ((entry.halfReps ?: 0) > 0) "Half reps: ${entry.halfReps}" else "Add half reps") },
+                    onClick = {
+                        typeMenu = false
+                        halfDialog = true
+                    },
+                )
+                DropdownMenuItem(
                     text = { Text("Delete set", color = Danger) },
                     onClick = {
                         typeMenu = false
@@ -780,16 +917,41 @@ private fun SetRow(
             keyboardType = KeyboardType.Decimal,
         )
 
-        // reps
+        // reps, with partial reps as a small "+2½" in the corner
+        Box(Modifier.weight(1f)) {
+            CompactField(
+                value = repsText,
+                onValueChange = { raw ->
+                    val t = raw.filter { c -> c.isDigit() }.take(4)
+                    repsText = t
+                    updateSet(weId, entry.id) { it.copy(reps = t.toIntOrNull()) }
+                },
+                placeholder = previous?.reps?.toString() ?: "-",
+                modifier = Modifier.fillMaxWidth(),
+                keyboardType = KeyboardType.Number,
+            )
+            val half = entry.halfReps ?: 0
+            if (half > 0) {
+                Text(
+                    "+$half½",
+                    fontSize = 10.sp,
+                    color = Warmup,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(end = 3.dp),
+                )
+            }
+        }
+
+        // reps in reserve
         CompactField(
-            value = repsText,
+            value = rirText,
             onValueChange = { raw ->
-                val t = raw.filter { c -> c.isDigit() }.take(4)
-                repsText = t
-                updateSet(weId, entry.id) { it.copy(reps = t.toIntOrNull()) }
+                val t = raw.filter { c -> c.isDigit() }.take(2).let { s -> s.toIntOrNull()?.coerceAtMost(10)?.toString() ?: s }
+                rirText = t
+                updateSet(weId, entry.id) { it.copy(rir = t.toIntOrNull()) }
             },
-            placeholder = previous?.reps?.toString() ?: "-",
-            modifier = Modifier.weight(1f),
+            placeholder = if (entry.type == SetType.WARMUP) "" else targetRir?.toString() ?: "-",
+            modifier = Modifier.weight(RirWeight),
             keyboardType = KeyboardType.Number,
         )
 
@@ -812,6 +974,43 @@ private fun SetRow(
             }
         }
     }
+
+    if (halfDialog) {
+        var n by remember { mutableIntStateOf(entry.halfReps ?: 0) }
+        AlertDialog(
+            onDismissRequest = { halfDialog = false },
+            title = { Text("Half reps") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Partial reps after the full ones, for example when you run out of range at the end of a set. " +
+                            "Each counts as half a rep in your volume.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        FilledTonalButton(onClick = { n = (n - 1).coerceAtLeast(0) }) { Text("−") }
+                        Text("$n", style = StatNumber)
+                        FilledTonalButton(onClick = { n = (n + 1).coerceAtMost(30) }) { Text("+") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    updateSet(weId, entry.id) { it.copy(halfReps = n.takeIf { v -> v > 0 }) }
+                    halfDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { halfDialog = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+/** "90s" / "2 min" / "2:30 min" */
+private fun restLabel(s: Int): String = when {
+    s < 60 || s % 30 != 0 -> "${s}s"
+    s % 60 == 0 -> "${s / 60} min"
+    else -> "${s / 60}:30 min"
 }
 
 // ---------- compact text field ----------

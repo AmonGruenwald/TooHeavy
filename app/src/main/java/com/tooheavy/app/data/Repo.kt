@@ -62,7 +62,7 @@ object Repo {
                 routines.addAll(d.routines.orEmpty())
                 activeWorkout = d.activeWorkout
                 settings = d.settings ?: Settings()
-                program = d.program
+                program = d.program?.migrated()
                 customExercises = d.customExercises.orEmpty()
             }
         }
@@ -136,11 +136,41 @@ object Repo {
                     exerciseId = re.exerciseId,
                     restSeconds = re.restSeconds,
                     sets = List(re.sets.coerceAtLeast(1)) { SetEntry(weight = re.weight, reps = re.reps) },
+                    supersetId = re.supersetId,
                 )
             },
         )
-        activeWorkout = w
+        activeWorkout = withWarmups(w)
         save()
+    }
+
+    /** Rest for an exercise: the time the user last chose for it, else automatic, else the default. */
+    fun restFor(exerciseId: String): Int =
+        settings.restByExercise[exerciseId]
+            ?: if (settings.autoRest) RestTimes.auto(exercise(exerciseId)) else settings.defaultRestSeconds
+
+    /** Sets the rest of one exercise in the active workout and remembers it for the next workouts. */
+    fun setRest(weId: String, seconds: Int) {
+        val id = activeWorkout?.exercises?.firstOrNull { it.id == weId }?.exerciseId ?: return
+        settings = settings.copy(restByExercise = settings.restByExercise + (id to seconds))
+        updateActive { w -> w.copy(exercises = w.exercises.map { if (it.id == weId) it.copy(restSeconds = seconds) else it }) }
+    }
+
+    /** Weight of the last working set logged for an exercise. */
+    fun lastWorkingWeight(exerciseId: String): Double? =
+        previousSets(exerciseId).lastOrNull { it.type == SetType.NORMAL && (it.weight ?: 0.0) > 0 }?.weight
+
+    /** [w] with warm-up sets where the settings ask for them (only for the exercises in [only], when given). */
+    private fun withWarmups(w: Workout, only: Set<String>? = null): Workout =
+        if (!settings.autoWarmups) w else WarmUps.apply(w, settings.unit, this::exercise, this::lastWorkingWeight, only)
+
+    /** Adds warm-up sets to one exercise of the active workout, whatever came before it. */
+    fun addWarmups(weId: String) = updateActive { w ->
+        w.copy(exercises = w.exercises.map { we ->
+            if (we.id != weId) return@map we
+            val working = we.sets.firstOrNull { it.type != SetType.WARMUP }?.weight ?: lastWorkingWeight(we.exerciseId)
+            we.copy(sets = WarmUps.sets(working, exercise(we.exerciseId), settings.unit) + we.sets.filter { it.type != SetType.WARMUP || it.completed })
+        })
     }
 
     fun updateActive(transform: (Workout) -> Workout) {
@@ -150,17 +180,29 @@ object Repo {
     }
 
     fun addExercisesToActive(ids: List<String>) = updateActive { w ->
-        w.copy(exercises = w.exercises + ids.map { WorkoutExercise(exerciseId = it, restSeconds = settings.defaultRestSeconds) })
+        val added = ids.map { id ->
+            val sets = lastWorkingSets(id)
+            WorkoutExercise(exerciseId = id, restSeconds = restFor(id), sets = sets)
+        }
+        withWarmups(w.copy(exercises = w.exercises + added), added.map { it.id }.toSet())
     }
 
-    /** Drops uncompleted sets and empty exercises; discards the workout if nothing was completed. */
-    fun finishWorkout() {
-        val w = activeWorkout ?: return
+    /** Empty sets for an exercise added to a workout: as many working sets as last time, else one. */
+    private fun lastWorkingSets(exerciseId: String): List<SetEntry> =
+        previousSets(exerciseId).filter { it.type != SetType.WARMUP }.map { SetEntry(type = it.type) }.ifEmpty { listOf(SetEntry()) }
+
+    /**
+     * Drops uncompleted sets and empty exercises; discards the workout if nothing was completed.
+     * Returns the id of the saved workout, null when it was discarded.
+     */
+    fun finishWorkout(): String? {
+        val w = activeWorkout ?: return null
         val cleaned = w.copy(
             endTime = System.currentTimeMillis(),
             exercises = w.exercises
                 .map { we -> we.copy(sets = we.sets.filter { it.completed }) }
-                .filter { it.sets.isNotEmpty() },
+                .filter { it.sets.isNotEmpty() }
+                .normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) },
         )
         if (cleaned.exercises.isNotEmpty()) {
             workouts.add(0, cleaned)
@@ -174,6 +216,7 @@ object Repo {
         activeWorkout = null
         stopRest()
         save()
+        return cleaned.id.takeIf { cleaned.exercises.isNotEmpty() }
     }
 
     fun discardWorkout() {
@@ -247,14 +290,18 @@ object Repo {
 
     fun addExercisesToDraft(ids: List<String>) {
         val d = routineDraft ?: return
-        routineDraft = d.copy(exercises = d.exercises + ids.map { RoutineExercise(exerciseId = it, restSeconds = settings.defaultRestSeconds) })
+        routineDraft = d.copy(exercises = d.exercises + ids.map { RoutineExercise(exerciseId = it, restSeconds = restFor(it)) })
     }
 
     fun routineFromWorkout(w: Workout): Routine = Routine(
         name = w.name,
         exercises = w.exercises.map { we ->
-            val last = we.sets.lastOrNull()
-            RoutineExercise(we.exerciseId, sets = we.sets.size, reps = last?.reps, weight = last?.weight, restSeconds = we.restSeconds)
+            val working = we.sets.filter { it.type != SetType.WARMUP }.ifEmpty { we.sets }
+            val last = working.lastOrNull()
+            RoutineExercise(
+                we.exerciseId, sets = working.size, reps = last?.reps, weight = last?.weight,
+                restSeconds = we.restSeconds, supersetId = we.supersetId,
+            )
         },
     )
 
@@ -268,7 +315,11 @@ object Repo {
 
     fun startProgramWorkout(dayIndex: Int) {
         val w = program?.buildWorkout(dayIndex, settings.unit, this::exercise) ?: return
-        activeWorkout = w
+        // A rest time the user picked for an exercise wins over the program's.
+        val rested = w.copy(exercises = w.exercises.map { we ->
+            settings.restByExercise[we.exerciseId]?.let { we.copy(restSeconds = it) } ?: we
+        })
+        activeWorkout = withWarmups(rested)
         save()
     }
 

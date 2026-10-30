@@ -12,6 +12,24 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.7.0", "2026-10-30",
+            listOf(
+                "Program setup asks more: pick your split (full body, upper/lower or push/pull/legs), up to two muscle " +
+                    "groups to focus on, and groups to leave out. A preview shows the days and weekly sets before you create it.",
+                "Programs follow training research: every muscle group gets a weekly set count in the range that suits " +
+                    "your experience, sessions stay a sensible length, and focus muscles are trained early with more sets.",
+                "Your program adapts over time: logged RIR speeds progress up or holds it back, the deload comes early " +
+                    "when many lifts stall, and after each block your volume and the block length adjust to how you did.",
+                "Rest timers are set per exercise automatically: longer for heavy compound lifts, shorter for isolation " +
+                    "and core. Pick a different time once and it's remembered.",
+                "Automatic warm-up sets for the first exercise of each muscle group in a workout, ramping up to your working weight.",
+                "Log reps in reserve (RIR) and half reps on every set.",
+                "Supersets: link exercises in a workout or routine. The rest timer waits until you've done a set of each.",
+                "See which muscles you trained: on every exercise, during and after a workout, and week by week under " +
+                    "History → Muscles, with a body map.",
+            ),
+        ),
+        ChangelogEntry(
             "1.6.0", "2026-10-30",
             listOf(
                 "Import your workout history from Hevy: export your workouts there as a CSV file, then choose it under " +

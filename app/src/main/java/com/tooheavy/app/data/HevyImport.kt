@@ -12,8 +12,10 @@ import kotlin.math.roundToLong
  * Pure Kotlin so it can be unit tested; Repo.importWorkouts stores the result.
  */
 object HevyImport {
-    data class ImportSet(val type: String, val weightKg: Double?, val reps: Int?)
-    data class ImportExercise(val title: String, val notes: String, val sets: List<ImportSet>)
+    /** [rir] comes from Hevy's RPE (10 - RPE). */
+    data class ImportSet(val type: String, val weightKg: Double?, val reps: Int?, val rir: Int? = null)
+    /** [superset] is Hevy's superset id within the workout, null when the exercise stands alone. */
+    data class ImportExercise(val title: String, val notes: String, val sets: List<ImportSet>, val superset: String? = null)
     data class ImportWorkout(val title: String, val start: Long, val end: Long?, val notes: String, val exercises: List<ImportExercise>)
 
     /** [skippedSets]: sets with neither weight nor reps (timed or distance-only cardio), which TooHeavy can't store. */
@@ -103,6 +105,8 @@ object HevyImport {
         val kg = col("weight_kg")
         val lbs = col("weight_lbs")
         val reps = col("reps")
+        val rpe = col("rpe")
+        val superset = col("superset_id")
 
         class WorkoutAcc(val title: String, val start: Long, val end: Long?, val notes: String) {
             val exercises = ArrayList<ImportExercise>()
@@ -135,6 +139,7 @@ object HevyImport {
                 },
                 weightKg = weight?.takeIf { it > 0 },
                 reps = repCount,
+                rir = num(get(rpe))?.takeIf { it in 1.0..10.0 }?.let { (10 - it).roundToLong().toInt() },
             )
             val name = get(exercise).ifBlank { "Exercise" }
             // Consecutive rows of the same exercise are one entry; the same exercise later in the workout is another.
@@ -142,7 +147,7 @@ object HevyImport {
             if (last != null && last.title == name) {
                 w.exercises[w.exercises.lastIndex] = last.copy(sets = last.sets + set)
             } else {
-                w.exercises.add(ImportExercise(name, get(exerciseNotes), listOf(set)))
+                w.exercises.add(ImportExercise(name, get(exerciseNotes), listOf(set), get(superset).ifBlank { null }))
             }
         }
         if (workouts.isEmpty() && unreadable > 0) throw FormatException("Couldn't read the workout dates in this file.")
@@ -409,9 +414,12 @@ object HevyImport {
                         WorkoutExercise(
                             exerciseId = id,
                             notes = e.notes,
-                            sets = e.sets.map { s -> SetEntry(weight = weight(s.weightKg), reps = s.reps, completed = true, type = s.type) },
+                            sets = e.sets.map { s ->
+                                SetEntry(weight = weight(s.weightKg), reps = s.reps, completed = true, type = s.type, rir = s.rir)
+                            },
+                            supersetId = e.superset?.let { "${w.start}-$it" },
                         )
-                    },
+                    }.normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) },
                 )
             }
             .filter { it.exercises.isNotEmpty() }
