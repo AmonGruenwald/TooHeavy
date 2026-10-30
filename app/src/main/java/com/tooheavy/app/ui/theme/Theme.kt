@@ -28,7 +28,7 @@ val Success = Color(0xFF2FD38A)
 val Danger = Color(0xFFFF5468)
 val Warmup = Color(0xFFFFB020)
 
-/** Brand gradient: violet → magenta → ember. Used for hero numbers, primary actions, rings and the icon. */
+/** Brand gradient: violet → magenta → ember. Used for hero numbers, primary actions and rings. */
 val BrandColors = listOf(Color(0xFF7B5CFF), Magenta, Ember)
 val BrandBrush: Brush get() = Brush.linearGradient(BrandColors)
 fun brandHorizontal(): Brush = Brush.horizontalGradient(BrandColors)
