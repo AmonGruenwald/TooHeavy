@@ -280,7 +280,7 @@ private fun StatusCard(program: Program) {
         }
         val details = listOfNotNull(
             program.focus.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Focus: ") { MuscleGroup.label(it) },
-            program.skip.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Left out: ") { MuscleGroup.label(it) },
+            program.reduce.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Reduced: ") { MuscleGroup.label(it) },
             "${program.sessionsPerWeek} sessions a week".takeIf { program.sessionsPerWeek != program.days.size },
         )
         if (details.isNotEmpty()) {

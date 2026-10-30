@@ -85,6 +85,7 @@ fun MusclesScreen(nav: NavController) {
         program?.experience ?: Experience.INTERMEDIATE,
         program?.focus?.contains(g) == true,
         g,
+        program?.reduce?.contains(g) == true,
     )
 
     Scaffold(

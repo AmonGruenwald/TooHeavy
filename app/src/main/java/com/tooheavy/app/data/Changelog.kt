@@ -12,6 +12,15 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.7.1", "2026-10-30",
+            listOf(
+                "\"Leave out\" is now \"Reduce\": reduced muscle groups are kept at maintenance with 3 to 6 sets a " +
+                    "week instead of disappearing. They get one exercise, added to another day if their own days go, " +
+                    "or none when other lifts already work them.",
+                "Focus on as many muscle groups as you like. Sessions get a little more room for each one.",
+            ),
+        ),
+        ChangelogEntry(
             "1.7.0", "2026-10-30",
             listOf(
                 "Program setup asks more: pick your split (full body, upper/lower or push/pull/legs), up to two muscle " +

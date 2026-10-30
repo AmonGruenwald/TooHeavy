@@ -60,8 +60,8 @@ import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.Warmup
 import java.util.Locale
 
-/** Groups that can be prioritised at once; prioritising more than two dilutes the priority. */
-private const val MAX_FOCUS = 2
+/** Beyond this many focus groups, prioritising stops meaning much. */
+private const val FOCUS_HINT = 3
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -73,12 +73,12 @@ fun ProgramSetupScreen(nav: NavController) {
     var equipment by remember { mutableStateOf(existing?.equipment ?: Equipment.GYM) }
     var split by remember { mutableStateOf(existing?.split ?: Split.AUTO) }
     var focus by remember { mutableStateOf(existing?.focus.orEmpty()) }
-    var skip by remember { mutableStateOf(existing?.skip.orEmpty()) }
+    var reduce by remember { mutableStateOf(existing?.reduce.orEmpty()) }
     var confirmReplace by remember { mutableStateOf(false) }
 
     val unit = Repo.settings.unit
-    val preview = remember(goal, level, days, equipment, split, focus, skip, unit) {
-        generateProgram(goal, level, days, equipment, unit, Repo::exercise, split, focus, skip, Repo::best1RM)
+    val preview = remember(goal, level, days, equipment, split, focus, reduce, unit) {
+        generateProgram(goal, level, days, equipment, unit, Repo::exercise, split, focus, reduce, Repo::best1RM)
     }
 
     fun create() {
@@ -156,7 +156,7 @@ fun ProgramSetupScreen(nav: NavController) {
             ProgramCard {
                 Text("Focus on", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "Up to $MAX_FOCUS muscle groups get about 4 more sets a week, an extra exercise and an early spot in each session.",
+                    "These muscle groups get about 4 more sets a week, an extra exercise and an early spot in each session.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -165,28 +165,41 @@ fun ProgramSetupScreen(nav: NavController) {
                         val selected = g in focus
                         FilterChip(
                             selected = selected,
-                            enabled = selected || (focus.size < MAX_FOCUS && g !in skip),
-                            onClick = { focus = if (selected) focus - g else focus + g },
+                            onClick = {
+                                focus = if (selected) focus - g else focus + g
+                                reduce = reduce - g
+                            },
                             label = { Text(MuscleGroup.label(g)) },
                         )
                     }
                 }
+                if (focus.size > FOCUS_HINT) {
+                    Text(
+                        "With ${focus.size} focus groups, sessions get longer and each one stands out less. " +
+                            "The session limit keeps the extra sets in check.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Warmup,
+                    )
+                }
             }
 
             ProgramCard {
-                Text("Leave out", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Reduce", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "For an injury, or muscles you train elsewhere. Their exercises are dropped and the sessions filled with the rest.",
+                    "For an injury, or muscles you train elsewhere. They're kept at maintenance, about 3 to 6 sets a week: " +
+                        "one exercise in your plan, added to another day if needed, or none when other lifts already work them.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MuscleGroup.all.forEach { g ->
-                        val selected = g in skip
+                        val selected = g in reduce
                         FilterChip(
                             selected = selected,
-                            enabled = selected || g !in focus,
-                            onClick = { skip = if (selected) skip - g else skip + g },
+                            onClick = {
+                                reduce = if (selected) reduce - g else reduce + g
+                                focus = focus - g
+                            },
                             label = { Text(MuscleGroup.label(g)) },
                         )
                     }
@@ -237,7 +250,7 @@ private fun PreviewCard(p: com.tooheavy.app.data.Program, goal: String, level: S
     ProgramCard {
         Text("Your plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         if (p.days.isEmpty()) {
-            Text("Nothing left to train. Leave out fewer muscle groups.", color = Danger, style = MaterialTheme.typography.bodyMedium)
+            Text("Nothing left to train. Reduce fewer muscle groups.", color = Danger, style = MaterialTheme.typography.bodyMedium)
             return@ProgramCard
         }
         Text(
@@ -269,9 +282,9 @@ private fun PreviewCard(p: com.tooheavy.app.data.Program, goal: String, level: S
             color = TextMuted,
         )
         val weekly = p.weeklyGroupSets
-        MuscleGroup.all.filter { it !in p.skip }.forEach { g ->
+        MuscleGroup.all.forEach { g ->
             val v = weekly[g] ?: 0.0
-            val range = weeklySetRange(goal, level, g in focus, g)
+            val range = weeklySetRange(goal, level, g in focus, g, g in p.reduce)
             val color = when {
                 v < range.start - 0.01 -> Warmup
                 v > range.endInclusive + 0.01 -> Danger
@@ -280,7 +293,11 @@ private fun PreviewCard(p: com.tooheavy.app.data.Program, goal: String, level: S
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        MuscleGroup.label(g) + if (g in focus) " · focus" else "",
+                        MuscleGroup.label(g) + when (g) {
+                            in focus -> " · focus"
+                            in p.reduce -> " · reduced"
+                            else -> ""
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
@@ -315,6 +332,8 @@ private fun HowItWorksCard() {
             "Progression" to "Reps climb through the range at the same weight; once every set reaches the top, the " +
                 "weight goes up. Three stalled sessions bring the weight down about 10 % to build back up.",
             "Recovery" to "Every block ends in a deload week. If many lifts stall at once, the deload comes early.",
+            "Reduced muscles" to "About a third of the usual volume, even once a week, is enough to keep muscle and " +
+                "strength, so reduced groups get 3 to 6 sets a week.",
             "Adapting to you" to "After each block, exercises that earned extra sets keep one and exercises that " +
                 "needed fewer start lower. Blocks get a week longer when you progress steadily (up to 6 weeks) and " +
                 "shorter after an early deload.",
@@ -327,7 +346,7 @@ private fun HowItWorksCard() {
         Text(
             "Based on meta-analyses and reviews by Schoenfeld et al. (volume, frequency, loading, rest), Pelland et al. " +
                 "2024 (volume dose-response), Refalo et al. 2023 (proximity to failure), Helms et al. 2016 (RIR) and " +
-                "Bell et al. 2023 (deloading).",
+                "Bell et al. 2023 (deloading), Bickel et al. 2011 and Spiering et al. 2021 (maintenance).",
             style = MaterialTheme.typography.labelSmall,
             color = TextMuted,
         )

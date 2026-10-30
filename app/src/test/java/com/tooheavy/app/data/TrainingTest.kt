@@ -153,14 +153,49 @@ class TrainingTest {
     }
 
     @Test
-    fun skippedGroupsAreLeftOut() {
-        val skip = listOf(MuscleGroup.QUADS, MuscleGroup.HAMSTRINGS, MuscleGroup.GLUTES, MuscleGroup.CALVES)
-        val p = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, skip = skip)
-        val groups = p.days.flatMap { it.exercises }.mapNotNull { patternGroup(it.pattern) }.toSet()
-        assertTrue("trained $groups", groups.none { it in skip })
-        // Lower days keep only core work, filled up to a useful session.
-        assertTrue(p.days.all { it.exercises.size >= 3 })
+    fun reducedGroupsAreKeptAtMaintenance() {
+        val legs = listOf(MuscleGroup.QUADS, MuscleGroup.HAMSTRINGS, MuscleGroup.GLUTES, MuscleGroup.CALVES)
+        val p = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, reduce = legs)
+        // The lower days are gone; the leg work rides along on the upper days, four sessions a week.
+        assertEquals(listOf("Upper A", "Upper B"), p.days.map { it.name })
         assertEquals(4, p.sessionsPerWeek)
+        val all = p.days.flatMap { it.exercises }
+        val weekly = p.weeklyGroupSets
+        for (g in legs) {
+            // At most one exercise each; glutes ride along with the squat and the hinge.
+            assertTrue("$g has ${all.count { patternGroup(it.pattern) == g }} exercises", all.count { patternGroup(it.pattern) == g } <= 1)
+            assertTrue("$g: ${weekly[g]}", (weekly[g] ?: 0.0) >= MAINTENANCE.start)
+        }
+        assertEquals(0, all.count { patternGroup(it.pattern) == MuscleGroup.GLUTES })
+        // Reduced work comes after the upper-body exercises of the same role.
+        val upper = p.days.first().exercises
+        val firstReduced = upper.indexOfFirst { patternGroup(it.pattern) in legs }
+        assertTrue(upper.drop(firstReduced).filter { it.role == upper[firstReduced].role }.all { patternGroup(it.pattern) in legs })
+
+        // A reduced group that other lifts already cover gets no exercise of its own.
+        val triceps = generateProgram(
+            TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, reduce = listOf(MuscleGroup.TRICEPS),
+        )
+        assertTrue(triceps.days.flatMap { it.exercises }.none { patternGroup(it.pattern) == MuscleGroup.TRICEPS })
+        assertTrue(triceps.weeklyGroupSets[MuscleGroup.TRICEPS]!! >= MAINTENANCE.start)
+    }
+
+    @Test
+    fun manyFocusGroups() {
+        val focus = listOf(MuscleGroup.CHEST, MuscleGroup.SHOULDERS, MuscleGroup.BICEPS, MuscleGroup.GLUTES)
+        val plain = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup)
+        val p = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, focus = focus)
+        assertEquals(focus, p.focus)
+        for (g in focus) {
+            assertTrue("$g", p.weeklyGroupSets[g]!! > plain.weeklyGroupSets[g]!!)
+        }
+        assertTrue(p.days.all { it.exercises.size <= 8 })
+    }
+
+    @Test
+    fun programsFrom170KeepTheirLeftOutGroups() {
+        val json = """{"name":"Old","skip":["calves"],"days":[]}"""
+        assertEquals(listOf("calves"), Gson().fromJson(json, Program::class.java).reduce)
     }
 
     @Test
