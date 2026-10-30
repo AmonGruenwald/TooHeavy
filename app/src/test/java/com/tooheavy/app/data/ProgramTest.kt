@@ -13,8 +13,10 @@ import java.io.File
 class ProgramTest {
     companion object {
         private val library: List<Exercise> by lazy {
-            val file = listOf("src/main/assets/exercises.json", "app/src/main/assets/exercises.json").map(::File).first { it.exists() }
-            Gson().fromJson(file.readText(), object : TypeToken<List<Exercise>>() {}.type)
+            val dir = listOf("src/main/assets", "app/src/main/assets").map(::File).first { it.exists() }
+            listOf("exercises.json", "exercises_extra.json").flatMap {
+                Gson().fromJson<List<Exercise>>(File(dir, it).readText(), object : TypeToken<List<Exercise>>() {}.type)
+            }
         }
         private val byId: Map<String, Exercise> by lazy { library.associateBy { it.id } }
     }

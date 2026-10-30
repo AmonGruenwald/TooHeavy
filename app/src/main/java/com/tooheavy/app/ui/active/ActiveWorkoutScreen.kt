@@ -90,6 +90,7 @@ import com.tooheavy.app.data.groupCredit
 import com.tooheavy.app.data.linkWithNext
 import com.tooheavy.app.data.muscleCredit
 import com.tooheavy.app.data.normalizeSupersets
+import com.tooheavy.app.data.orderWorkout
 import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.volume
@@ -322,6 +323,14 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Add Exercise")
+                        }
+                        if (workout.exercises.size > 1) {
+                            TextButton(
+                                onClick = { Repo.updateActive { w -> w.copy(exercises = orderWorkout(w.exercises, Repo::exercise)) } },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Order exercises: big lifts first, muscles alternating")
+                            }
                         }
                         TextButton(onClick = { showDiscard = true }, modifier = Modifier.fillMaxWidth()) {
                             Text("Discard Workout", color = Danger, fontWeight = FontWeight.SemiBold)

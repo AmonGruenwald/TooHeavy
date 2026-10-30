@@ -1,0 +1,510 @@
+[
+  {
+    "id": "Bulgarian_Split_Squat",
+    "name": "Bulgarian Split Squat",
+    "force": "push",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "dumbbell",
+    "primaryMuscles": ["quadriceps"],
+    "secondaryMuscles": ["glutes", "hamstrings", "adductors"],
+    "instructions": [
+      "Stand about two steps in front of a bench, holding a dumbbell in each hand, and rest the top of your back foot on the bench.",
+      "Keep your torso tall and lower straight down until your back knee nearly touches the floor and your front thigh is about parallel to it.",
+      "Push through the whole front foot to stand back up, keeping the front knee in line with your toes.",
+      "Do all reps on one leg, then switch. Leaning slightly forward puts more work on the glutes."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Pendulum_Squat",
+    "name": "Pendulum Squat",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["quadriceps"],
+    "secondaryMuscles": ["glutes", "adductors"],
+    "instructions": [
+      "Step onto the platform with your back against the pad and your shoulders under the shoulder pads, feet about hip-width apart.",
+      "Release the safety and bend your knees, letting the sled swing down and back until your knees are deeply bent.",
+      "Drive through your feet to push the sled back up without locking your knees hard at the top.",
+      "Re-engage the safety when you're done."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Belt_Squat",
+    "name": "Belt Squat",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["quadriceps"],
+    "secondaryMuscles": ["glutes", "hamstrings", "adductors"],
+    "instructions": [
+      "Attach the belt around your hips and stand on the platform with your feet slightly wider than hip-width.",
+      "Hold the handles for balance, keep your chest up and squat down until your thighs are at least parallel to the floor.",
+      "Stand back up by pushing the floor away. The load hangs from your hips, so your spine stays unloaded."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Dumbbell_Romanian_Deadlift",
+    "name": "Dumbbell Romanian Deadlift",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "dumbbell",
+    "primaryMuscles": ["hamstrings"],
+    "secondaryMuscles": ["glutes", "lower back"],
+    "instructions": [
+      "Stand tall with a dumbbell in each hand in front of your thighs, feet hip-width apart and knees softly bent.",
+      "Push your hips back and let the dumbbells slide down the front of your legs, keeping your back flat.",
+      "Go down until you feel a strong stretch in your hamstrings, usually around mid-shin.",
+      "Drive your hips forward to stand back up, squeezing your glutes at the top."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Single-Leg_Dumbbell_Romanian_Deadlift",
+    "name": "Single-Leg Dumbbell Romanian Deadlift",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "dumbbell",
+    "primaryMuscles": ["hamstrings"],
+    "secondaryMuscles": ["glutes", "lower back"],
+    "instructions": [
+      "Stand on one leg with a slight bend in the knee, holding a dumbbell in the opposite hand.",
+      "Hinge at the hip, letting the free leg travel straight back as the dumbbell lowers toward the floor. Keep your hips square.",
+      "Lower until your torso is close to parallel with the floor or you feel a deep hamstring stretch.",
+      "Return to standing by driving the hip forward, then finish the reps before switching legs."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Machine_Hip_Thrust",
+    "name": "Machine Hip Thrust",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["glutes"],
+    "secondaryMuscles": ["hamstrings"],
+    "instructions": [
+      "Sit in the machine with your upper back against the pad and the hip pad or belt across your hips, feet flat and shoulder-width apart.",
+      "Tuck your chin and drive your hips up until your thighs and torso form a straight line.",
+      "Squeeze your glutes hard for a moment at the top, then lower under control."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Smith_Machine_Hip_Thrust",
+    "name": "Smith Machine Hip Thrust",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["glutes"],
+    "secondaryMuscles": ["hamstrings"],
+    "instructions": [
+      "Set a bench next to the smith machine, sit on the floor with your upper back against it and the padded bar over your hips.",
+      "Plant your feet shoulder-width apart so your shins are vertical at the top.",
+      "Unrack and drive your hips up until your body is straight from shoulders to knees, squeezing your glutes.",
+      "Lower until your hips are just above the floor and repeat."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Smith_Machine_Romanian_Deadlift",
+    "name": "Smith Machine Romanian Deadlift",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["hamstrings"],
+    "secondaryMuscles": ["glutes", "lower back"],
+    "instructions": [
+      "Set the bar at mid-thigh height and stand close to it, gripping it just outside your legs.",
+      "Unrack, soften your knees and push your hips back, lowering the bar along your thighs with a flat back.",
+      "Stop when you feel a strong hamstring stretch, then drive your hips forward to stand tall."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Nordic_Hamstring_Curl",
+    "name": "Nordic Hamstring Curl",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "isolation",
+    "equipment": "body only",
+    "primaryMuscles": ["hamstrings"],
+    "secondaryMuscles": ["calves", "glutes"],
+    "instructions": [
+      "Kneel on a pad with your ankles anchored under a bench, a loaded bar or a partner's hands.",
+      "Keep your body straight from knees to head and slowly lean forward, resisting with your hamstrings for as long as you can.",
+      "Catch yourself with your hands when you can no longer hold the position, then push off lightly and pull yourself back up with your hamstrings.",
+      "Make it easier by holding a band from above, or by only doing the slow lowering."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Reverse_Nordic",
+    "name": "Reverse Nordic",
+    "force": "push",
+    "level": "intermediate",
+    "mechanic": "isolation",
+    "equipment": "body only",
+    "primaryMuscles": ["quadriceps"],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Kneel upright on a pad with your knees hip-width apart and the tops of your feet on the floor.",
+      "Keeping a straight line from your knees to your head, lean back slowly as far as you can control.",
+      "Use your quads to bring yourself back up to upright. Don't bend at the hips."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Cable_Hip_Abduction",
+    "name": "Cable Hip Abduction",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "cable",
+    "primaryMuscles": ["abductors"],
+    "secondaryMuscles": ["glutes"],
+    "instructions": [
+      "Attach an ankle strap to a low pulley and loop it around the ankle farther from the machine.",
+      "Stand side-on to the machine holding it for balance, with your working leg slightly in front of the other.",
+      "Lift the leg out to the side without leaning your torso, then lower slowly back across."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Tibialis_Raise",
+    "name": "Tibialis Raise",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "body only",
+    "primaryMuscles": ["calves"],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Lean your back against a wall with your heels about a foot in front of you and your legs straight.",
+      "Pull your toes and the balls of your feet up toward your shins as high as you can.",
+      "Lower them slowly without letting them slap the floor. Step farther from the wall to make it harder."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Kettlebell_Swing",
+    "name": "Kettlebell Swing",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "kettlebells",
+    "primaryMuscles": ["hamstrings"],
+    "secondaryMuscles": ["glutes", "lower back", "shoulders", "abdominals"],
+    "instructions": [
+      "Stand with your feet a little wider than shoulder-width, a kettlebell on the floor about a foot in front of you.",
+      "Hinge, grab the handle with both hands and hike the bell back between your legs.",
+      "Snap your hips forward to swing it up to chest height; your arms only guide it.",
+      "Let it fall back between your legs, hinging to absorb it, and go straight into the next rep."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Assisted_Pull-Up",
+    "name": "Assisted Pull-Up Machine",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["lats"],
+    "secondaryMuscles": ["biceps", "middle back"],
+    "instructions": [
+      "Set the counterweight: the more weight you select, the more help you get.",
+      "Kneel or stand on the platform and take a shoulder-width overhand grip on the handles.",
+      "Pull your chest up toward the handles, driving your elbows down to your sides.",
+      "Lower all the way until your arms are straight. Reduce the assistance as you get stronger."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Pendlay_Row",
+    "name": "Pendlay Row",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "barbell",
+    "primaryMuscles": ["middle back"],
+    "secondaryMuscles": ["lats", "biceps", "lower back"],
+    "instructions": [
+      "Stand over a barbell on the floor, feet hip-width apart, and hinge until your torso is about parallel to the floor.",
+      "Grip the bar slightly wider than shoulder-width with a flat back.",
+      "Row the bar explosively to your lower chest without raising your torso.",
+      "Lower it back to a dead stop on the floor before each rep."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Seal_Row",
+    "name": "Seal Row",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "barbell",
+    "primaryMuscles": ["middle back"],
+    "secondaryMuscles": ["lats", "biceps", "shoulders"],
+    "instructions": [
+      "Lie face down on a raised flat bench with the barbell (or two dumbbells) on the floor below you.",
+      "Grip the bar a little wider than shoulder-width and let your arms hang straight.",
+      "Pull the bar up to the underside of the bench, squeezing your shoulder blades together, while your chest stays on the pad.",
+      "Lower under control to a full stretch."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Meadows_Row",
+    "name": "Meadows Row",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "barbell",
+    "primaryMuscles": ["lats"],
+    "secondaryMuscles": ["middle back", "biceps", "forearms"],
+    "instructions": [
+      "Wedge one end of a barbell in a corner or landmine and load the other end.",
+      "Stand side-on to the end of the bar in a staggered stance and grab the sleeve overhand with the hand farther from it.",
+      "Brace your free forearm on your front knee and row the bar up and back toward your hip.",
+      "Lower to a full stretch, finish the reps, then switch sides."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Chest-Supported_Machine_Row",
+    "name": "Chest-Supported Machine Row",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "machine",
+    "primaryMuscles": ["middle back"],
+    "secondaryMuscles": ["lats", "biceps", "shoulders"],
+    "instructions": [
+      "Adjust the seat so the chest pad sits at mid-chest and you can just reach the handles with straight arms.",
+      "Keep your chest on the pad and pull the handles toward you, driving your elbows back.",
+      "Squeeze your shoulder blades together for a moment, then let the handles go forward to a full stretch."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Single-Arm_Cable_Row",
+    "name": "Single-Arm Cable Row",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "cable",
+    "primaryMuscles": ["middle back"],
+    "secondaryMuscles": ["lats", "biceps"],
+    "instructions": [
+      "Attach a single handle to a mid or low pulley and sit or stand facing it.",
+      "With one arm extended and your torso upright, row the handle to your side, keeping the elbow close.",
+      "Let your shoulder reach forward on the way back for a full stretch, finish the reps, then switch arms."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Single-Arm_Cable_Lateral_Raise",
+    "name": "Single-Arm Cable Lateral Raise",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "cable",
+    "primaryMuscles": ["shoulders"],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Set a handle on a low pulley and stand side-on to the machine, holding the handle with the hand farther from it.",
+      "With a slight bend in the elbow, raise your arm out to the side until it's about level with your shoulder.",
+      "Lower slowly until the hand is in front of your hips, finish the reps, then switch sides."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Machine_Lateral_Raise",
+    "name": "Machine Lateral Raise",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "machine",
+    "primaryMuscles": ["shoulders"],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Adjust the seat so your shoulders line up with the machine's pivot points and the pads rest on the outside of your upper arms.",
+      "Raise your arms out to the sides until they're level with your shoulders.",
+      "Lower under control without letting the weight stack touch down between reps."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Landmine_Press",
+    "name": "Landmine Press",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "barbell",
+    "primaryMuscles": ["shoulders"],
+    "secondaryMuscles": ["chest", "triceps"],
+    "instructions": [
+      "Wedge one end of a barbell in a landmine or corner and load the other end.",
+      "Stand facing the bar in a split or square stance and hold the end of the bar at your shoulder with one or both hands.",
+      "Press the bar up and forward until your arm is straight, then lower it back to your shoulder.",
+      "The angled path is easier on the shoulders than a strict overhead press."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Cable_Y-Raise",
+    "name": "Cable Y-Raise",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "isolation",
+    "equipment": "cable",
+    "primaryMuscles": ["shoulders"],
+    "secondaryMuscles": ["traps", "middle back"],
+    "instructions": [
+      "Set two low pulleys without handles, cross the cables and hold the ends, or use one cable for one arm at a time.",
+      "Stand between the pulleys and raise your arms up and out into a Y shape above your head, thumbs up.",
+      "Lower slowly back to the start. Keep the weight light and the movement controlled."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Bayesian_Cable_Curl",
+    "name": "Bayesian Cable Curl",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "cable",
+    "primaryMuscles": ["biceps"],
+    "secondaryMuscles": ["forearms"],
+    "instructions": [
+      "Attach a handle to a low pulley, face away from the machine and hold the handle with your arm behind your body.",
+      "Step forward into a staggered stance until there's tension on the cable with your arm stretched back.",
+      "Curl the handle forward and up without moving your elbow forward, then lower to a full stretch behind you.",
+      "Finish the reps, then switch arms."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Cable_Triceps_Kickback",
+    "name": "Cable Triceps Kickback",
+    "force": "push",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "cable",
+    "primaryMuscles": ["triceps"],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Attach a handle or the bare cable to a low pulley and hinge forward facing the machine.",
+      "Hold the cable with your upper arm pinned to your side and your elbow bent.",
+      "Straighten your arm back behind you, squeeze the triceps, then let the forearm swing back down under control.",
+      "Finish the reps, then switch arms."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Dead_Hang",
+    "name": "Dead Hang",
+    "force": "static",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "body only",
+    "primaryMuscles": ["forearms"],
+    "secondaryMuscles": ["lats", "shoulders"],
+    "instructions": [
+      "Grab a pull-up bar with a shoulder-width overhand grip.",
+      "Lift your feet and hang with straight arms and relaxed shoulders.",
+      "Hold for time, keeping your breathing steady. Log the seconds held as reps."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Copenhagen_Plank",
+    "name": "Copenhagen Plank",
+    "force": "static",
+    "level": "intermediate",
+    "mechanic": "isolation",
+    "equipment": "body only",
+    "primaryMuscles": ["adductors"],
+    "secondaryMuscles": ["abdominals"],
+    "instructions": [
+      "Lie on your side next to a bench and place your top leg on it, the bench under your inner knee or ankle.",
+      "Prop yourself up on your forearm and lift your hips until your body is straight; the bottom leg hangs free or lifts toward the bench.",
+      "Hold, then switch sides. Supporting at the knee is easier than at the ankle."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Cable_Woodchopper",
+    "name": "Cable Woodchopper",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "compound",
+    "equipment": "cable",
+    "primaryMuscles": ["abdominals"],
+    "secondaryMuscles": ["shoulders"],
+    "instructions": [
+      "Set a handle on a high pulley and stand side-on to the machine, feet shoulder-width apart.",
+      "Hold the handle with both hands above your near shoulder and arms almost straight.",
+      "Rotate your torso and pull the handle diagonally down across your body to the outside of the far knee, pivoting on your back foot.",
+      "Return under control, finish the reps, then switch sides."
+    ],
+    "category": "strength",
+    "images": []
+  },
+  {
+    "id": "Hanging_Knee_Raise",
+    "name": "Hanging Knee Raise",
+    "force": "pull",
+    "level": "beginner",
+    "mechanic": "isolation",
+    "equipment": "body only",
+    "primaryMuscles": ["abdominals"],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Hang from a pull-up bar with straight arms.",
+      "Without swinging, pull your knees up toward your chest, curling your pelvis up at the top.",
+      "Lower your legs slowly until they're straight again."
+    ],
+    "category": "strength",
+    "images": []
+  }
+]

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Exercise
 import com.tooheavy.app.data.HevyImport
+import com.tooheavy.app.data.ExerciseSearch
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
@@ -319,9 +320,7 @@ private fun ImportPreview(
 @Composable
 private fun ExerciseChoiceDialog(hevyTitle: String, onDismiss: () -> Unit, onChoose: (String?) -> Unit) {
     var query by remember { mutableStateOf(hevyTitle.substringBefore(" (")) }
-    val q = query.trim().lowercase()
-    val words = q.split(" ").filter { it.isNotEmpty() }
-    val results = Repo.exercises.filter { e -> words.all { e.name.lowercase().contains(it) } }.take(60)
+    val results = Repo.exercises.filter { e -> ExerciseSearch.matches(e, query) }.take(60)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(hevyTitle, maxLines = 2, overflow = TextOverflow.Ellipsis) },

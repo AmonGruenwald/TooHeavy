@@ -53,8 +53,11 @@ object Repo {
 
     fun init(context: Context) {
         if (::file.isInitialized) return
-        val json = context.assets.open("exercises.json").bufferedReader().use { it.readText() }
-        bundled = gson.fromJson(json, object : TypeToken<List<Exercise>>() {}.type)
+        // exercises.json is free-exercise-db; exercises_extra.json adds common exercises it lacks.
+        bundled = listOf("exercises.json", "exercises_extra.json").flatMap { name ->
+            val json = context.assets.open(name).bufferedReader().use { it.readText() }
+            gson.fromJson<List<Exercise>>(json, object : TypeToken<List<Exercise>>() {}.type)
+        }
         file = File(context.filesDir, "data.json")
         if (file.exists()) {
             runCatching { gson.fromJson(file.readText(), AppData::class.java) }.getOrNull()?.let { d ->
@@ -62,7 +65,7 @@ object Repo {
                 routines.addAll(d.routines.orEmpty())
                 activeWorkout = d.activeWorkout
                 settings = d.settings ?: Settings()
-                program = d.program?.migrated()
+                program = d.program?.migrated()?.ordered()
                 customExercises = d.customExercises.orEmpty()
             }
         }

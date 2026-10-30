@@ -57,6 +57,7 @@ import androidx.navigation.NavController
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.linkWithNext
 import com.tooheavy.app.data.normalizeSupersets
+import com.tooheavy.app.data.orderRoutine
 import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.Routine
@@ -212,6 +213,16 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
                         superset = letters[index],
                         linkedToNext = re.supersetId != null && draft.exercises.getOrNull(index + 1)?.supersetId == re.supersetId,
                     )
+                }
+                if (draft.exercises.size > 1) {
+                    item(key = "order") {
+                        TextButton(
+                            onClick = { updateDraft { it.copy(exercises = orderRoutine(it.exercises, Repo::exercise)) } },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Order exercises: big lifts first, muscles alternating")
+                        }
+                    }
                 }
                 item(key = "add") {
                     OutlinedButton(

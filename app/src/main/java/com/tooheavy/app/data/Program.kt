@@ -229,6 +229,15 @@ val Program.mesocycle: Int get() = mesoIndex + 1
 val Program.mesoWeek: Int get() = weekIndex + 1
 val Program.isDeload: Boolean get() = weekIndex >= trainingWeeks
 
+/** Each day's exercises in the order [orderSession] suggests; programs from before 1.8.0 get it on load. */
+fun Program.ordered(): Program = copy(days = days.map { d ->
+    d.copy(exercises = orderSession(d.exercises.map { pe ->
+        val g = patternGroup(pe.pattern)
+        val priority = if (g in focus) 0 else if (g in reduce) 2 else 1
+        OrderItem(pe, programTier(pe), patternGroups[pe.pattern].orEmpty().toSet(), priority, pe.supersetId, setOfNotNull(g))
+    }))
+})
+
 /** Programs saved before 1.7.0 counted mesocycles from the start; this moves them to a stored block start. */
 fun Program.migrated(): Program {
     if (perWeek != 0 || mesoStart != 0 || mesoIndex != 0 || days.isEmpty()) return this
@@ -610,11 +619,12 @@ private val candidates: Map<String, List<Candidate>> = run {
     fun band(id: String) = Candidate(id, Gear.BANDS)
     mapOf(
         Pattern.SQUAT to listOf(
-            b("Barbell_Squat"), m("Leg_Press"), m("Hack_Squat"), d("Goblet_Squat"), d("Dumbbell_Squat"),
-            m("Smith_Machine_Squat"), bw("Bodyweight_Squat"),
+            b("Barbell_Squat"), m("Leg_Press"), m("Hack_Squat"), m("Pendulum_Squat"), d("Goblet_Squat"), m("Belt_Squat"),
+            d("Dumbbell_Squat"), m("Smith_Machine_Squat"), bw("Bodyweight_Squat"),
         ),
         Pattern.HINGE to listOf(
-            b("Barbell_Deadlift"), b("Romanian_Deadlift"), b("Barbell_Hip_Thrust"), d("Stiff-Legged_Dumbbell_Deadlift"),
+            b("Barbell_Deadlift"), b("Romanian_Deadlift"), b("Barbell_Hip_Thrust"), d("Dumbbell_Romanian_Deadlift"),
+            m("Smith_Machine_Romanian_Deadlift"), d("Single-Leg_Dumbbell_Romanian_Deadlift"), d("Kettlebell_Swing"),
             bw("Single_Leg_Glute_Bridge"), bw("Butt_Lift_Bridge"),
         ),
         Pattern.HORIZONTAL_PUSH to listOf(
@@ -623,35 +633,38 @@ private val candidates: Map<String, List<Candidate>> = run {
         ),
         Pattern.VERTICAL_PUSH to listOf(
             b("Standing_Military_Press"), d("Dumbbell_Shoulder_Press"), b("Seated_Barbell_Military_Press"),
-            d("Arnold_Dumbbell_Press"), m("Machine_Shoulder_Military_Press"), bw("Push-Ups_With_Feet_Elevated"),
+            d("Arnold_Dumbbell_Press"), m("Machine_Shoulder_Military_Press"), b("Landmine_Press"), bw("Push-Ups_With_Feet_Elevated"),
         ),
         Pattern.HORIZONTAL_PULL to listOf(
-            b("Bent_Over_Barbell_Row"), c("Seated_Cable_Rows"), d("One-Arm_Dumbbell_Row"), d("Bent_Over_Two-Dumbbell_Row"),
-            m("Leverage_Iso_Row"), bw("Inverted_Row"),
+            b("Bent_Over_Barbell_Row"), c("Seated_Cable_Rows"), d("One-Arm_Dumbbell_Row"), m("Chest-Supported_Machine_Row"),
+            d("Bent_Over_Two-Dumbbell_Row"), c("Single-Arm_Cable_Row"), b("Pendlay_Row"), b("Seal_Row"), m("Leverage_Iso_Row"),
+            bw("Inverted_Row"),
         ),
         Pattern.VERTICAL_PULL to listOf(
-            c("Wide-Grip_Lat_Pulldown"), bw("Pullups"), c("Close-Grip_Front_Lat_Pulldown"), bw("Chin-Up"),
+            c("Wide-Grip_Lat_Pulldown"), bw("Pullups"), c("Close-Grip_Front_Lat_Pulldown"), bw("Chin-Up"), m("Assisted_Pull-Up"),
         ),
         Pattern.LUNGE to listOf(
-            d("Split_Squat_with_Dumbbells"), d("Dumbbell_Lunges"), b("Barbell_Lunge"), d("Dumbbell_Step_Ups"),
-            bw("Bodyweight_Walking_Lunge"),
+            d("Split_Squat_with_Dumbbells"), d("Bulgarian_Split_Squat"), d("Dumbbell_Lunges"), d("Dumbbell_Rear_Lunge"),
+            b("Barbell_Lunge"), d("Dumbbell_Step_Ups"), bw("Bodyweight_Walking_Lunge"),
         ),
-        Pattern.LEG_CURL to listOf(m("Lying_Leg_Curls"), m("Seated_Leg_Curl")),
-        Pattern.LEG_EXTENSION to listOf(m("Leg_Extensions"), m("Single-Leg_Leg_Extension")),
+        Pattern.LEG_CURL to listOf(m("Lying_Leg_Curls"), m("Seated_Leg_Curl"), bw("Nordic_Hamstring_Curl")),
+        Pattern.LEG_EXTENSION to listOf(m("Leg_Extensions"), m("Single-Leg_Leg_Extension"), bw("Reverse_Nordic")),
         Pattern.CALVES to listOf(
             m("Standing_Calf_Raises"), m("Seated_Calf_Raise"), d("Standing_Dumbbell_Calf_Raise"), d("Calf_Raise_On_A_Dumbbell"),
+            m("Calf_Press_On_The_Leg_Press_Machine"),
         ),
         Pattern.BICEPS to listOf(
             b("Barbell_Curl"), d("Dumbbell_Bicep_Curl"), d("Hammer_Curls"), d("Incline_Dumbbell_Curl"),
-            c("Standing_Biceps_Cable_Curl"), bw("Chin-Up"),
+            c("Bayesian_Cable_Curl"), c("Standing_Biceps_Cable_Curl"), bw("Chin-Up"),
         ),
         Pattern.TRICEPS to listOf(
             c("Triceps_Pushdown"), b("EZ-Bar_Skullcrusher"), c("Cable_Rope_Overhead_Triceps_Extension"),
             d("Standing_Dumbbell_Triceps_Extension"), d("Lying_Dumbbell_Tricep_Extension"), bw("Dips_-_Triceps_Version"),
-            bw("Bench_Dips"), bw("Push-Ups_-_Close_Triceps_Position"),
+            c("Cable_Triceps_Kickback"), bw("Bench_Dips"), bw("Push-Ups_-_Close_Triceps_Position"),
         ),
         Pattern.LATERAL_DELTS to listOf(
-            d("Side_Lateral_Raise"), c("Cable_Seated_Lateral_Raise"), d("Seated_Side_Lateral_Raise"), band("Lateral_Raise_-_With_Bands"),
+            d("Side_Lateral_Raise"), c("Single-Arm_Cable_Lateral_Raise"), m("Machine_Lateral_Raise"), c("Cable_Seated_Lateral_Raise"),
+            d("Seated_Side_Lateral_Raise"), c("Cable_Y-Raise"), band("Lateral_Raise_-_With_Bands"),
         ),
         Pattern.REAR_DELTS to listOf(
             c("Face_Pull"), d("Reverse_Flyes"), d("Seated_Bent-Over_Rear_Delt_Raise"), m("Reverse_Machine_Flyes"),
@@ -659,10 +672,14 @@ private val candidates: Map<String, List<Candidate>> = run {
         ),
         Pattern.CHEST_FLY to listOf(c("Cable_Crossover"), d("Dumbbell_Flyes"), m("Butterfly"), d("Incline_Dumbbell_Flyes")),
         Pattern.GLUTES to listOf(
-            b("Barbell_Hip_Thrust"), c("Pull_Through"), b("Barbell_Glute_Bridge"), c("One-Legged_Cable_Kickback"),
+            b("Barbell_Hip_Thrust"), m("Machine_Hip_Thrust"), c("Pull_Through"), m("Smith_Machine_Hip_Thrust"),
+            b("Barbell_Glute_Bridge"), c("One-Legged_Cable_Kickback"), c("Cable_Hip_Abduction"),
             bw("Single_Leg_Glute_Bridge"), bw("Glute_Kickback"), bw("Butt_Lift_Bridge"),
         ),
-        Pattern.CORE to listOf(c("Cable_Crunch"), bw("Reverse_Crunch"), bw("Hanging_Leg_Raise"), bw("Dead_Bug"), bw("Crunches")),
+        Pattern.CORE to listOf(
+            c("Cable_Crunch"), bw("Reverse_Crunch"), bw("Hanging_Knee_Raise"), c("Cable_Woodchopper"), bw("Hanging_Leg_Raise"),
+            bw("Dead_Bug"), bw("Crunches"),
+        ),
     )
 }
 
@@ -793,6 +810,14 @@ private val groupSlots: Map<String, List<Slot>> = mapOf(
     MuscleGroup.GLUTES to listOf(secondary(Pattern.GLUTES), accessory(Pattern.GLUTES, 1)),
     MuscleGroup.CALVES to listOf(accessory(Pattern.CALVES)),
 )
+
+/** Main lifts, then other compounds, then isolation work, with core and calves last; see [orderSession]. */
+private fun programTier(pe: ProgramExercise) = when {
+    pe.role == Role.PRIMARY -> 1
+    pe.role == Role.SECONDARY -> 2
+    pe.pattern == Pattern.CORE || pe.pattern == Pattern.CALVES -> 4
+    else -> 3
+}
 
 private fun roleRank(role: String) = when (role) {
     Role.PRIMARY -> 0
@@ -1141,7 +1166,9 @@ fun generateProgram(
         in reduced -> 2
         else -> 1
     }
-    fun order(list: List<ProgramExercise>) = list.sortedWith(compareBy({ roleRank(it.role) }, ::rank))
+    fun order(list: List<ProgramExercise>) = orderSession(list.map { pe ->
+        OrderItem(pe, programTier(pe), patternGroups[pe.pattern].orEmpty().toSet(), rank(pe), pe.supersetId, setOfNotNull(patternGroup(pe.pattern)))
+    })
     /** The first exercise of [slots] the day doesn't have yet, for [plan]. */
     fun make(plan: DayPlan, have: List<ProgramExercise>, slots: List<Slot>): ProgramExercise? {
         val used = have.map { it.exerciseId }.toSet()
@@ -1184,7 +1211,7 @@ fun generateProgram(
     // Days that ran out of isolation work to drop, whose compounds may go down to 2 sets.
     val lowered = HashSet<String>()
     fun days() = built.map { (plan, list) ->
-        ProgramDay(name = plan.name, exercises = order(list).let { if (short) pairIsolation(it) else it })
+        ProgramDay(name = plan.name, exercises = order(list).let { if (short) order(pairIsolation(it)) else it })
     }
     // Reduced groups not already covered by other lifts get one exercise, on a day that normally trains them
     // if there is one, else on the day with the fewest exercises.
@@ -1215,7 +1242,9 @@ fun generateProgram(
         }
         if (long < 0) return@repeat
         val list = built[long].second
-        if (short && days[long].name !in lowered && (list.none { it.role == Role.ACCESSORY } || list.size <= MIN_EXERCISES)) {
+        if (short && days[long].name !in lowered &&
+            (list.none { it.role == Role.ACCESSORY && patternGroup(it.pattern) !in prioritised } || list.size <= MIN_EXERCISES)
+        ) {
             lowered.add(days[long].name)
             days = balance(rebuilt(days))
             return@repeat
@@ -1224,7 +1253,16 @@ fun generateProgram(
         fun spare(pe: ProgramExercise) = patternGroup(pe.pattern)?.let { g ->
             (weekly[g] ?: 0.0) - weeklySetRange(goal, experience, g in prioritised, g, g in reduced).start
         } ?: 0.0
-        val pool = if (short) list.filter { it.role == Role.ACCESSORY } else list.filter { it.role != Role.PRIMARY }
+        fun focus(pe: ProgramExercise) = patternGroup(pe.pattern) in prioritised
+        // Short sessions give up isolation work before compounds, but focus groups keep theirs as long as
+        // any exercise for another group can go instead.
+        val pool = if (short) {
+            list.filter { it.role == Role.ACCESSORY && !focus(it) }
+                .ifEmpty { list.filter { it.role != Role.PRIMARY && !focus(it) } }
+                .ifEmpty { list.filter { it.role == Role.ACCESSORY } }
+        } else {
+            list.filter { it.role != Role.PRIMARY }
+        }
         val drop = pool.ifEmpty { list }
             .maxWith(compareBy({ if (patternGroup(it.pattern) in prioritised) 0 else 1 }, { spare(it) }, { roleRank(it.role) }))
         list.remove(drop)

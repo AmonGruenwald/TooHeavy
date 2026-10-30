@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Exercise
+import com.tooheavy.app.data.ExerciseSearch
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.Routes
@@ -159,9 +160,8 @@ private fun ExerciseBrowser(
     val e = equipment
     val library = Repo.exercises
     val filtered = remember(query, m, e, customOnly, library) {
-        val q = query.trim().lowercase()
         library.filter { ex ->
-            (q.isEmpty() || ex.name.lowercase().contains(q)) &&
+            ExerciseSearch.matches(ex, query) &&
                 (m == null || ex.primaryMuscles.contains(m)) &&
                 (e == null || ex.equipment == e) &&
                 (!customOnly || ex.isCustom)

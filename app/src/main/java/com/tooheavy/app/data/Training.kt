@@ -193,6 +193,104 @@ object WarmUps {
     )
 }
 
+// ---------- exercise order ----------
+
+/**
+ * One exercise (or superset) as the session orderer sees it: [tier] from most to least demanding, the muscle
+ * groups it works, its [priority] within the tier (0 focus groups, 1 others, 2 reduced groups), and its
+ * superset id so partners stay together.
+ */
+class OrderItem<T>(
+    val item: T,
+    val tier: Int,
+    val groups: Set<String>,
+    val priority: Int = 1,
+    val superset: String? = null,
+    /** The groups it mainly trains; the rest of [groups] only weighs in on ties. */
+    val main: Set<String> = groups,
+)
+
+/**
+ * Orders a session the way the research on exercise order suggests (Simão 2012, Nunes 2021):
+ * - Explosive work first, then the most demanding compound lifts, other compounds, isolation work, and
+ *   core and calves last, so no muscle a big lift relies on is tired out by isolation work beforehand.
+ * - Within each tier, focus muscle groups first and reduced ones last: what comes first is done fresh and
+ *   gains the most strength.
+ * - Consecutive exercises alternate muscle groups where possible (push and pull, upper and lower), so a muscle
+ *   recovers while another works and the next lift doesn't start pre-fatigued. The exercise two back counts
+ *   too, at half weight, so work for the same muscle is spread out.
+ * Supersets move as one unit. Ties keep their original order.
+ */
+fun <T> orderSession(items: List<OrderItem<T>>): List<T> {
+    // Superset partners become one unit.
+    val units = ArrayList<List<OrderItem<T>>>()
+    items.forEach { o ->
+        val last = units.lastOrNull()
+        if (o.superset != null && last != null && last.first().superset == o.superset) units[units.lastIndex] = last + o
+        else units.add(listOf(o))
+    }
+    val out = ArrayList<T>()
+    var previous: List<OrderItem<T>> = emptyList()
+    var beforeThat: List<OrderItem<T>> = emptyList()
+    units.groupBy { u -> u.minOf { it.tier } }.toSortedMap().values.forEach { tier ->
+        for (part in tier.groupBy { u -> u.minOf { it.priority } }.toSortedMap().values) {
+            val left = part.toMutableList()
+            while (left.isNotEmpty()) {
+                // The unit whose main muscle groups overlap least with the last one's, then with the one before
+                // it; any other shared group breaks ties, then the earliest wins.
+                fun List<OrderItem<T>>.main() = flatMap { it.main }.toSet()
+                fun List<OrderItem<T>>.all() = flatMap { it.groups }.toSet()
+                val next = left.minBy { u ->
+                    4 * u.main().intersect(previous.main()).size + 2 * u.main().intersect(beforeThat.main()).size +
+                        u.all().intersect(previous.all()).size
+                }
+                left.remove(next)
+                out += next.map { it.item }
+                beforeThat = previous
+                previous = next
+            }
+        }
+    }
+    return out
+}
+
+/** Muscle groups an exercise works, mapping muscles outside the ten groups to themselves. */
+fun exerciseGroups(e: Exercise?): Set<String> =
+    e?.let { (it.primaryMuscles + it.secondaryMuscles).map { m -> MuscleGroup.of(m) ?: m }.toSet() }.orEmpty()
+
+/** Muscle groups of an exercise's primary muscles. */
+fun mainGroups(e: Exercise?): Set<String> = e?.primaryMuscles?.map { MuscleGroup.of(it) ?: it }?.toSet().orEmpty()
+
+/** How demanding an exercise is, for ordering: 0 explosive, 1 heavy compound, 2 compound, 3 isolation, 4 core and calves, 5 cardio and stretching. */
+fun exerciseTier(e: Exercise?): Int = when {
+    e == null -> 3
+    e.category == "plyometrics" || e.category == "olympic weightlifting" -> 0
+    e.category == "cardio" || e.category == "stretching" -> 5
+    e.primaryMuscles.all { it in setOf("abdominals", "calves", "forearms", "neck") } -> 4
+    e.mechanic == "compound" && (e.equipment == "barbell" || e.category == "powerlifting") -> 1
+    e.mechanic == "compound" -> 2
+    else -> 3
+}
+
+/**
+ * [exercises] of a workout in a better order: exercises with completed sets stay first, as done; the rest
+ * follow [orderSession].
+ */
+fun orderWorkout(exercises: List<WorkoutExercise>, exercise: (String) -> Exercise?): List<WorkoutExercise> {
+    val (started, open) = exercises.partition { we -> we.sets.any { it.completed } }
+    return started + orderSession(open.map { we ->
+        val e = exercise(we.exerciseId)
+        OrderItem(we, exerciseTier(e), exerciseGroups(e), superset = we.supersetId, main = mainGroups(e))
+    })
+}
+
+/** A routine's exercises in a better order, see [orderSession]. */
+fun orderRoutine(exercises: List<RoutineExercise>, exercise: (String) -> Exercise?): List<RoutineExercise> =
+    orderSession(exercises.map { re ->
+        val e = exercise(re.exerciseId)
+        OrderItem(re, exerciseTier(e), exerciseGroups(e), superset = re.supersetId, main = mainGroups(e))
+    })
+
 // ---------- supersets ----------
 
 /** Indices of the superset [index] belongs to (consecutive exercises sharing a supersetId), null if none. */

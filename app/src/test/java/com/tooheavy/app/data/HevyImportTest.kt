@@ -11,7 +11,9 @@ import java.io.File
 
 class HevyImportTest {
     private val library: List<Exercise> by lazy {
-        Gson().fromJson(File("src/main/assets/exercises.json").readText(), object : TypeToken<List<Exercise>>() {}.type)
+        listOf("exercises.json", "exercises_extra.json").flatMap {
+            Gson().fromJson<List<Exercise>>(File("src/main/assets/$it").readText(), object : TypeToken<List<Exercise>>() {}.type)
+        }
     }
 
     private val csv = """

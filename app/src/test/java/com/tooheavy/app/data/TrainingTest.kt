@@ -12,8 +12,10 @@ import java.io.File
 class TrainingTest {
     companion object {
         private val library: List<Exercise> by lazy {
-            val file = listOf("src/main/assets/exercises.json", "app/src/main/assets/exercises.json").map(::File).first { it.exists() }
-            Gson().fromJson(file.readText(), object : TypeToken<List<Exercise>>() {}.type)
+            val dir = listOf("src/main/assets", "app/src/main/assets").map(::File).first { it.exists() }
+            listOf("exercises.json", "exercises_extra.json").flatMap {
+                Gson().fromJson<List<Exercise>>(File(dir, it).readText(), object : TypeToken<List<Exercise>>() {}.type)
+            }
         }
         private val byId: Map<String, Exercise> by lazy { library.associateBy { it.id } }
     }
@@ -104,6 +106,69 @@ class TrainingTest {
         val lone = listOf(l[0], l[1]).normalizeSupersets(id) { it.copy(supersetId = null) }
         assertTrue(lone.all { it.supersetId == null })
         assertEquals(listOf("A", "A", "B", "B"), supersetLetters(listOf("x", "x", "y", "y")))
+    }
+
+    // ---------- exercise order ----------
+
+    @Test
+    fun sessionsRunBigLiftsFirstAndAlternateMuscles() {
+        val ids = listOf(
+            "Triceps_Pushdown", "Cable_Crunch", "Barbell_Bench_Press_-_Medium_Grip", "Standing_Calf_Raises",
+            "Side_Lateral_Raise", "Barbell_Squat", "Dumbbell_Bench_Press", "Seated_Cable_Rows",
+        )
+        val ordered = orderWorkout(ids.map { WorkoutExercise(exerciseId = it) }, lookup).map { it.exerciseId }
+        // Heavy barbell lifts first, other compounds next, isolation after, core and calves last.
+        assertEquals(listOf("Barbell_Bench_Press_-_Medium_Grip", "Barbell_Squat"), ordered.take(2))
+        assertEquals(setOf("Dumbbell_Bench_Press", "Seated_Cable_Rows"), ordered.subList(2, 4).toSet())
+        assertEquals(setOf("Cable_Crunch", "Standing_Calf_Raises"), ordered.takeLast(2).toSet())
+        // After the squat comes the row, not a second chest press.
+        assertEquals("Seated_Cable_Rows", ordered[2])
+        assertTrue(ordered.indexOf("Triceps_Pushdown") > ordered.indexOf("Dumbbell_Bench_Press"))
+
+        // Exercises already started keep their place at the top, and superset partners stay together.
+        val started = WorkoutExercise(exerciseId = "Side_Lateral_Raise", sets = listOf(SetEntry(completed = true)))
+        val workout = listOf(
+            started, WorkoutExercise(exerciseId = "Dumbbell_Bicep_Curl", supersetId = "s"),
+            WorkoutExercise(exerciseId = "Triceps_Pushdown", supersetId = "s"), WorkoutExercise(exerciseId = "Barbell_Squat"),
+        )
+        val again = orderWorkout(workout, lookup).map { it.exerciseId }
+        assertEquals(listOf("Side_Lateral_Raise", "Barbell_Squat", "Dumbbell_Bicep_Curl", "Triceps_Pushdown"), again)
+    }
+
+    @Test
+    fun programDaysAlternateAndPutFocusFirst() {
+        val p = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 3, Equipment.GYM, "kg", lookup)
+        for (d in p.days) {
+            val roles = d.exercises.map { it.role }
+            assertEquals(d.name, roles.sortedBy { listOf(Role.PRIMARY, Role.SECONDARY, Role.ACCESSORY).indexOf(it) }, roles)
+            // Core and calves close the session.
+            val core = d.exercises.indexOfFirst { it.pattern == Pattern.CORE || it.pattern == Pattern.CALVES }
+            if (core >= 0) assertTrue(d.name, d.exercises.drop(core).all { it.pattern == Pattern.CORE || it.pattern == Pattern.CALVES })
+        }
+        // Ordering an already ordered program changes nothing.
+        assertEquals(p.days.map { d -> d.exercises.map { it.id } }, p.ordered().days.map { d -> d.exercises.map { it.id } })
+    }
+
+    // ---------- library ----------
+
+    @Test
+    fun extraExercisesAreValidAndFindable() {
+        val extra = library.filter { it.images.isEmpty() && !it.isCustom }
+        assertTrue(extra.size >= 25)
+        assertEquals(library.size, library.map { it.id }.toSet().size)
+        val bundledMuscles = library.filter { it.images.isNotEmpty() }.flatMap { it.primaryMuscles + it.secondaryMuscles }.toSet()
+        assertTrue(extra.flatMap { it.primaryMuscles + it.secondaryMuscles }.all { it in bundledMuscles })
+        assertTrue(extra.all { it.instructions.size >= 3 })
+
+        fun find(q: String) = library.filter { ExerciseSearch.matches(it, q) }.map { it.id }
+        assertTrue("Butterfly" in find("pec deck"))
+        assertTrue("EZ-Bar_Skullcrusher" in find("skull crusher"))
+        assertTrue("Leverage_Chest_Press" in find("machine chest press"))
+        assertTrue("Pullups" in find("pull up"))
+        assertTrue("Dumbbell_Romanian_Deadlift" in find("rdl dumbbell"))
+        assertTrue("Bulgarian_Split_Squat" in find("bulgarian"))
+        assertTrue("Standing_Military_Press" in find("ohp"))
+        assertTrue(find("").size == library.size)
     }
 
     // ---------- muscles ----------
@@ -233,6 +298,13 @@ class TrainingTest {
         assertTrue(paired >= 0)
         val w = p.buildWorkout(paired, "kg", lookup)!!
         assertTrue(supersetLetters(w.exercises.map { it.supersetId }).any { it != null })
+        // Focus groups keep their isolation work when time is short.
+        val shoulders = generateProgram(
+            TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 45, focus = listOf(MuscleGroup.SHOULDERS),
+        )
+        for (d in shoulders.days.filter { it.name.startsWith("Upper") }) {
+            assertTrue(d.name, d.exercises.any { it.role == Role.ACCESSORY && patternGroup(it.pattern) == MuscleGroup.SHOULDERS })
+        }
         // Longer sessions don't pair anything.
         val long = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 60)
         assertTrue(long.days.flatMap { it.exercises }.all { it.supersetId == null })

@@ -12,6 +12,22 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.8.0", "2026-10-30",
+            listOf(
+                "29 more exercises, including Bulgarian split squats, dumbbell and Smith machine Romanian deadlifts, " +
+                    "machine and Smith hip thrusts, pendulum and belt squats, Nordic curls, Pendlay, seal, Meadows and " +
+                    "chest-supported rows, cable and machine lateral raises, the landmine press, Bayesian curls and an " +
+                    "assisted pull-up machine. They come without photos.",
+                "Search knows common gym names: pec deck, machine chest press, skull crusher, RDL, OHP, pull-up and more.",
+                "Programs order each workout the way research suggests: the most demanding lifts first, focus muscles " +
+                    "early, muscle groups alternating so nothing starts tired, isolation work after the compounds, and " +
+                    "core and calves last. Your current program is reordered too.",
+                "\"Order exercises\" in workouts and routines applies the same order. In a workout, exercises you've " +
+                    "started stay where they are.",
+                "Short programs keep the isolation work for your focus muscles, and home programs now include Nordic curls.",
+            ),
+        ),
+        ChangelogEntry(
             "1.7.3", "2026-10-30",
             listOf(
                 "Workouts of 45 minutes or less are built the time-efficient way: isolation exercises are dropped " +
