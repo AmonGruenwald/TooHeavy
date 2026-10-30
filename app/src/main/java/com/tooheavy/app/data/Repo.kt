@@ -1,0 +1,217 @@
+package com.tooheavy.app.data
+
+import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.io.File
+import java.util.concurrent.Executors
+
+/**
+ * Single app-wide store. All state is Compose-observable; every mutation persists to filesDir/data.json.
+ * Call only from the main thread.
+ */
+object Repo {
+    private val gson = Gson()
+    private val io = Executors.newSingleThreadExecutor()
+    private lateinit var file: File
+
+    /** Full exercise library, sorted by name. */
+    var exercises: List<Exercise> = emptyList()
+        private set
+    private var byId: Map<String, Exercise> = emptyMap()
+
+    /** Completed workouts, newest first. */
+    val workouts = mutableStateListOf<Workout>()
+    val routines = mutableStateListOf<Routine>()
+
+    var activeWorkout by mutableStateOf<Workout?>(null)
+        private set
+    var settings by mutableStateOf(Settings())
+        private set
+
+    /** Routine currently being edited in RoutineEditScreen (survives trips to the exercise picker). */
+    var routineDraft by mutableStateOf<Routine?>(null)
+
+    /** Rest timer: epoch ms when the running rest ends, null when no rest timer is running. */
+    var restEndsAt by mutableStateOf<Long?>(null)
+        private set
+    var restTotalSeconds by mutableStateOf(0)
+        private set
+
+    fun init(context: Context) {
+        if (::file.isInitialized) return
+        val json = context.assets.open("exercises.json").bufferedReader().use { it.readText() }
+        exercises = gson.fromJson(json, object : TypeToken<List<Exercise>>() {}.type)
+        byId = exercises.associateBy { it.id }
+        file = File(context.filesDir, "data.json")
+        if (file.exists()) {
+            runCatching { gson.fromJson(file.readText(), AppData::class.java) }.getOrNull()?.let { d ->
+                workouts.addAll(d.workouts.orEmpty().sortedByDescending { it.startTime })
+                routines.addAll(d.routines.orEmpty())
+                activeWorkout = d.activeWorkout
+                settings = d.settings ?: Settings()
+            }
+        }
+    }
+
+    private fun save() {
+        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings))
+        io.execute {
+            val tmp = File(file.parentFile, "data.json.tmp")
+            tmp.writeText(snapshot)
+            if (!tmp.renameTo(file)) {
+                file.delete(); tmp.renameTo(file)
+            }
+        }
+    }
+
+    // ---------- exercises ----------
+
+    fun exercise(id: String): Exercise? = byId[id]
+
+    fun muscles(): List<String> = exercises.flatMap { it.primaryMuscles }.distinct().sorted()
+
+    fun equipments(): List<String> = exercises.mapNotNull { it.equipment }.distinct().sorted()
+
+    // ---------- active workout ----------
+
+    fun startWorkout(routine: Routine? = null) {
+        val w = if (routine == null) Workout(name = "Workout")
+        else Workout(
+            name = routine.name,
+            routineId = routine.id,
+            exercises = routine.exercises.map { re ->
+                WorkoutExercise(
+                    exerciseId = re.exerciseId,
+                    restSeconds = re.restSeconds,
+                    sets = List(re.sets.coerceAtLeast(1)) { SetEntry(weight = re.weight, reps = re.reps) },
+                )
+            },
+        )
+        activeWorkout = w
+        save()
+    }
+
+    fun updateActive(transform: (Workout) -> Workout) {
+        val w = activeWorkout ?: return
+        activeWorkout = transform(w)
+        save()
+    }
+
+    fun addExercisesToActive(ids: List<String>) = updateActive { w ->
+        w.copy(exercises = w.exercises + ids.map { WorkoutExercise(exerciseId = it, restSeconds = settings.defaultRestSeconds) })
+    }
+
+    /** Drops uncompleted sets and empty exercises; discards the workout if nothing was completed. */
+    fun finishWorkout() {
+        val w = activeWorkout ?: return
+        val cleaned = w.copy(
+            endTime = System.currentTimeMillis(),
+            exercises = w.exercises
+                .map { we -> we.copy(sets = we.sets.filter { it.completed }) }
+                .filter { it.sets.isNotEmpty() },
+        )
+        if (cleaned.exercises.isNotEmpty()) workouts.add(0, cleaned)
+        activeWorkout = null
+        stopRest()
+        save()
+    }
+
+    fun discardWorkout() {
+        activeWorkout = null
+        stopRest()
+        save()
+    }
+
+    // ---------- history ----------
+
+    fun workout(id: String): Workout? = workouts.firstOrNull { it.id == id }
+
+    fun deleteWorkout(id: String) {
+        workouts.removeAll { it.id == id }
+        save()
+    }
+
+    fun updateWorkout(w: Workout) {
+        val i = workouts.indexOfFirst { it.id == w.id }
+        if (i >= 0) workouts[i] = w
+        save()
+    }
+
+    /** Completed sets of this exercise from the most recent finished workout that contains it (empty if none). */
+    fun previousSets(exerciseId: String): List<SetEntry> =
+        workouts.firstOrNull { w -> w.exercises.any { it.exerciseId == exerciseId } }
+            ?.exercises?.filter { it.exerciseId == exerciseId }
+            ?.flatMap { it.sets }.orEmpty()
+
+    /** Every finished workout entry for this exercise, newest first. */
+    fun exerciseHistory(exerciseId: String): List<Pair<Workout, WorkoutExercise>> =
+        workouts.flatMap { w -> w.exercises.filter { it.exerciseId == exerciseId }.map { w to it } }
+
+    // ---------- routines ----------
+
+    fun routine(id: String): Routine? = routines.firstOrNull { it.id == id }
+
+    fun saveRoutine(r: Routine) {
+        val i = routines.indexOfFirst { it.id == r.id }
+        if (i >= 0) routines[i] = r else routines.add(r)
+        save()
+    }
+
+    fun deleteRoutine(id: String) {
+        routines.removeAll { it.id == id }
+        save()
+    }
+
+    /** Sets routineDraft for editing. routineId == "new" starts a blank routine (keeps an unsaved draft in progress). */
+    fun beginRoutineEdit(routineId: String) {
+        val d = routineDraft
+        if (routineId == "new") {
+            if (d == null || routines.any { it.id == d.id }) routineDraft = Routine()
+        } else if (d?.id != routineId) {
+            routineDraft = routine(routineId) ?: Routine()
+        }
+    }
+
+    fun addExercisesToDraft(ids: List<String>) {
+        val d = routineDraft ?: return
+        routineDraft = d.copy(exercises = d.exercises + ids.map { RoutineExercise(exerciseId = it, restSeconds = settings.defaultRestSeconds) })
+    }
+
+    fun routineFromWorkout(w: Workout): Routine = Routine(
+        name = w.name,
+        exercises = w.exercises.map { we ->
+            val last = we.sets.lastOrNull()
+            RoutineExercise(we.exerciseId, sets = we.sets.size, reps = last?.reps, weight = last?.weight, restSeconds = we.restSeconds)
+        },
+    )
+
+    // ---------- settings ----------
+
+    fun updateSettings(s: Settings) {
+        settings = s
+        save()
+    }
+
+    // ---------- rest timer ----------
+
+    fun startRest(seconds: Int) {
+        if (seconds <= 0) return
+        restTotalSeconds = seconds
+        restEndsAt = System.currentTimeMillis() + seconds * 1000L
+    }
+
+    fun adjustRest(deltaSeconds: Int) {
+        val end = restEndsAt ?: return
+        restEndsAt = end + deltaSeconds * 1000L
+        restTotalSeconds = (restTotalSeconds + deltaSeconds).coerceAtLeast(1)
+    }
+
+    fun stopRest() {
+        restEndsAt = null
+    }
+}
