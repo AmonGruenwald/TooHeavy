@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.Updater
 import com.tooheavy.app.ui.AppRoot
 import com.tooheavy.app.ui.theme.TooHeavyTheme
 
@@ -20,6 +21,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Repo.init(applicationContext)
         NutritionRepo.init(applicationContext)
+        Updater.check(applicationContext)
         setContent { TooHeavyTheme { AppRoot() } }
     }
 }

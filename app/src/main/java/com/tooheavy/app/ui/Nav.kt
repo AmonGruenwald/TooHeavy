@@ -43,6 +43,7 @@ import androidx.navigation.compose.rememberNavController
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.ui.active.ActiveWorkoutScreen
+import com.tooheavy.app.ui.common.UpdateDialog
 import com.tooheavy.app.ui.exercises.ExerciseDetailScreen
 import com.tooheavy.app.ui.exercises.ExerciseListScreen
 import com.tooheavy.app.ui.exercises.ExercisePickerScreen
@@ -206,6 +207,7 @@ fun AppRoot() {
             }
         }
     }
+    UpdateDialog()
 }
 
 private fun NavController.navigateTab(route: String) = navigate(route) {
