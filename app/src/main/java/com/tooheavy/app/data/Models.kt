@@ -43,6 +43,10 @@ data class WorkoutExercise(
     val sets: List<SetEntry> = listOf(SetEntry()),
     val notes: String = "",
     val restSeconds: Int = 90,
+    /** ProgramExercise.id when this exercise came from the training program. */
+    val programExerciseId: String? = null,
+    /** What the program prescribed for this session. */
+    val target: SetTarget? = null,
 )
 
 data class Workout(
@@ -54,6 +58,8 @@ data class Workout(
     val exercises: List<WorkoutExercise> = emptyList(),
     val notes: String = "",
     val routineId: String? = null,
+    /** ProgramDay.id when started from the training program; finishing it updates the program. */
+    val programDayId: String? = null,
 )
 
 data class RoutineExercise(
@@ -83,6 +89,7 @@ data class AppData(
     val routines: List<Routine> = emptyList(),
     val activeWorkout: Workout? = null,
     val settings: Settings = Settings(),
+    val program: Program? = null,
 )
 
 // ---------- helpers ----------

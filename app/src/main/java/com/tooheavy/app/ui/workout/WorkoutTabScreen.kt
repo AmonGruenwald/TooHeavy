@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -44,15 +45,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Exercise
+import com.tooheavy.app.data.ProgramUpdate
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.Routine
 import com.tooheavy.app.data.RoutineExercise
+import com.tooheavy.app.data.isDeload
+import com.tooheavy.app.data.mesoWeek
+import com.tooheavy.app.data.mesocycle
 import com.tooheavy.app.data.newId
+import com.tooheavy.app.data.nextDayIndex
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.ExerciseThumbnail
+import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.Warmup
 
-private class PendingStart(val routine: Routine?)
+/** A start waiting on the "workout in progress" dialog: a routine, a program day, or an empty workout. */
+private class PendingStart(val routine: Routine?, val programDay: Int? = null)
 
 private fun findExerciseByName(name: String): Exercise? {
     val all = Repo.exercises
@@ -106,11 +115,11 @@ fun WorkoutTabScreen(nav: NavController) {
     var pending by remember { mutableStateOf<PendingStart?>(null) }
     var toDelete by remember { mutableStateOf<Routine?>(null) }
 
-    fun requestStart(routine: Routine?) {
+    fun requestStart(routine: Routine?, programDay: Int? = null) {
         if (Repo.activeWorkout != null) {
-            pending = PendingStart(routine)
+            pending = PendingStart(routine, programDay)
         } else {
-            Repo.startWorkout(routine)
+            if (programDay != null) Repo.startProgramWorkout(programDay) else Repo.startWorkout(routine)
             nav.navigate(Routes.ACTIVE)
         }
     }
@@ -130,6 +139,18 @@ fun WorkoutTabScreen(nav: NavController) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Repo.programUpdate?.let { update ->
+                item(key = "program_update") {
+                    ProgramUpdateCard(update) { Repo.programUpdate = null }
+                }
+            }
+            item(key = "program") {
+                ProgramSummaryCard(
+                    onCreate = { nav.navigate(Routes.PROGRAM_SETUP) },
+                    onOpen = { nav.navigate(Routes.PROGRAM) },
+                    onStart = { requestStart(null, it) },
+                )
+            }
             item(key = "quick_header") {
                 Text(
                     "Quick Start",
@@ -223,7 +244,7 @@ fun WorkoutTabScreen(nav: NavController) {
                     TextButton(onClick = {
                         pending = null
                         Repo.discardWorkout()
-                        Repo.startWorkout(p.routine)
+                        if (p.programDay != null) Repo.startProgramWorkout(p.programDay) else Repo.startWorkout(p.routine)
                         nav.navigate(Routes.ACTIVE)
                     }) { Text("Discard & start new", color = Danger) }
                     TextButton(onClick = { pending = null }) { Text("Cancel") }
@@ -247,6 +268,94 @@ fun WorkoutTabScreen(nav: NavController) {
                 TextButton(onClick = { toDelete = null }) { Text("Cancel") }
             },
         )
+    }
+}
+
+@Composable
+private fun ProgramSummaryCard(onCreate: () -> Unit, onOpen: () -> Unit, onStart: (Int) -> Unit) {
+    val program = Repo.program
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (program == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Accent)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Personal program", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    "Get a plan built for your goal, schedule and equipment. It sets your weights, reps and sets, " +
+                        "and adjusts them after every workout based on what you lifted.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Text("Create program", fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            program.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            if (program.isDeload) "Deload week · mesocycle ${program.mesocycle}"
+                            else "Week ${program.mesoWeek} of ${program.mesoWeeks} · mesocycle ${program.mesocycle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (program.isDeload) Warmup else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = onOpen) { Text("View") }
+                }
+                val index = program.nextDayIndex
+                val day = program.days.getOrNull(index)
+                if (day != null) {
+                    Text("Next: ${day.name}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        day.exercises.mapNotNull { Repo.exercise(it.exerciseId)?.name }.joinToString(", "),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Button(onClick = { onStart(index) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                        Text("Start ${day.name}", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgramUpdateCard(update: ProgramUpdate, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "Program updated after ${update.workoutName}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+            if (update.changes.isEmpty()) {
+                Text("No changes this time.", style = MaterialTheme.typography.bodySmall)
+            }
+            update.changes.forEach {
+                Text("•  $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 8.dp))
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Got it") }
+        }
     }
 }
 

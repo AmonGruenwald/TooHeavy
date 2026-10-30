@@ -22,6 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tooheavy.app.data.TrendPoint
+import com.tooheavy.app.data.daysBetween
+import com.tooheavy.app.data.formatWeight
 
 /** Simple line chart of values in order (oldest first). Shows "Not enough data" for fewer than 2 points. */
 @Composable
@@ -61,6 +64,52 @@ fun LineChart(values: List<Double>, modifier: Modifier = Modifier, height: Dp = 
         }
         Text(
             "min ${com.tooheavy.app.data.formatWeight(min)}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Body-weight chart: weigh-ins as dots and the smoothed trend as a line, spaced by date. */
+@Composable
+fun TrendChart(points: List<TrendPoint>, modifier: Modifier = Modifier, height: Dp = 160.dp) {
+    val line = MaterialTheme.colorScheme.primary
+    val dot = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    if (points.size < 2) {
+        Box(modifier.fillMaxWidth().height(height), contentAlignment = Alignment.Center) {
+            Text("Weigh in on a few days to see your trend", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    val values = points.flatMap { listOf(it.scaleKg, it.trendKg) }
+    val min = values.min()
+    val max = values.max()
+    val range = (max - min).takeIf { it > 0 } ?: 1.0
+    val first = points.first().date
+    val totalDays = daysBetween(first, points.last().date).coerceAtLeast(1)
+    Column(modifier.fillMaxWidth()) {
+        Text(
+            "max ${formatWeight(Math.round(max * 10) / 10.0)}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Canvas(Modifier.fillMaxWidth().height(height).padding(vertical = 8.dp)) {
+            for (i in 0..3) {
+                val y = size.height * i / 3f
+                drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+            }
+            fun x(p: TrendPoint) = size.width * daysBetween(first, p.date) / totalDays
+            fun y(v: Double) = (size.height - (v - min) / range * size.height).toFloat()
+            points.forEach { drawCircle(dot, radius = 3.dp.toPx(), center = Offset(x(it), y(it.scaleKg))) }
+            val path = Path().apply {
+                moveTo(x(points[0]), y(points[0].trendKg))
+                points.drop(1).forEach { lineTo(x(it), y(it.trendKg)) }
+            }
+            drawPath(path, line, style = Stroke(width = 3.dp.toPx()))
+        }
+        Text(
+            "min ${formatWeight(Math.round(min * 10) / 10.0)}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

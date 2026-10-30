@@ -50,12 +50,15 @@ import com.tooheavy.app.ui.exercises.ExercisePickerScreen
 import com.tooheavy.app.ui.history.HistoryScreen
 import com.tooheavy.app.ui.history.WorkoutDetailScreen
 import com.tooheavy.app.ui.nutrition.BarcodeLookupScreen
+import com.tooheavy.app.ui.nutrition.CoachScreen
 import com.tooheavy.app.ui.nutrition.CustomFoodScreen
 import com.tooheavy.app.ui.nutrition.FoodAmountScreen
 import com.tooheavy.app.ui.nutrition.FoodSearchScreen
 import com.tooheavy.app.ui.nutrition.NutritionGoalsScreen
 import com.tooheavy.app.ui.nutrition.NutritionScreen
 import com.tooheavy.app.ui.profile.ProfileScreen
+import com.tooheavy.app.ui.program.ProgramScreen
+import com.tooheavy.app.ui.program.ProgramSetupScreen
 import com.tooheavy.app.ui.workout.RoutineEditScreen
 import com.tooheavy.app.ui.workout.WorkoutTabScreen
 import kotlinx.coroutines.delay
@@ -69,6 +72,12 @@ object Routes {
     const val ACTIVE = "active"
     const val NUTRITION = "nutrition"
     const val NUTRITION_GOALS = "nutrition_goals"
+    /** Adaptive calorie coach: expenditure, weight trend, plan and weekly check-ins. */
+    const val COACH = "coach"
+    /** Adaptive training program overview. */
+    const val PROGRAM = "program"
+    /** Questionnaire that generates (or replaces) the training program. */
+    const val PROGRAM_SETUP = "program_setup"
 
     /** Exercise library detail page. */
     fun exercise(id: String) = "exercise/${Uri.encode(id)}"
@@ -170,6 +179,9 @@ fun AppRoot() {
             composable("picker/{target}") { ExercisePickerScreen(nav, it.arguments?.getString("target").orEmpty()) }
             composable(Routes.NUTRITION) { NutritionScreen(nav) }
             composable(Routes.NUTRITION_GOALS) { NutritionGoalsScreen(nav) }
+            composable(Routes.COACH) { CoachScreen(nav) }
+            composable(Routes.PROGRAM) { ProgramScreen(nav) }
+            composable(Routes.PROGRAM_SETUP) { ProgramSetupScreen(nav) }
             composable("food_search/{meal}") { FoodSearchScreen(nav, it.arguments?.getString("meal").orEmpty()) }
             composable(
                 "food_amount?food={food}&meal={meal}&entry={entry}",
