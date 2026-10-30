@@ -95,6 +95,7 @@ import com.tooheavy.app.ui.nutrition.FoodSearchScreen
 import com.tooheavy.app.ui.nutrition.NutritionGoalsScreen
 import com.tooheavy.app.ui.nutrition.NutritionScreen
 import com.tooheavy.app.ui.nutrition.RecipeScreen
+import com.tooheavy.app.ui.profile.HevyImportScreen
 import com.tooheavy.app.ui.profile.ProfileScreen
 import com.tooheavy.app.ui.program.ProgramScreen
 import com.tooheavy.app.ui.program.ProgramSetupScreen
@@ -119,6 +120,8 @@ object Routes {
     const val PROGRAM = "program"
     /** Questionnaire that generates (or replaces) the training program. */
     const val PROGRAM_SETUP = "program_setup"
+    /** Workout history import from a Hevy CSV export. */
+    const val IMPORT_HEVY = "import_hevy"
 
     /** Exercise library detail page. */
     fun exercise(id: String) = "exercise/${Uri.encode(id)}"
@@ -237,6 +240,7 @@ fun AppRoot() {
                 composable(Routes.COACH) { CoachScreen(nav) }
                 composable(Routes.PROGRAM) { ProgramScreen(nav) }
                 composable(Routes.PROGRAM_SETUP) { ProgramSetupScreen(nav) }
+                composable(Routes.IMPORT_HEVY) { HevyImportScreen(nav) }
                 composable("food_search/{mode}") { FoodSearchScreen(nav, it.arguments?.getString("mode") ?: Routes.MODE_LOG) }
                 composable(
                     "food_amount?food={food}&mode={mode}&entry={entry}",

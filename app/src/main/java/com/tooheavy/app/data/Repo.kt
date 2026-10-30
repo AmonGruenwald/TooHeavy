@@ -103,14 +103,6 @@ object Repo {
         save()
     }
 
-    /** Adds several custom exercises at once (e.g. from an import), skipping ids that already exist. */
-    fun addCustomExercises(list: List<Exercise>) {
-        val known = customExercises.map { it.id }.toSet()
-        customExercises = customExercises + list.filter { it.id !in known }
-        rebuildLibrary()
-        save()
-    }
-
     /** How many workouts, routines and program days use this exercise; it can only be deleted when that is 0. */
     fun exerciseUses(id: String): Int =
         workouts.count { w -> w.exercises.any { it.exerciseId == id } } +
@@ -196,6 +188,19 @@ object Repo {
 
     fun deleteWorkout(id: String) {
         workouts.removeAll { it.id == id }
+        save()
+    }
+
+    /** Adds imported workouts (and the custom exercises they need) to the history, keeping it newest first. */
+    fun importWorkouts(imported: List<Workout>, newExercises: List<Exercise>) {
+        if (newExercises.isNotEmpty()) {
+            val known = customExercises.map { it.id }.toSet()
+            customExercises = customExercises + newExercises.filter { it.id !in known }
+            rebuildLibrary()
+        }
+        val all = (workouts + imported).sortedByDescending { it.startTime }
+        workouts.clear()
+        workouts.addAll(all)
         save()
     }
 

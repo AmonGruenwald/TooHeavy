@@ -12,6 +12,7 @@ An offline Android workout and calorie tracker. Kotlin + Jetpack Compose, no acc
 - **Exercise library**: 873 exercises with start/end position photos (shown as a looping animation), step-by-step instructions, muscles and equipment, plus your own custom exercises.
 - **Calorie tracker**: a daily timeline of everything eaten (with times), calorie ring and macro bars, optional fiber/sugar/salt, 12,650 bundled foods, custom foods, recipes built from other foods (servings and cooked weight), quick add, goals with a TDEE calculator, body-weight log.
 - **Hydration**: one-tap water logging against a daily goal, on the Food tab and as a Home widget.
+- **Hevy import**: Profile → Your data reads Hevy's workout CSV export (`data/HevyImport.kt`), matches its exercises to the library (editable before importing), adds missing ones as custom exercises, converts weights to your unit and skips workouts that were already imported.
 - **Barcode scanning**: scans with ZXing; unknown barcodes are looked up on Open Food Facts and saved on the device. Products that aren't found can be entered by hand (scanning the barcode into the form) and are stored with their barcode for the next scan.
 
 All data stays on the device (`filesDir/data.json`, `filesDir/nutrition.json`). The only network calls are the Open Food Facts barcode lookup and the update check against this repo's GitHub releases.

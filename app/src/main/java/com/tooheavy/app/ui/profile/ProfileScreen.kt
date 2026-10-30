@@ -252,6 +252,14 @@ fun ProfileScreen(nav: NavController) {
                 }
             }
 
+            ProfSection("Your data") {
+                Text(
+                    "Bring your workout history over from Hevy: export your workouts there as a CSV file and import it here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = { nav.navigate(Routes.IMPORT_HEVY) }) { Text("Import from Hevy") }
+            }
+
             ProfSection("About") {
                 Text(
                     "TooHeavy is an offline workout tracker. All data stays on this device.",

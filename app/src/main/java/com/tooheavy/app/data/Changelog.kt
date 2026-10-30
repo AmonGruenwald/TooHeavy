@@ -12,6 +12,17 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.6.0", "2026-10-30",
+            listOf(
+                "Import your workout history from Hevy: export your workouts there as a CSV file, then choose it under " +
+                    "Profile (the avatar on Home) → Your data.",
+                "Sets, weights, reps, warm-up/drop/failure sets and notes come along. Exercises are matched to the " +
+                    "library, you can change any match before importing, and exercises the library doesn't have are " +
+                    "added as your own.",
+                "Importing the same file again skips the workouts you already have.",
+            ),
+        ),
+        ChangelogEntry(
             "1.5.0", "2026-10-30",
             listOf(
                 "The food diary is now one timeline instead of meal sections: everything you eat and drink in the " +
