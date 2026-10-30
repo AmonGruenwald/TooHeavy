@@ -124,7 +124,7 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
             AppTopBar(
                 title = {
                     Column {
-                        Text("Add to " + Meal.label(meal), fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("Add to " + Meal.label(meal), maxLines = 1)
                         Text(
                             friendlyDate(NutritionRepo.selectedDate),
                             style = MaterialTheme.typography.bodySmall,

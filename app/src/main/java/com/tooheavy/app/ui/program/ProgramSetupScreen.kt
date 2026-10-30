@@ -78,7 +78,7 @@ fun ProgramSetupScreen(nav: NavController) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text("New program", fontWeight = FontWeight.Bold) },
+                title = { Text("New program") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

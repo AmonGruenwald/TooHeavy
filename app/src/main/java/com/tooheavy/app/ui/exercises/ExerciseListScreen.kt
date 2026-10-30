@@ -83,7 +83,7 @@ fun ExercisePickerScreen(nav: NavController, target: String) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text("Add Exercises", fontWeight = FontWeight.Bold) },
+                title = { Text("Add Exercises") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -283,7 +283,7 @@ private fun ExerciseListRow(
                 ) {
                     Text(
                         "${selectedOrder + 1}",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                     )

@@ -6,12 +6,12 @@
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <path android:pathData="M54,26 a28,28 0 1,1 0,56 a28,28 0 1,1 0,-56 z"
-        android:strokeColor="#80BEB8DA" android:strokeWidth="0.9"/>
+        android:strokeColor="#80C9A66B" android:strokeWidth="0.9"/>
     <path android:pathData="M23,52.7 h17.2 a1,1 0 0 1 1,1 v0.6 a1,1 0 0 1 -1,1 h-17.2 a1,1 0 0 1 -1,-1 v-0.6 a1,1 0 0 1 1,-1 z M67.8,52.7 h17.2 a1,1 0 0 1 1,1 v0.6 a1,1 0 0 1 -1,1 h-17.2 a1,1 0 0 1 -1,-1 v-0.6 a1,1 0 0 1 1,-1 z M28.2,46 a1.6,1.6 0 0 1 1.6,1.6 v12.8 a1.6,1.6 0 0 1 -1.6,1.6 a1.6,1.6 0 0 1 -1.6,-1.6 v-12.8 a1.6,1.6 0 0 1 1.6,-1.6 z M79.8,46 a1.6,1.6 0 0 1 1.6,1.6 v12.8 a1.6,1.6 0 0 1 -1.6,1.6 a1.6,1.6 0 0 1 -1.6,-1.6 v-12.8 a1.6,1.6 0 0 1 1.6,-1.6 z M32.5,42 a1.7,1.7 0 0 1 1.7,1.7 v20.6 a1.7,1.7 0 0 1 -1.7,1.7 a1.7,1.7 0 0 1 -1.7,-1.7 v-20.6 a1.7,1.7 0 0 1 1.7,-1.7 z M75.5,42 a1.7,1.7 0 0 1 1.7,1.7 v20.6 a1.7,1.7 0 0 1 -1.7,1.7 a1.7,1.7 0 0 1 -1.7,-1.7 v-20.6 a1.7,1.7 0 0 1 1.7,-1.7 z M37,38 a1.8,1.8 0 0 1 1.8,1.8 v28.4 a1.8,1.8 0 0 1 -1.8,1.8 a1.8,1.8 0 0 1 -1.8,-1.8 v-28.4 a1.8,1.8 0 0 1 1.8,-1.8 z M71,38 a1.8,1.8 0 0 1 1.8,1.8 v28.4 a1.8,1.8 0 0 1 -1.8,1.8 a1.8,1.8 0 0 1 -1.8,-1.8 v-28.4 a1.8,1.8 0 0 1 1.8,-1.8 z M40.4,50.5 a0.8,0.8 0 0 1 0.8,0.8 v5.4 a0.8,0.8 0 0 1 -0.8,0.8 a0.8,0.8 0 0 1 -0.8,-0.8 v-5.4 a0.8,0.8 0 0 1 0.8,-0.8 z M67.6,50.5 a0.8,0.8 0 0 1 0.8,0.8 v5.4 a0.8,0.8 0 0 1 -0.8,0.8 a0.8,0.8 0 0 1 -0.8,-0.8 v-5.4 a0.8,0.8 0 0 1 0.8,-0.8 z M41.2,53.1 h25.6 v1.8 h-25.6 z">
         <aapt:attr name="android:fillColor">
             <gradient android:type="linear" android:startX="54" android:startY="38" android:endX="54" android:endY="70">
-                <item android:offset="0" android:color="#FFFFFFFF"/>
-                <item android:offset="1" android:color="#FFBEB8DA"/>
+                <item android:offset="0" android:color="#FFFFF6E4"/>
+                <item android:offset="1" android:color="#FFD2B47E"/>
             </gradient>
         </aapt:attr>
     </path>

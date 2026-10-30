@@ -115,12 +115,12 @@ fun HistoryScreen(nav: NavController) {
                     }.timeInMillis
                     val month = workouts.filter { it.startTime >= monthStart }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile("Month", "${month.size}", Modifier.weight(1f), icon = Icons.Filled.CalendarMonth, tint = Success)
-                        StatTile("Volume", compact(month.sumOf { it.volume() }), Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart, tint = AccentBright)
+                        StatTile("Month", "${month.size}", Modifier.weight(1f), icon = Icons.Filled.CalendarMonth)
+                        StatTile("Volume", compact(month.sumOf { it.volume() }), Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart)
                         StatTile(
                             "Avg time",
                             if (month.isEmpty()) "–" else formatDuration(month.sumOf { it.durationMs() } / month.size),
-                            Modifier.weight(1f), icon = Icons.Filled.Timer, tint = Ember,
+                            Modifier.weight(1f), icon = Icons.Filled.Timer,
                         )
                     }
                 }
@@ -131,13 +131,12 @@ fun HistoryScreen(nav: NavController) {
                         value = String.format(Locale.US, "%.1f", counts.takeLast(4).average()),
                         unit = "avg / week · last 4",
                         icon = Icons.Filled.Insights,
-                        tint = AccentBright,
                     ) {
                         BarChart(counts, weeks.map { it.label }, height = 140.dp, tooltipLabels = weeks.map { "Week of ${it.label}" })
                     }
                 }
                 item(key = "calendar") {
-                    ChartCard("Training calendar", icon = Icons.Filled.CalendarMonth, tint = Success) {
+                    ChartCard("Training calendar", icon = Icons.Filled.CalendarMonth) {
                         ActivityHeatmap(workoutsByDate(workouts))
                     }
                 }

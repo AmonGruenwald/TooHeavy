@@ -75,7 +75,6 @@ import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.RankedBars
 import com.tooheavy.app.ui.common.compact
 import com.tooheavy.app.ui.theme.AccentBright
-import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Overline
 import com.tooheavy.app.ui.theme.StatNumber
@@ -188,7 +187,7 @@ private fun DetailSummary(w: Workout, unit: String) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Column(Modifier.padding(18.dp)) {
-            CardLabel("Workout summary", icon = Icons.Filled.EmojiEvents, tint = Color.White)
+            CardLabel("Workout summary", icon = Icons.Filled.EmojiEvents)
             Spacer(Modifier.height(4.dp))
             Text(
                 dateFmt.format(Date(w.startTime)),
@@ -224,7 +223,7 @@ private fun DetailCharts(w: Workout, unit: String) {
     val muscles = muscleSets(listOf(w), 0L, Repo::exercise)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (byExercise.isNotEmpty()) {
-            ChartCard("Volume by exercise", icon = Icons.Filled.BarChart, tint = AccentBright) {
+            ChartCard("Volume by exercise", icon = Icons.Filled.BarChart) {
                 RankedBars(
                     byExercise.map { (id, v) -> (Repo.exercise(id)?.name ?: "Exercise") to v },
                     valueFormat = { "${compact(it)} $unit" },
@@ -232,10 +231,9 @@ private fun DetailCharts(w: Workout, unit: String) {
             }
         }
         if (muscles.isNotEmpty()) {
-            ChartCard("Muscles worked", icon = Icons.Filled.AccessibilityNew, tint = ChartColors.series[4]) {
+            ChartCard("Muscles worked", icon = Icons.Filled.AccessibilityNew) {
                 RankedBars(
                     muscles.map { it.first.titleCase() to it.second.toDouble() },
-                    color = ChartColors.series[4],
                     valueFormat = { "${it.toInt()} sets" },
                 )
             }

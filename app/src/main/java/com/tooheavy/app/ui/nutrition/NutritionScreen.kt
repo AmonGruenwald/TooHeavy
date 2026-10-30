@@ -396,7 +396,6 @@ private fun WeekCard(date: String, goalKcal: Int) {
         unit = if (logged.isEmpty()) null else "kcal / day avg",
         caption = "${logged.size} of 7 days logged · goal ${kcalText(goalKcal.toDouble())}",
         icon = Icons.Filled.LocalFireDepartment,
-        tint = Ember,
     ) {
         BarChart(
             values = kcals, labels = labels, goal = goalKcal.toDouble(),
@@ -410,7 +409,7 @@ private fun WeekCard(date: String, goalKcal: Int) {
 private fun MacroWeekCard(date: String) {
     val days = (6 downTo 0).map { shiftDate(date, -it) }
     val totals = days.map { NutritionRepo.totals(it) }
-    ChartCard("Macro split", caption = "Calories from protein, carbs and fat", icon = Icons.Filled.PieChart, tint = CarbsColor) {
+    ChartCard("Macro split", caption = "Calories from protein, carbs and fat", icon = Icons.Filled.PieChart) {
         StackedBarChart(
             stacks = totals.map { listOf(it.protein * 4, it.carbs * 4, it.fat * 9) },
             labels = days.map { weekdayInitial(it) },

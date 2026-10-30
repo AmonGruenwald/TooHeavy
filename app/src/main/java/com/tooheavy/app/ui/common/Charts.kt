@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -66,6 +67,7 @@ import com.tooheavy.app.data.daysBetween
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.shiftDate
 import com.tooheavy.app.data.today
+import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.BrandColors
 import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
@@ -217,7 +219,7 @@ fun AreaChart(
     points: List<ChartPoint>,
     modifier: Modifier = Modifier,
     height: Dp = 180.dp,
-    color: Color = ChartColors.series[0],
+    color: Color = Accent,
     valueFormat: (Double) -> String = ::compact,
     scatter: List<ChartPoint> = emptyList(),
     goal: Double? = null,
@@ -301,9 +303,9 @@ fun AreaChart(
         }
         val revealX = l + (r - l) * reveal.value + 8.dp.toPx()
         clipRect(right = revealX) {
-            drawPath(area, Brush.verticalGradient(listOf(color.copy(alpha = 0.32f), color.copy(alpha = 0f)), startY = t, endY = b))
+            drawPath(area, Brush.verticalGradient(listOf(color.copy(alpha = 0.20f), color.copy(alpha = 0f)), startY = t, endY = b))
             scatter.forEach { drawCircle(TextSecondary.copy(alpha = 0.55f), 2.5.dp.toPx(), Offset(px(it.x), py(it.y))) }
-            drawPath(line, color, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(line, color, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
         goal?.let { g ->
             val y = py(g)
@@ -333,7 +335,7 @@ fun LineChart(
     modifier: Modifier = Modifier,
     height: Dp = 170.dp,
     labels: List<String> = emptyList(),
-    color: Color = ChartColors.series[0],
+    color: Color = Accent,
     valueFormat: (Double) -> String = { formatWeight(Math.round(it * 10) / 10.0) },
 ) {
     AreaChart(
@@ -382,7 +384,7 @@ fun BarChart(
     labels: List<String>,
     modifier: Modifier = Modifier,
     height: Dp = 160.dp,
-    color: Color = ChartColors.series[0],
+    color: Color = Accent,
     highlight: Int? = values.lastIndex,
     goal: Double? = null,
     valueFormat: (Double) -> String = ::compact,
@@ -441,10 +443,9 @@ fun BarChart(
             val path = topRounded(cx - barW / 2, top, cx + barW / 2, b, 6.dp.toPx())
             val active = i == highlight || i == selected
             if (active) {
-                drawPath(path, Brush.verticalGradient(listOf(BrandColors[2], BrandColors[1], BrandColors[0]), startY = top, endY = b))
+                drawPath(path, Brush.verticalGradient(listOf(lerp(color, Color.White, 0.22f), color), startY = top, endY = b))
             } else {
-                val a = if (selected != null) 0.3f else 0.55f
-                drawPath(path, Brush.verticalGradient(listOf(color.copy(alpha = a), color.copy(alpha = a * 0.45f)), startY = top, endY = b))
+                drawPath(path, ChartColors.Muted.copy(alpha = if (selected != null) 0.55f else 1f))
             }
         }
         goal?.let { g ->
@@ -575,7 +576,7 @@ fun StackedBarChart(
 fun RankedBars(
     items: List<Pair<String, Double>>,
     modifier: Modifier = Modifier,
-    color: Color = ChartColors.series[0],
+    color: Color = Accent,
     valueFormat: (Double) -> String = ::compact,
 ) {
     val reveal = rememberReveal()
@@ -590,10 +591,9 @@ fun RankedBars(
                 Spacer(Modifier.height(5.dp))
                 Canvas(Modifier.fillMaxWidth().height(8.dp)) {
                     val r = size.height / 2
-                    drawRoundRect(color.copy(alpha = 0.14f), cornerRadius = CornerRadius(r))
+                    drawRoundRect(ChartColors.Grid, cornerRadius = CornerRadius(r))
                     val w = (size.width * (v / maxV).toFloat() * reveal.value).coerceAtLeast(size.height)
-                    val brush = if (i == 0) Brush.horizontalGradient(BrandColors, endX = w) else Brush.horizontalGradient(listOf(color.copy(alpha = 0.7f), color), endX = w)
-                    drawRoundRect(brush, size = Size(w, size.height), cornerRadius = CornerRadius(r))
+                    drawRoundRect(if (i == 0) color else color.copy(alpha = 0.45f), size = Size(w, size.height), cornerRadius = CornerRadius(r))
                 }
             }
         }
@@ -663,7 +663,7 @@ fun ProgressRing(
             val cap = Math.toDegrees((sw / 2 / (arc.width / 2)).toDouble()).toFloat()
             rotate(-90f - cap) {
                 val sweep = (360f - cap) * animated
-                drawArc(brush, cap, sweep, false, Offset(inset, inset), arc, alpha = 0.22f, style = Stroke(sw * 1.9f, cap = StrokeCap.Round))
+                drawArc(brush, cap, sweep, false, Offset(inset, inset), arc, alpha = 0.10f, style = Stroke(sw * 1.7f, cap = StrokeCap.Round))
                 drawArc(brush, cap, sweep, false, Offset(inset, inset), arc, style = Stroke(sw, cap = StrokeCap.Round))
             }
         }
@@ -686,7 +686,7 @@ fun Meter(progress: Float, color: Color, modifier: Modifier = Modifier, height: 
 
 /** Minimal trend line without axes. */
 @Composable
-fun Sparkline(values: List<Double>, modifier: Modifier = Modifier, color: Color = ChartColors.series[0]) {
+fun Sparkline(values: List<Double>, modifier: Modifier = Modifier, color: Color = Accent) {
     if (values.size < 2) return
     val reveal = rememberReveal()
     Canvas(modifier) {
@@ -777,7 +777,7 @@ fun ActivityHeatmap(
                         val o = Offset(left + c * (cpx + g), top + r * (cpx + g))
                         drawRoundRect(col, o, Size(cpx, cpx), CornerRadius(cpx * 0.28f))
                         if (d == end || d == selected) {
-                            drawRoundRect(if (d == selected) TextPrimary else BrandColors[2], o, Size(cpx, cpx), CornerRadius(cpx * 0.28f), style = Stroke(1.5.dp.toPx()))
+                            drawRoundRect(if (d == selected) TextPrimary else Accent, o, Size(cpx, cpx), CornerRadius(cpx * 0.28f), style = Stroke(1.5.dp.toPx()))
                         }
                     }
                 }
@@ -816,14 +816,13 @@ fun ChartCard(
     unit: String? = null,
     caption: String? = null,
     icon: ImageVector? = null,
-    tint: Color = TextSecondary,
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     GlassCard(modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CardLabel(title, Modifier.weight(1f), icon = icon, tint = tint)
+                CardLabel(title, Modifier.weight(1f), icon = icon)
                 trailing?.invoke()
             }
             if (value != null) {

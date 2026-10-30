@@ -45,8 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +71,7 @@ import com.tooheavy.app.ui.common.IconBubble
 import com.tooheavy.app.ui.common.ScreenHeader
 import com.tooheavy.app.ui.common.SectionTitle
 import com.tooheavy.app.ui.navigateTab
+import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.BrandColors
 import com.tooheavy.app.ui.theme.Danger
@@ -78,6 +79,7 @@ import com.tooheavy.app.ui.theme.Surface3
 import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.TextSecondary
 import com.tooheavy.app.ui.theme.Warmup
+import com.tooheavy.app.ui.theme.brandHorizontal
 
 /** A start waiting on the "workout in progress" dialog: a routine, a program day, or an empty workout. */
 private class PendingStart(val routine: Routine?, val programDay: Int? = null)
@@ -287,7 +289,7 @@ private fun ProgramSummaryCard(onCreate: () -> Unit, onOpen: () -> Unit, onStart
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (program == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconBubble(Icons.Filled.AutoAwesome, Color.White, size = 38.dp)
+                    IconBubble(Icons.Filled.AutoAwesome, size = 38.dp)
                     Spacer(Modifier.width(12.dp))
                     Text("Personal program", style = MaterialTheme.typography.titleLarge)
                 }
@@ -303,7 +305,7 @@ private fun ProgramSummaryCard(onCreate: () -> Unit, onOpen: () -> Unit, onStart
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        CardLabel("Your program", icon = Icons.Filled.AutoAwesome, tint = Color.White)
+                        CardLabel("Your program", icon = Icons.Filled.AutoAwesome)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             program.name,
@@ -318,7 +320,7 @@ private fun ProgramSummaryCard(onCreate: () -> Unit, onOpen: () -> Unit, onStart
                             color = if (program.isDeload) Warmup else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    TextButton(onClick = onOpen) { Text("View", color = Color.White) }
+                    TextButton(onClick = onOpen) { Text("View", color = AccentBright) }
                 }
                 MesocycleTimeline(program.mesoWeek, program.mesoWeeks)
                 val index = program.nextDayIndex
@@ -472,7 +474,7 @@ private fun QuickTile(
 ) {
     GlassCard(modifier, onClick = onClick) {
         Column(Modifier.padding(16.dp)) {
-            IconBubble(icon, tint, size = 40.dp)
+            IconBubble(icon, size = 40.dp)
             Spacer(Modifier.height(14.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextMuted, maxLines = 1)
@@ -490,13 +492,13 @@ private fun MesocycleTimeline(week: Int, weeks: Int) {
                 Box(
                     Modifier
                         .weight(if (deload) 0.7f else 1f)
-                        .height(8.dp)
+                        .height(4.dp)
                         .clip(CircleShape)
                         .background(
                             when {
-                                i < week -> Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.75f)))
-                                i == week -> Brush.horizontalGradient(if (deload) listOf(Warmup, Warmup) else BrandColors)
-                                else -> Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.14f)))
+                                i < week -> SolidColor(Accent.copy(alpha = 0.45f))
+                                i == week -> if (deload) SolidColor(Warmup) else brandHorizontal()
+                                else -> SolidColor(Surface3)
                             },
                         ),
                 )

@@ -247,7 +247,7 @@ fun DashboardScreen(nav: NavController, startEditing: Boolean = false) {
                                 .padding(horizontal = 24.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            IconBubble(d.icon, d.tint, size = 42.dp)
+                            IconBubble(d.icon, size = 42.dp)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(d.title, style = MaterialTheme.typography.titleMedium)

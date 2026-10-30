@@ -74,7 +74,7 @@ private fun CustomFoodScaffold(
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text(title, fontWeight = FontWeight.Bold) },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

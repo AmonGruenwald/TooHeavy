@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -134,7 +133,7 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text(if (routineId == "new") "New Routine" else "Edit Routine", fontWeight = FontWeight.Bold) },
+                title = { Text(if (routineId == "new") "New Routine" else "Edit Routine") },
                 navigationIcon = {
                     IconButton(onClick = { cancel() }) {
                         Icon(Icons.Filled.Close, contentDescription = "Cancel")
@@ -142,7 +141,7 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
                 },
                 actions = {
                     TextButton(onClick = { save() }, enabled = canSave) {
-                        Text("Save", fontWeight = FontWeight.SemiBold)
+                        Text("Save")
                     }
                 },
             )

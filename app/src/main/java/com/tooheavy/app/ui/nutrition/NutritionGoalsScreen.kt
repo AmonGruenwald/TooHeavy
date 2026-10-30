@@ -112,7 +112,7 @@ fun NutritionGoalsScreen(nav: NavController) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text("Goals & Body", fontWeight = FontWeight.Bold) },
+                title = { Text("Goals & Body") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

@@ -76,10 +76,7 @@ import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.SegmentedTabs
 import com.tooheavy.app.ui.common.StatTile
 import com.tooheavy.app.ui.common.compact
-import com.tooheavy.app.ui.theme.AccentBright
-import com.tooheavy.app.ui.theme.ChartColors
-import com.tooheavy.app.ui.theme.Ember
-import com.tooheavy.app.ui.theme.Success
+import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.Warmup
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,7 +97,6 @@ fun ExerciseDetailScreen(nav: NavController, exerciseId: String, initialTab: Int
                         exercise?.name ?: "Exercise",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Bold,
                     )
                 },
                 navigationIcon = {
@@ -315,10 +311,10 @@ private fun DetailChartsTab(exerciseId: String) {
     }.mapIndexed { i, (t, v) -> ChartPoint(i.toFloat(), Math.round(v * 10) / 10.0, fmt.format(Date(t))) }
     val one = { v: Double -> formatWeight(Math.round(v * 10) / 10.0) }
     val metrics = listOf(
-        Metric("Est. 1RM", unit, ChartColors.series[0], series { s -> s.mapNotNull { it.estimated1RM() }.maxOrNull() }, one),
-        Metric("Heaviest", unit, ChartColors.series[1], series { s -> s.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull() }, one),
-        Metric("Volume", unit, ChartColors.series[2], series { s -> s.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) }.takeIf { it > 0 } }, ::compact),
-        Metric("Reps", "reps", ChartColors.series[3], series { s -> s.sumOf { it.reps ?: 0 }.toDouble().takeIf { it > 0 } }, { "${it.toInt()}" }),
+        Metric("Est. 1RM", unit, Accent, series { s -> s.mapNotNull { it.estimated1RM() }.maxOrNull() }, one),
+        Metric("Heaviest", unit, Accent, series { s -> s.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull() }, one),
+        Metric("Volume", unit, Accent, series { s -> s.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) }.takeIf { it > 0 } }, ::compact),
+        Metric("Reps", "reps", Accent, series { s -> s.sumOf { it.reps ?: 0 }.toDouble().takeIf { it > 0 } }, { "${it.toInt()}" }),
     )
     var selected by rememberSaveable { mutableStateOf(0) }
     val metric = metrics[selected]
@@ -328,12 +324,12 @@ private fun DetailChartsTab(exerciseId: String) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatTile("Best e1RM", best1rm?.let { one(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.EmojiEvents, tint = Warmup)
-            StatTile("Heaviest", heaviest?.let { formatWeight(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.FitnessCenter, tint = Ember)
+            StatTile("Best e1RM", best1rm?.let { one(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.EmojiEvents)
+            StatTile("Heaviest", heaviest?.let { formatWeight(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.FitnessCenter)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatTile("Best set", bestVolume?.let { compact(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart, tint = Success)
-            StatTile("Most reps", mostReps?.toString() ?: "–", Modifier.weight(1f), icon = Icons.Filled.Repeat, tint = AccentBright)
+            StatTile("Best set", bestVolume?.let { compact(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart)
+            StatTile("Most reps", mostReps?.toString() ?: "–", Modifier.weight(1f), icon = Icons.Filled.Repeat)
         }
 
         val pts = metric.points
@@ -344,7 +340,6 @@ private fun DetailChartsTab(exerciseId: String) {
             unit = metric.unit,
             caption = change?.let { (if (it >= 0) "+" else "") + metric.format(it) + " ${metric.unit.orEmpty()} since ${pts.first().label}" } ?: "Latest session",
             icon = Icons.AutoMirrored.Filled.TrendingUp,
-            tint = metric.color,
         ) {
             SegmentedTabs(metrics.map { it.name }, selected, { selected = it })
             Spacer(Modifier.height(14.dp))
@@ -354,21 +349,20 @@ private fun DetailChartsTab(exerciseId: String) {
         }
 
         val recent = chrono.takeLast(10)
-        ChartCard("Volume per session", caption = "Weight × reps of working sets, last ${recent.size} sessions", icon = Icons.Filled.BarChart, tint = ChartColors.series[2]) {
+        ChartCard("Volume per session", caption = "Weight × reps of working sets, last ${recent.size} sessions", icon = Icons.Filled.BarChart) {
             BarChart(
                 recent.map { (_, we) -> we.sets.filter { it.type != SetType.WARMUP }.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) } },
                 recent.map { (w, _) -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(w.startTime)) },
                 height = 150.dp,
-                color = ChartColors.series[2],
                 tooltipLabels = recent.map { (w, _) -> fmt.format(Date(w.startTime)) },
             )
         }
 
         val buckets = listOf("1-5" to 1..5, "6-8" to 6..8, "9-12" to 9..12, "13-20" to 13..20, "20+" to 21..1000)
         val counts = buckets.map { (_, r) -> sets.count { (it.reps ?: 0) in r }.toDouble() }
-        ChartCard("Rep ranges", caption = "How many working sets landed in each rep range", icon = Icons.Filled.Insights, tint = ChartColors.series[4]) {
+        ChartCard("Rep ranges", caption = "How many working sets landed in each rep range", icon = Icons.Filled.Insights) {
             BarChart(
-                counts, buckets.map { it.first }, height = 140.dp, color = ChartColors.series[4],
+                counts, buckets.map { it.first }, height = 140.dp,
                 highlight = counts.indices.maxByOrNull { counts[it] }, valueFormat = { "${it.toInt()}" },
                 tooltipLabels = buckets.map { "${it.first} reps" },
             )

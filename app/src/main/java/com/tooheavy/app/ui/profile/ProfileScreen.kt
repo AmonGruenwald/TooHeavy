@@ -78,14 +78,10 @@ import com.tooheavy.app.ui.common.RankedBars
 import com.tooheavy.app.ui.common.StatTile
 import com.tooheavy.app.ui.common.compact
 import com.tooheavy.app.ui.theme.Accent
-import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.BrandBrush
-import com.tooheavy.app.ui.theme.ChartColors
-import com.tooheavy.app.ui.theme.Ember
 import com.tooheavy.app.ui.theme.NumberFont
-import com.tooheavy.app.ui.theme.Success
+import com.tooheavy.app.ui.theme.OnAccent
 import com.tooheavy.app.ui.theme.TextMuted
-import com.tooheavy.app.ui.theme.Warmup
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -104,7 +100,7 @@ fun ProfileScreen(nav: NavController) {
 
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = Accent,
-        selectedLabelColor = Color.White,
+        selectedLabelColor = OnAccent,
     )
 
     Scaffold(
@@ -149,27 +145,27 @@ fun ProfileScreen(nav: NavController) {
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatTile("Workouts", workouts.size.toString(), Modifier.weight(1f), icon = Icons.Filled.FitnessCenter, tint = AccentBright)
-                StatTile("Volume", compact(workouts.sumOf { it.volume() }), Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart, tint = Ember)
+                StatTile("Workouts", workouts.size.toString(), Modifier.weight(1f), icon = Icons.Filled.FitnessCenter)
+                StatTile("Volume", compact(workouts.sumOf { it.volume() }), Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatTile("Sets", compact(workouts.sumOf { it.completedSetCount() }.toDouble()), Modifier.weight(1f), icon = Icons.Filled.Repeat, tint = Success)
-                StatTile("Total time", formatDuration(workouts.sumOf { it.durationMs() }), Modifier.weight(1f), icon = Icons.Filled.Timer, tint = ChartColors.Protein)
+                StatTile("Sets", compact(workouts.sumOf { it.completedSetCount() }.toDouble()), Modifier.weight(1f), icon = Icons.Filled.Repeat)
+                StatTile("Total time", formatDuration(workouts.sumOf { it.durationMs() }), Modifier.weight(1f), icon = Icons.Filled.Timer)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatTile("This week", weeks.last().workouts.size.toString(), Modifier.weight(1f), icon = Icons.Filled.Today, tint = AccentBright)
-                StatTile(if (streak == 1) "Week streak" else "Weeks streak", streak.toString(), Modifier.weight(1f), icon = Icons.Filled.LocalFireDepartment, tint = Ember)
+                StatTile("This week", weeks.last().workouts.size.toString(), Modifier.weight(1f), icon = Icons.Filled.Today)
+                StatTile(if (streak == 1) "Week streak" else "Weeks streak", streak.toString(), Modifier.weight(1f), icon = Icons.Filled.LocalFireDepartment)
             }
 
-            ChartCard("Workouts per week", icon = Icons.Filled.Insights, tint = AccentBright) {
+            ChartCard("Workouts per week", icon = Icons.Filled.Insights) {
                 BarChart(weeks.map { it.workouts.size.toDouble() }, weeks.map { it.label }, height = 140.dp, tooltipLabels = weeks.map { "Week of ${it.label}" })
             }
 
-            ChartCard("Volume per week", unit = null, caption = "Total weight × reps in $unit", icon = Icons.Filled.BarChart, tint = Ember) {
+            ChartCard("Volume per week", unit = null, caption = "Total weight × reps in $unit", icon = Icons.Filled.BarChart) {
                 BarChart(weeks.map { b -> b.workouts.sumOf { it.volume() } }, weeks.map { it.label }, height = 150.dp, tooltipLabels = weeks.map { "Week of ${it.label}" })
             }
 
-            ChartCard("Muscle focus · last 30 days", icon = Icons.Filled.AccessibilityNew, tint = ChartColors.series[4]) {
+            ChartCard("Muscle focus · last 30 days", icon = Icons.Filled.AccessibilityNew) {
                 if (topMuscles.isEmpty()) {
                     EmptyChartNote("No data in the last 30 days.", height = 60.dp)
                 } else {
@@ -177,7 +173,7 @@ fun ProfileScreen(nav: NavController) {
                 }
             }
 
-            ProfSection("Personal records", Icons.Filled.EmojiEvents, Warmup) {
+            ProfSection("Personal records", Icons.Filled.EmojiEvents) {
                 if (prs.isEmpty()) {
                     Text("Complete a workout to see your records.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
@@ -297,12 +293,11 @@ fun ProfileScreen(nav: NavController) {
 private fun ProfSection(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            CardLabel(title, icon = icon, tint = tint)
+            CardLabel(title, icon = icon)
             Spacer(Modifier.height(12.dp))
             content()
         }

@@ -43,6 +43,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -52,17 +53,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tooheavy.app.R
-import com.tooheavy.app.ui.theme.BrandColors
+import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.Hairline
 import com.tooheavy.app.ui.theme.Ink
 import com.tooheavy.app.ui.theme.NumberFont
+import com.tooheavy.app.ui.theme.OnAccent
 import com.tooheavy.app.ui.theme.Overline
 import com.tooheavy.app.ui.theme.Surface1
-import com.tooheavy.app.ui.theme.Surface2
+import com.tooheavy.app.ui.theme.Surface3
 import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.TextPrimary
 import com.tooheavy.app.ui.theme.TextSecondary
 
-val CardShape = RoundedCornerShape(22.dp)
+val CardShape = RoundedCornerShape(18.dp)
 
 /** Ink background with soft violet and ember glows near the top; sits behind every screen. */
 @Composable
@@ -72,24 +76,16 @@ fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.(
             .fillMaxSize()
             .background(Ink)
             .drawBehind {
+                // A faint warm light from above, like a lamp over dark wood.
                 val w = size.width
                 drawCircle(
                     Brush.radialGradient(
-                        listOf(Color(0xFF5B3FE0).copy(alpha = 0.30f), Color.Transparent),
-                        center = Offset(w * 0.12f, -w * 0.05f),
-                        radius = w * 0.95f,
+                        listOf(Accent.copy(alpha = 0.07f), Color.Transparent),
+                        center = Offset(w * 0.5f, -w * 0.35f),
+                        radius = w * 1.05f,
                     ),
-                    radius = w * 0.95f,
-                    center = Offset(w * 0.12f, -w * 0.05f),
-                )
-                drawCircle(
-                    Brush.radialGradient(
-                        listOf(Color(0xFFFF5A3C).copy(alpha = 0.13f), Color.Transparent),
-                        center = Offset(w * 1.0f, w * 0.15f),
-                        radius = w * 0.75f,
-                    ),
-                    radius = w * 0.75f,
-                    center = Offset(w * 1.0f, w * 0.15f),
+                    radius = w * 1.05f,
+                    center = Offset(w * 0.5f, -w * 0.35f),
                 )
             },
     ) {
@@ -98,8 +94,8 @@ fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.(
 }
 
 /**
- * The app's card: a dark glass panel with a faint top-lit edge. Mirrors material3 Card's parameters, so
- * `colors = CardDefaults.cardColors(containerColor = primaryContainer)` turns it into a brand-gradient highlight card.
+ * The app's card: a flat dark panel with a hairline border. Mirrors material3 Card's parameters, so
+ * `colors = CardDefaults.cardColors(containerColor = primaryContainer)` turns it into a gold-edged highlight card.
  */
 @Composable
 fun GlassCard(
@@ -110,16 +106,8 @@ fun GlassCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val highlight = colors?.containerColor == MaterialTheme.colorScheme.primaryContainer
-    val fill = if (highlight) {
-        Brush.linearGradient(listOf(Color(0xFF2D2170), Color(0xFF3A1A4F), Color(0xFF41201F)))
-    } else {
-        Brush.verticalGradient(listOf(Surface2, Surface1))
-    }
-    val edge = if (highlight) {
-        Brush.linearGradient(BrandColors.map { it.copy(alpha = 0.65f) })
-    } else {
-        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.03f)))
-    }
+    val fill = if (highlight) Brush.verticalGradient(listOf(Color(0xFF221E17), Color(0xFF181612))) else SolidColor(Surface1)
+    val edge = if (highlight) Accent.copy(alpha = 0.45f) else Hairline
     CompositionLocalProvider(LocalContentColor provides TextPrimary) {
         Column(
             modifier
@@ -154,7 +142,7 @@ fun AppTopBar(
     )
 }
 
-/** Big title for top-level tabs: an uppercase overline (e.g. the date) above a heavy headline. */
+/** Big title for top-level tabs: a spaced gold overline (e.g. the date) above a serif headline. */
 @Composable
 fun ScreenHeader(
     title: String,
@@ -168,7 +156,7 @@ fun ScreenHeader(
     ) {
         Column(Modifier.weight(1f)) {
             if (overline != null) {
-                Text(overline.uppercase(), style = Overline, color = TextMuted)
+                Text(overline.uppercase(), style = Overline, color = Accent.copy(alpha = 0.85f))
                 Spacer(Modifier.height(2.dp))
             }
             Text(title, style = MaterialTheme.typography.headlineLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -189,12 +177,12 @@ fun SectionTitle(title: String, modifier: Modifier = Modifier, action: (@Composa
     }
 }
 
-/** Uppercase card label, e.g. "THIS WEEK". */
+/** Spaced uppercase card label with an optional gold icon, e.g. "THIS WEEK". */
 @Composable
-fun CardLabel(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, tint: Color = TextSecondary) {
+fun CardLabel(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+            Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
         }
         Text(text.uppercase(), style = Overline, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -212,7 +200,7 @@ fun BigNumber(
     color: Color = TextPrimary,
 ) {
     Row(modifier, verticalAlignment = Alignment.Bottom) {
-        val style = TextStyle(fontFamily = NumberFont, fontWeight = FontWeight.Bold, fontSize = size.sp, letterSpacing = (-0.5).sp)
+        val style = TextStyle(fontFamily = NumberFont, fontWeight = FontWeight.Normal, fontSize = size.sp, letterSpacing = (-0.3).sp)
         Text(value, style = if (brush != null) style.copy(brush = brush) else style.copy(color = color), maxLines = 1)
         if (unit != null) {
             Spacer(Modifier.width(4.dp))
@@ -235,12 +223,11 @@ fun StatTile(
     modifier: Modifier = Modifier,
     unit: String? = null,
     icon: ImageVector? = null,
-    tint: Color = TextSecondary,
     footnote: String? = null,
 ) {
     GlassCard(modifier) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            CardLabel(label, icon = icon, tint = tint)
+            CardLabel(label, icon = icon)
             Spacer(Modifier.height(8.dp))
             BigNumber(value, unit, size = 26)
             if (footnote != null) {
@@ -250,21 +237,22 @@ fun StatTile(
     }
 }
 
-/** Icon on a softly tinted rounded square. */
+/** Gold line icon inside a hairline circle. */
 @Composable
-fun IconBubble(icon: ImageVector, tint: Color, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+fun IconBubble(icon: ImageVector, modifier: Modifier = Modifier, size: Dp = 36.dp) {
     Box(
         modifier
             .size(size)
-            .clip(RoundedCornerShape(size * 0.32f))
-            .background(tint.copy(alpha = 0.16f)),
+            .clip(CircleShape)
+            .background(Accent.copy(alpha = 0.06f))
+            .border(1.dp, Accent.copy(alpha = 0.35f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.55f))
+        Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(size * 0.5f))
     }
 }
 
-/** Primary call to action on the brand gradient. */
+/** Primary call to action: brushed gold with dark text. */
 @Composable
 fun GradientButton(
     onClick: () -> Unit,
@@ -274,21 +262,21 @@ fun GradientButton(
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp),
     content: @Composable RowScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    CompositionLocalProvider(LocalContentColor provides Color.White) {
+    val shape = RoundedCornerShape(14.dp)
+    CompositionLocalProvider(LocalContentColor provides OnAccent) {
         Row(
             modifier
                 .height(height)
                 .alpha(if (enabled) 1f else 0.4f)
                 .clip(shape)
-                .background(Brush.horizontalGradient(BrandColors))
+                .background(Brush.verticalGradient(listOf(Color(0xFFDCC495), Accent)))
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(contentPadding),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CompositionLocalProvider(
-                androidx.compose.material3.LocalTextStyle provides MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+                androidx.compose.material3.LocalTextStyle provides MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
             ) { content() }
         }
     }
@@ -300,19 +288,19 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier, filled: Bool
     Box(
         modifier
             .clip(CircleShape)
-            .background(if (filled) color else color.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .then(if (filled) Modifier.background(color) else Modifier.border(1.dp, color.copy(alpha = 0.55f), CircleShape))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
     ) {
         Text(
             text,
-            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = if (filled) Color.White else color,
+            style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.6.sp),
+            color = if (filled) OnAccent else color,
             maxLines = 1,
         )
     }
 }
 
-/** Pill-shaped segmented control; the selected segment wears the brand gradient. */
+/** Segmented control; the selected segment is lifted and set in gold. */
 @Composable
 fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(16.dp)
@@ -322,7 +310,7 @@ fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) -> Unit,
             .height(42.dp)
             .clip(shape)
             .background(Surface1)
-            .border(1.dp, Color.White.copy(alpha = 0.07f), shape)
+            .border(1.dp, Hairline, shape)
             .padding(4.dp),
     ) {
         options.forEachIndexed { i, label ->
@@ -332,14 +320,14 @@ fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) -> Unit,
                     .weight(1f)
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp))
-                    .then(if (active) Modifier.background(Brush.horizontalGradient(BrandColors)) else Modifier)
+                    .then(if (active) Modifier.background(Surface3).border(1.dp, Accent.copy(alpha = 0.4f), RoundedCornerShape(12.dp)) else Modifier)
                     .clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (active) Color.White else TextSecondary,
+                    color = if (active) AccentBright else TextSecondary,
                     maxLines = 1,
                 )
             }
@@ -347,7 +335,7 @@ fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) -> Unit,
     }
 }
 
-/** The app icon (bent barbell on the gradient tile), drawn from the launcher vectors. */
+/** The app icon (gold barbell in a hairline ring on charcoal), drawn from the launcher vectors. */
 @Composable
 fun BrandMark(modifier: Modifier = Modifier, size: Dp = 40.dp) {
     Box(modifier.size(size).clip(RoundedCornerShape(size * 0.3f))) {

@@ -91,6 +91,7 @@ import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.NumberFont
+import com.tooheavy.app.ui.theme.OnAccent
 import com.tooheavy.app.ui.theme.Overline
 import com.tooheavy.app.ui.theme.StatNumber
 import com.tooheavy.app.ui.theme.Success
@@ -209,7 +210,6 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                             workout.name,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.SemiBold,
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
@@ -807,7 +807,7 @@ private fun SetRow(
                     Icons.Filled.Check,
                     contentDescription = if (entry.completed) "Mark set incomplete" else "Mark set complete",
                     modifier = Modifier.size(20.dp),
-                    tint = if (entry.completed) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (entry.completed) OnAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

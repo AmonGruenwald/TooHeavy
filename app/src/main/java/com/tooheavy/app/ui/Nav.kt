@@ -12,7 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,8 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,11 +73,12 @@ import com.tooheavy.app.ui.common.Pill
 import com.tooheavy.app.ui.common.UpdateDialog
 import com.tooheavy.app.ui.common.WhatsNewDialog
 import com.tooheavy.app.ui.home.DashboardScreen
-import com.tooheavy.app.ui.theme.BrandColors
+import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.Hairline
 import com.tooheavy.app.ui.theme.Ink
 import com.tooheavy.app.ui.theme.StatNumber
 import com.tooheavy.app.ui.theme.Success
-import com.tooheavy.app.ui.theme.Surface2
 import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.TextSecondary
 import com.tooheavy.app.ui.exercises.ExerciseDetailScreen
@@ -188,15 +187,12 @@ fun AppRoot() {
             containerColor = Color.Transparent,
             bottomBar = {
                 if (onTab) {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, Ink.copy(alpha = 0.94f), Ink)))
-                            .navigationBarsPadding()
-                            .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (Repo.activeWorkout != null) ActiveWorkoutBanner { nav.navigate(Routes.ACTIVE) }
+                    Column(Modifier.fillMaxWidth()) {
+                        if (Repo.activeWorkout != null) {
+                            Box(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) {
+                                ActiveWorkoutBanner { nav.navigate(Routes.ACTIVE) }
+                            }
+                        }
                         TabBar(route) { nav.navigateTab(it) }
                     }
                 }
@@ -277,32 +273,27 @@ fun NavController.navigateTab(route: String) = navigate(route) {
 
 @Composable
 private fun TabBar(route: String?, onSelect: (String) -> Unit) {
-    val shape = RoundedCornerShape(26.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .height(66.dp)
-            .clip(shape)
-            .background(Surface2.copy(alpha = 0.97f))
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.03f))), shape)
-            .padding(6.dp),
+            .background(Ink)
+            .drawBehind { drawLine(Hairline, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
+            .navigationBarsPadding()
+            .height(64.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         tabs.forEach { tab ->
             val selected = route == tab.route
-            val glow by animateFloatAsState(if (selected) 1f else 0f, tween(260), label = "tab")
+            val mark by animateFloatAsState(if (selected) 1f else 0f, tween(260), label = "tab")
             Column(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(20.dp))
                     .drawBehind {
-                        if (glow > 0f) {
-                            drawRoundRect(
-                                Brush.linearGradient(BrandColors.map { it.copy(alpha = 0.9f) }),
-                                alpha = glow,
-                                cornerRadius = CornerRadius(20.dp.toPx()),
-                            )
+                        // a short gold rule on top of the selected tab
+                        if (mark > 0f) {
+                            val w = 22.dp.toPx() * mark
+                            drawLine(Accent, Offset(center.x - w / 2, 1.dp.toPx()), Offset(center.x + w / 2, 1.dp.toPx()), 2.dp.toPx())
                         }
                     }
                     .clickable { onSelect(tab.route) },
@@ -312,14 +303,14 @@ private fun TabBar(route: String?, onSelect: (String) -> Unit) {
                 Icon(
                     tab.icon,
                     contentDescription = tab.label,
-                    tint = if (selected) Color.White else TextMuted,
+                    tint = if (selected) Accent else TextMuted,
                     modifier = Modifier.size(22.dp),
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
                     tab.label,
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.2.sp),
-                    color = if (selected) Color.White else TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (selected) AccentBright else TextMuted,
                     maxLines = 1,
                 )
             }
@@ -361,7 +352,7 @@ private fun ActiveWorkoutBanner(onClick: () -> Unit) {
             }
             Text(formatClock(now - w.startTime), style = StatNumber.copy(fontSize = 22.sp))
             Spacer(Modifier.width(12.dp))
-            Pill("Resume", Color.White)
+            Pill("Resume", AccentBright)
         }
     }
 }

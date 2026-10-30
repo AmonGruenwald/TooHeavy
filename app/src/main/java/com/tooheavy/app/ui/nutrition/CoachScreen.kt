@@ -70,8 +70,6 @@ import com.tooheavy.app.ui.common.IconBubble
 import com.tooheavy.app.ui.common.Meter
 import com.tooheavy.app.ui.common.TrendChart
 import com.tooheavy.app.ui.common.shortDateLabel
-import com.tooheavy.app.ui.theme.AccentBright
-import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Ember
 import com.tooheavy.app.ui.theme.Success
@@ -128,7 +126,7 @@ fun CoachScreen(nav: NavController) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text("Coach", fontWeight = FontWeight.Bold) },
+                title = { Text("Coach") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -237,11 +235,9 @@ fun CoachScreen(nav: NavController) {
                     "Expenditure history",
                     caption = "Estimated daily burn at each check-in",
                     icon = Icons.Filled.Speed,
-                    tint = Ember,
                 ) {
                     AreaChart(
                         checkIns.mapIndexed { i, c -> ChartPoint(i.toFloat(), c.expenditure.toDouble(), shortDateLabel(c.date)) },
-                        color = ChartColors.series[1],
                         valueFormat = { intText(it.toInt()) },
                     )
                 }
@@ -560,7 +556,7 @@ internal fun CoachSummaryCard(onOpen: () -> Unit) {
         ),
     ) {
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconBubble(Icons.Filled.Insights, AccentBright, size = 36.dp)
+            IconBubble(Icons.Filled.Insights, size = 36.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 val (title, subtitle) = when {
@@ -598,7 +594,6 @@ private fun IntakeCard(goal: Int) {
         unit = if (logged.isEmpty()) null else "kcal / day avg",
         caption = "Logged calories against your ${intText(goal)} kcal target",
         icon = Icons.Filled.LocalFireDepartment,
-        tint = Ember,
     ) {
         BarChart(
             kcals,

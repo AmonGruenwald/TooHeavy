@@ -94,12 +94,11 @@ import com.tooheavy.app.ui.common.TrendChart
 import com.tooheavy.app.ui.common.compact
 import com.tooheavy.app.ui.common.shortDateLabel
 import com.tooheavy.app.ui.navigateTab
+import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.BrandBrush
-import com.tooheavy.app.ui.theme.BrandColors
 import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Ember
-import com.tooheavy.app.ui.theme.Success
 import com.tooheavy.app.ui.theme.Surface3
 import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.TextSecondary
@@ -112,7 +111,7 @@ import kotlin.math.roundToInt
 
 /** Catalog of Home dashboard widgets. */
 object DashboardWidgets {
-    class Def(val id: String, val title: String, val description: String, val icon: ImageVector, val tint: Color)
+    class Def(val id: String, val title: String, val description: String, val icon: ImageVector)
 
     const val UP_NEXT = "up_next"
     const val STREAK = "streak"
@@ -133,23 +132,23 @@ object DashboardWidgets {
     const val TRAINING_TIME = "training_time"
 
     val all = listOf(
-        Def(UP_NEXT, "Up next", "Your next program day, routine or a quick start", Icons.Filled.Bolt, BrandColors[1]),
-        Def(STREAK, "Week streak", "Consecutive weeks trained and this week's days", Icons.Filled.LocalFireDepartment, Ember),
-        Def(CALORIES, "Calories today", "Ring of today's calories against your goal", Icons.Filled.Restaurant, BrandColors[0]),
-        Def(MACROS, "Macros today", "Protein, carbs and fat split for today", Icons.Filled.DonutLarge, ChartColors.Protein),
-        Def(WEEKLY_VOLUME, "Weekly volume", "Total weight lifted per week", Icons.Filled.BarChart, AccentBright),
-        Def(WEEKLY_WORKOUTS, "Workouts per week", "How many sessions you fit in each week", Icons.Filled.Insights, AccentBright),
-        Def(CONSISTENCY, "Consistency", "Calendar heatmap of your training days", Icons.Filled.CalendarMonth, Success),
-        Def(BODY_WEIGHT, "Body weight", "Weigh-ins and your smoothed weight trend", Icons.Filled.MonitorWeight, ChartColors.Fat),
-        Def(CALORIES_WEEK, "Calories this week", "Daily intake against your calorie goal", Icons.Filled.LocalFireDepartment, Ember),
-        Def(MACRO_SPLIT, "Macro split", "Calories from protein, carbs and fat per day", Icons.Filled.PieChart, ChartColors.Carbs),
-        Def(MUSCLES, "Muscle focus", "Working sets per muscle over the last 30 days", Icons.Filled.AccessibilityNew, BrandColors[1]),
-        Def(RECORDS, "Personal records", "Best estimated 1RMs of your main lifts", Icons.Filled.EmojiEvents, Warmup),
-        Def(TOP_LIFT, "Top lift progress", "Estimated 1RM over time for your most-trained lift", Icons.AutoMirrored.Filled.TrendingUp, Success),
-        Def(EXPENDITURE, "Daily burn", "The coach's estimate of what you burn per day", Icons.Filled.Speed, Ember),
-        Def(RECENT, "Recent workouts", "Your latest sessions at a glance", Icons.Filled.History, AccentBright),
-        Def(LIFETIME, "Lifetime stats", "Workouts, volume, sets and time, all-time", Icons.AutoMirrored.Filled.ShowChart, AccentBright),
-        Def(TRAINING_TIME, "Training time", "Minutes trained per week", Icons.Filled.Timer, ChartColors.Fat),
+        Def(UP_NEXT, "Up next", "Your next program day, routine or a quick start", Icons.Filled.Bolt),
+        Def(STREAK, "Week streak", "Consecutive weeks trained and this week's days", Icons.Filled.LocalFireDepartment),
+        Def(CALORIES, "Calories today", "Ring of today's calories against your goal", Icons.Filled.Restaurant),
+        Def(MACROS, "Macros today", "Protein, carbs and fat split for today", Icons.Filled.DonutLarge),
+        Def(WEEKLY_VOLUME, "Weekly volume", "Total weight lifted per week", Icons.Filled.BarChart),
+        Def(WEEKLY_WORKOUTS, "Weekly workouts", "How many sessions you fit in each week", Icons.Filled.Insights),
+        Def(CONSISTENCY, "Consistency", "Calendar heatmap of your training days", Icons.Filled.CalendarMonth),
+        Def(BODY_WEIGHT, "Body weight", "Weigh-ins and your smoothed weight trend", Icons.Filled.MonitorWeight),
+        Def(CALORIES_WEEK, "Weekly calories", "Daily intake against your calorie goal", Icons.Filled.LocalFireDepartment),
+        Def(MACRO_SPLIT, "Macro split", "Calories from protein, carbs and fat per day", Icons.Filled.PieChart),
+        Def(MUSCLES, "Muscle focus", "Working sets per muscle over the last 30 days", Icons.Filled.AccessibilityNew),
+        Def(RECORDS, "Personal records", "Best estimated 1RMs of your main lifts", Icons.Filled.EmojiEvents),
+        Def(TOP_LIFT, "Top lift progress", "Estimated 1RM over time for your most-trained lift", Icons.AutoMirrored.Filled.TrendingUp),
+        Def(EXPENDITURE, "Daily burn", "The coach's estimate of what you burn per day", Icons.Filled.Speed),
+        Def(RECENT, "Recent workouts", "Your latest sessions at a glance", Icons.Filled.History),
+        Def(LIFETIME, "Lifetime stats", "Workouts, volume, sets and time, all-time", Icons.AutoMirrored.Filled.ShowChart),
+        Def(TRAINING_TIME, "Training time", "Minutes trained per week", Icons.Filled.Timer),
     )
 
     fun def(id: String): Def? = all.firstOrNull { it.id == id }
@@ -209,7 +208,7 @@ private fun WidgetCard(
     GlassCard(modifier, onClick = onClick) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CardLabel(def.title, Modifier.weight(1f), icon = def.icon, tint = def.tint)
+                CardLabel(def.title, Modifier.weight(1f), icon = def.icon)
                 trailing?.invoke()
             }
             Spacer(Modifier.height(10.dp))
@@ -220,7 +219,7 @@ private fun WidgetCard(
 
 /** Half-size layout: a headline number, a caption and a sparkline filling the rest. */
 @Composable
-private fun ColumnScope.HalfStat(value: String, unit: String?, caption: String, spark: List<Double>, color: Color = ChartColors.series[0]) {
+private fun ColumnScope.HalfStat(value: String, unit: String?, caption: String, spark: List<Double>, color: Color = Accent) {
     BigNumber(value, unit, size = 26)
     Text(caption, style = MaterialTheme.typography.bodySmall, color = TextMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
     Spacer(Modifier.weight(1f))
@@ -244,7 +243,7 @@ private fun UpNext(nav: NavController, wide: Boolean, modifier: Modifier) {
     val highlight = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     GlassCard(modifier, colors = highlight) {
         Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            CardLabel("Up next", icon = Icons.Filled.Bolt, tint = Color.White)
+            CardLabel("Up next", icon = Icons.Filled.Bolt)
             when {
                 active != null -> {
                     Text(active.name, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -315,8 +314,8 @@ private fun UpNext(nav: NavController, wide: Boolean, modifier: Modifier) {
                                 onClick = { nav.navigate(Routes.PROGRAM_SETUP) },
                                 modifier = Modifier.weight(1f).height(52.dp),
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentBright),
                             ) { Text("Build a program") }
                         }
                     }
@@ -522,7 +521,7 @@ private fun BodyWeight(def: DashboardWidgets.Def, wide: Boolean, modifier: Modif
             Spacer(Modifier.height(14.dp))
             TrendChart(trend, height = 160.dp)
         } else {
-            HalfStat(String.format(Locale.US, "%.1f", last.trendKg), "kg", changeText ?: "Trend weight", trend.map { it.trendKg }, ChartColors.Fat)
+            HalfStat(String.format(Locale.US, "%.1f", last.trendKg), "kg", changeText ?: "Trend weight", trend.map { it.trendKg })
         }
     }
 }
@@ -542,7 +541,7 @@ private fun CaloriesWeek(def: DashboardWidgets.Def, wide: Boolean, modifier: Mod
             Spacer(Modifier.height(14.dp))
             BarChart(kcals, days.map { weekday(it) }, height = 150.dp, goal = goal, tooltipLabels = days.map { shortDateLabel(it) })
         } else {
-            HalfStat(compact(avg), "kcal/day", "7-day average", kcals, ChartColors.series[1])
+            HalfStat(compact(avg), "kcal/day", "7-day average", kcals)
         }
     }
 }
@@ -653,11 +652,11 @@ private fun TopLift(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier
             val fmt = SimpleDateFormat("MMM d", Locale.US)
             AreaChart(
                 series.mapIndexed { i, (ms, v) -> ChartPoint(i.toFloat(), Math.round(v * 10) / 10.0, fmt.format(Date(ms))) },
-                height = 160.dp, color = Success, valueFormat = { formatWeight(Math.round(it * 10) / 10.0) },
+                height = 160.dp, valueFormat = { formatWeight(Math.round(it * 10) / 10.0) },
             )
         } else {
             Text(name, style = MaterialTheme.typography.labelMedium, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            HalfStat(formatWeight(Math.round(last * 10) / 10.0), unit, "Estimated 1RM", series.map { it.second }, Success)
+            HalfStat(formatWeight(Math.round(last * 10) / 10.0), unit, "Estimated 1RM", series.map { it.second })
         }
     }
 }
@@ -757,9 +756,9 @@ private fun TrainingTime(def: DashboardWidgets.Def, wide: Boolean, modifier: Mod
             BigNumber("${minutes.last().roundToInt()}", "min this week", size = 28)
             Text(pctChange(minutes.last(), minutes[minutes.lastIndex - 1]) ?: "Minutes per week", style = MaterialTheme.typography.bodySmall, color = TextMuted)
             Spacer(Modifier.height(14.dp))
-            BarChart(minutes, weeks.map { it.label }, height = 140.dp, color = ChartColors.Fat, valueFormat = { "${it.roundToInt()}" }, tooltipLabels = weeks.map { "Week of ${it.label}" })
+            BarChart(minutes, weeks.map { it.label }, height = 140.dp, valueFormat = { "${it.roundToInt()}" }, tooltipLabels = weeks.map { "Week of ${it.label}" })
         } else {
-            HalfStat("${minutes.last().roundToInt()}", "min", "This week", minutes, ChartColors.Fat)
+            HalfStat("${minutes.last().roundToInt()}", "min", "This week", minutes)
         }
     }
 }

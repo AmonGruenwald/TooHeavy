@@ -125,7 +125,7 @@ fun ProgramScreen(nav: NavController) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text(program.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(program.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

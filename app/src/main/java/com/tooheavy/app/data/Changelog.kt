@@ -12,6 +12,15 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.4.0", "2026-10-30",
+            listOf(
+                "A quieter, classier look: warm black, ivory and champagne gold instead of the bright gradients.",
+                "Serif headlines and figures, thin borders, and gold-accented buttons, tabs and charts.",
+                "Charts now highlight one thing at a time in gold, with everything else in soft gray.",
+                "The app icon's barbell is now gold on charcoal.",
+            ),
+        ),
+        ChangelogEntry(
             "1.3.0", "2026-10-30",
             listOf(
                 "Updates arrive by themselves: TooHeavy checks once a day and downloads new versions on Wi-Fi.",

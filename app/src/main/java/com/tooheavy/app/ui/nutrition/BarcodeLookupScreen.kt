@@ -94,7 +94,7 @@ fun BarcodeLookupScreen(nav: NavController, code: String, meal: String) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text("Barcode", fontWeight = FontWeight.Bold) },
+                title = { Text("Barcode") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
