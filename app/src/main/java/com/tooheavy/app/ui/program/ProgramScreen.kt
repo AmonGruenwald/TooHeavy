@@ -63,6 +63,7 @@ import com.tooheavy.app.data.TrainingGoal
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.isDeload
 import com.tooheavy.app.data.mesoWeek
+import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.sessionsPerWeek
 import com.tooheavy.app.data.weeklyGroupSets
@@ -317,8 +318,19 @@ private fun DayCard(
             if (isNext) Pill("Up next", BrandColors[1])
         }
         Column {
+            val letters = supersetLetters(day.exercises.map { it.supersetId })
             day.exercises.forEachIndexed { i, pe ->
                 if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                letters[i]?.let { letter ->
+                    if (letters.getOrNull(i - 1) != letter) {
+                        Text(
+                            "Superset $letter · one rest per round",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Warmup,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
                 ExerciseRow(program, pe, unit, onOpenExercise, onSwap, onEdit)
             }
         }

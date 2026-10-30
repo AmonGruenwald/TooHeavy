@@ -195,7 +195,8 @@ class TrainingTest {
                     )
                 }
                 val weekly = p.weeklyGroupSets.values.sum()
-                assertTrue("$level/$n/$minutes: $weekly sets", weekly <= lastWeekly + 0.01)
+                // Shorter sessions mean less volume, give or take the sets that holding main lifts at 3 keeps.
+                assertTrue("$level/$n/$minutes: $weekly sets", weekly <= lastWeekly + 2.01)
                 lastWeekly = weekly
             }
             assertTrue(free.days.maxOf { it.estimatedMinutes } >= generateProgram(
@@ -205,6 +206,36 @@ class TrainingTest {
         // Short sessions rest a little less.
         val short = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 3, Equipment.GYM, "kg", lookup, minutes = 30)
         assertEquals(150, short.days.flatMap { it.exercises }.first { it.role == Role.PRIMARY }.restSeconds)
+    }
+
+    @Test
+    fun shortSessionsKeepCompoundsAndPairIsolation() {
+        for (level in Experience.all) for (n in 2..6) for (minutes in listOf(30, 45)) {
+            val p = generateProgram(TrainingGoal.HYPERTROPHY, level, n, Equipment.GYM, "kg", lookup, minutes = minutes)
+            for (d in p.days) {
+                val label = "$level/$n/$minutes ${d.name}"
+                val isolation = d.exercises.filter { it.role == Role.ACCESSORY }
+                // Main lifts keep 3 sets while there is isolation work to drop instead (for intermediates; beginners'
+                // lower volume ranges can still take a main lift down for volume).
+                if (level == Experience.INTERMEDIATE && n in 3..5 && isolation.isNotEmpty() && d.exercises.size > 3) {
+                    assertTrue(label, d.exercises.filter { it.role == Role.PRIMARY }.all { it.sets >= 3 })
+                }
+                // Isolation exercises come in pairs for different muscle groups; compounds stand alone.
+                assertTrue(label, d.exercises.filter { it.role != Role.ACCESSORY }.all { it.supersetId == null })
+                isolation.groupBy { it.supersetId }.filterKeys { it != null }.values.forEach { pair ->
+                    assertEquals(label, 2, pair.size)
+                    assertTrue(label, patternGroup(pair[0].pattern) != patternGroup(pair[1].pattern))
+                }
+            }
+        }
+        val p = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 45)
+        val paired = p.days.indexOfFirst { d -> d.exercises.any { it.supersetId != null } }
+        assertTrue(paired >= 0)
+        val w = p.buildWorkout(paired, "kg", lookup)!!
+        assertTrue(supersetLetters(w.exercises.map { it.supersetId }).any { it != null })
+        // Longer sessions don't pair anything.
+        val long = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 60)
+        assertTrue(long.days.flatMap { it.exercises }.all { it.supersetId == null })
     }
 
     @Test

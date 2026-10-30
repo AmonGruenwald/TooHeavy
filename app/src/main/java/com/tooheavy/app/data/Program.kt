@@ -159,6 +159,8 @@ data class ProgramExercise(
     val stalls: Int = 0,
     /** Consecutive sessions that hit the target. */
     val streak: Int = 0,
+    /** Shared by isolation exercises paired into a superset in short sessions; null when it stands alone. */
+    val supersetId: String? = null,
     /** Why the prescription last changed. */
     val note: String = "",
 )
@@ -270,6 +272,7 @@ fun Program.buildWorkout(dayIndex: Int, unit: String, exercise: (String) -> Exer
                 restSeconds = pe.restSeconds,
                 programExerciseId = pe.id,
                 target = t,
+                supersetId = pe.supersetId,
                 sets = List(t.sets) { SetEntry(weight = t.weight, reps = t.reps) },
             )
         },
@@ -410,7 +413,11 @@ private fun Program.nextBlock(exercise: (String) -> Exercise?): Pair<Program, Li
         })
     }
     val p = copy(
-        days = balanceVolume(reviewed, sessionsPerWeek, goal, experience, focus, reduce, minutes, raise = false),
+        days = balanceVolume(
+            reviewed, sessionsPerWeek, goal, experience, focus, reduce, minutes,
+            { day -> if (day.exercises.none { it.role == Role.ACCESSORY }) MIN_SETS else compoundFloor(minutes) },
+            raise = false,
+        ),
         mesoWeeks = weeks, mesoStart = sessionsCompleted, mesoIndex = mesoIndex + 1, blockWeeks = 0,
     )
     return p to notes
@@ -849,10 +856,57 @@ private fun warmupSeconds(pe: ProgramExercise) = when (pe.role) {
     else -> 0
 }
 
-private fun ProgramExercise.seconds() = sets * (SET_SECONDS + restSeconds) - restSeconds + warmupSeconds(this) + CHANGEOVER_SECONDS
+/**
+ * Seconds a session takes: every working set, warm-ups, moving between exercises, and the rests. Exercises in
+ * a superset share one rest per round, the longest of the group.
+ */
+private fun sessionSeconds(exercises: List<ProgramExercise>): Int {
+    var total = 0
+    var i = 0
+    while (i < exercises.size) {
+        val id = exercises[i].supersetId
+        var j = i
+        while (id != null && j + 1 < exercises.size && exercises[j + 1].supersetId == id) j++
+        val group = exercises.subList(i, j + 1)
+        total += group.sumOf { it.sets * SET_SECONDS + warmupSeconds(it) + CHANGEOVER_SECONDS } +
+            (group.maxOf { it.sets } - 1) * group.maxOf { it.restSeconds }
+        i = j + 1
+    }
+    return total
+}
 
 /** About how long the session takes: every working set and its rest, warm-ups, and moving between exercises. */
-val ProgramDay.estimatedMinutes: Int get() = (exercises.sumOf { it.seconds() } / 60.0).roundToInt()
+val ProgramDay.estimatedMinutes: Int get() = (sessionSeconds(exercises) / 60.0).roundToInt()
+
+/** Sessions of this many minutes or fewer are run the time-efficient way: compounds first, paired isolation work. */
+private const val SHORT_SESSION = 45
+
+/**
+ * The fewest sets a compound lift is cut to for time. Short sessions keep 3 on compounds and drop isolation
+ * exercises first: compounds train several muscles per set, the core of time-efficient training (Iversen 2021).
+ */
+private fun compoundFloor(minutes: Int) = if (minutes in 1..SHORT_SESSION) 3 else MIN_SETS
+
+/**
+ * Pairs isolation exercises for different muscle groups into supersets, so one rest covers both, as
+ * time-efficient training suggests (Iversen 2021). Compound lifts keep their full rests.
+ */
+private fun pairIsolation(list: List<ProgramExercise>): List<ProgramExercise> {
+    val rest = list.filter { it.role == Role.ACCESSORY }.toMutableList()
+    val paired = ArrayList<ProgramExercise>()
+    while (rest.isNotEmpty()) {
+        val a = rest.removeAt(0)
+        val j = rest.indexOfFirst { patternGroup(it.pattern) != patternGroup(a.pattern) }
+        if (j < 0) {
+            paired.add(a)
+            continue
+        }
+        val id = newId()
+        paired.add(a.copy(supersetId = id))
+        paired.add(rest.removeAt(j).copy(supersetId = id))
+    }
+    return list.filter { it.role != Role.ACCESSORY } + paired
+}
 
 /** Weekly sets that maintain a muscle group: about a third of the usual volume. */
 val MAINTENANCE = 3.0..6.0
@@ -892,7 +946,7 @@ val Program.weeklyGroupSets: Map<String, Double> get() = weeklyGroupSets(days, s
 /**
  * Moves each group's weekly sets into its [weeklySetRange] one set at a time while every session stays
  * within its set budget and, when [minutes] is set, its time limit: sessions over budget lose a set from the
- * group with the most to spare, groups above their range lose a set from their biggest accessory, and with
+ * group with the most to spare, groups above their range lose a set from accessories before main lifts, and with
  * [raise] groups below their range gain one on the exercise with the fewest sets, if its session has room.
  * Exercises stay within MIN_SETS..MAX_SETS.
  */
@@ -904,11 +958,14 @@ private fun balanceVolume(
     focus: List<String>,
     reduce: List<String>,
     minutes: Int,
+    compoundFloor: (ProgramDay) -> Int,
     raise: Boolean,
 ): List<ProgramDay> {
     val budget = sessionBudget(experience, focus.size, perWeek)
     fun tooLong(day: ProgramDay) = day.exercises.sumOf { it.sets } > budget ||
-        (minutes > 0 && day.exercises.sumOf { it.seconds() } > minutes * 60)
+        (minutes > 0 && sessionSeconds(day.exercises) > minutes * 60)
+    /** Whether time may take a set off [pe] in [day]: compounds stop at the day's [compoundFloor]. */
+    fun cuttable(day: ProgramDay, pe: ProgramExercise) = pe.sets > (if (pe.role == Role.ACCESSORY) MIN_SETS else compoundFloor(day))
     var d = days
     repeat(160) {
         val weekly = weeklyGroupSets(d, perWeek)
@@ -918,24 +975,29 @@ private fun balanceVolume(
         fun roomFor(pe: ProgramExercise): Boolean {
             val day = dayOf.getValue(pe.id)
             return day.exercises.sumOf { it.sets } < budget &&
-                (minutes <= 0 || day.exercises.sumOf { it.seconds() } + SET_SECONDS + pe.restSeconds <= minutes * 60)
+                (minutes <= 0 || sessionSeconds(day.exercises.map { if (it.id == pe.id) it.copy(sets = it.sets + 1) else it }) <= minutes * 60)
         }
         fun direct(g: String) = all.filter { patternGroup(it.pattern) == g }
         fun range(g: String) = weeklySetRange(goal, experience, g in focus, g, g in reduce)
         fun surplus(pe: ProgramExercise) = patternGroup(pe.pattern)?.let { g -> (weekly[g] ?: 0.0) - range(g).start } ?: 0.0
-        val busy = d.firstOrNull { day -> tooLong(day) && day.exercises.any { it.sets > MIN_SETS } }
+        // Over the set budget, other compounds may go below the floor too; the floor only guards against time cuts.
+        fun busyCuttable(day: ProgramDay, pe: ProgramExercise) = cuttable(day, pe) ||
+            (day.exercises.sumOf { it.sets } > budget && pe.role == Role.SECONDARY && pe.sets > MIN_SETS)
+        val busy = d.firstOrNull { day -> tooLong(day) && day.exercises.any { busyCuttable(day, it) } }
+        // The floor only guards against cuts for time; volume above a group's range comes off as usual.
+        fun overCuttable(pe: ProgramExercise) = pe.sets > MIN_SETS
         val over = MuscleGroup.all.firstOrNull { g ->
-            (weekly[g] ?: 0.0) > range(g).endInclusive + EPS && direct(g).any { it.sets > MIN_SETS }
+            (weekly[g] ?: 0.0) > range(g).endInclusive + EPS && direct(g).any(::overCuttable)
         }
         // The group furthest below its range, relative to the range, gets the next set.
         val under = if (busy != null || over != null || !raise) null else MuscleGroup.all.filter { g ->
             (weekly[g] ?: 0.0) < range(g).start - EPS && direct(g).any { it.sets < MAX_SETS && roomFor(it) }
         }.maxByOrNull { g -> 1 - (weekly[g] ?: 0.0) / range(g).start }
         val (id, delta) = when {
-            busy != null -> busy.exercises.filter { it.sets > MIN_SETS }
+            busy != null -> busy.exercises.filter { busyCuttable(busy, it) }
                 .maxWith(compareBy({ surplus(it) }, { roleRank(it.role) })).id to -1
-            over != null -> direct(over).filter { it.sets > MIN_SETS }
-                .maxWith(compareBy({ it.sets }, { roleRank(it.role) })).id to -1
+            over != null -> direct(over).filter(::overCuttable)
+                .maxWith(compareBy({ roleRank(it.role) }, { it.sets })).id to -1
             under != null -> direct(under).filter { it.sets < MAX_SETS && roomFor(it) }
                 .minWith(compareBy({ it.sets }, { roleRank(it.role) })).id to 1
             else -> return d
@@ -1050,8 +1112,10 @@ private fun newProgramExercise(
  * one exercise in the rotation, coupled onto another day if need be, unless compound lifts for other
  * groups already cover them. Days with little else left disappear, and thin days are filled up.
  *
- * With [minutes] set, sessions are fitted to that time: shorter rests for sessions of 45 minutes or less,
- * fewer sets, and, if that isn't enough, fewer exercises, accessories and well-covered groups first.
+ * With [minutes] set, sessions are fitted to that time: fewer sets, and, if that isn't enough, fewer exercises
+ * from the best-covered groups, never the main lifts. Sessions of 45 minutes or less are run the
+ * time-efficient way: shorter rests, isolation exercises paired into supersets, and isolation exercises
+ * dropped before compound lifts go below 3 sets.
  */
 fun generateProgram(
     goal: String,
@@ -1116,7 +1180,12 @@ fun generateProgram(
         if (list.isEmpty()) null else plan to list
     }
 
-    fun days() = built.map { (plan, list) -> ProgramDay(name = plan.name, exercises = order(list)) }
+    val short = minutes in 1..SHORT_SESSION
+    // Days that ran out of isolation work to drop, whose compounds may go down to 2 sets.
+    val lowered = HashSet<String>()
+    fun days() = built.map { (plan, list) ->
+        ProgramDay(name = plan.name, exercises = order(list).let { if (short) pairIsolation(it) else it })
+    }
     // Reduced groups not already covered by other lifts get one exercise, on a day that normally trains them
     // if there is one, else on the day with the fewest exercises.
     for (g in MuscleGroup.all.filter { it in reduced }) {
@@ -1130,20 +1199,33 @@ fun generateProgram(
         val sets = current.flatMap { it.exercises }.associate { it.id to it.sets }
         return days().map { d -> d.copy(exercises = d.exercises.map { e -> sets[e.id]?.let { e.copy(sets = it, baseSets = it) } ?: e }) }
     }
-    fun balance(current: List<ProgramDay>) = balanceVolume(current, n, goal, experience, prioritised, reduce, minutes, raise = true)
+    fun balance(current: List<ProgramDay>) =
+        balanceVolume(
+            current, n, goal, experience, prioritised, reduce, minutes,
+            { day -> if (day.name in lowered) MIN_SETS else compoundFloor(minutes) }, raise = true,
+        )
 
     var days = balance(days())
     // Sessions still over the time limit with every exercise at its minimum lose exercises: never the main lifts
     // or focus groups while anything else is left, and first from the groups with the most weekly work to spare.
-    if (minutes > 0) repeat(40) {
-        val long = days.indexOfFirst { it.estimatedMinutes > minutes && it.exercises.size > MIN_EXERCISES }
+    // Short sessions drop isolation exercises first; only when none are left do compounds go down to 2 sets.
+    if (minutes > 0) repeat(60) {
+        val long = days.indexOfFirst {
+            it.estimatedMinutes > minutes && (it.exercises.size > MIN_EXERCISES || (short && it.name !in lowered))
+        }
         if (long < 0) return@repeat
+        val list = built[long].second
+        if (short && days[long].name !in lowered && (list.none { it.role == Role.ACCESSORY } || list.size <= MIN_EXERCISES)) {
+            lowered.add(days[long].name)
+            days = balance(rebuilt(days))
+            return@repeat
+        }
         val weekly = weeklyGroupSets(days, n)
         fun spare(pe: ProgramExercise) = patternGroup(pe.pattern)?.let { g ->
             (weekly[g] ?: 0.0) - weeklySetRange(goal, experience, g in prioritised, g, g in reduced).start
         } ?: 0.0
-        val list = built[long].second
-        val drop = list.filter { it.role != Role.PRIMARY }.ifEmpty { list }
+        val pool = if (short) list.filter { it.role == Role.ACCESSORY } else list.filter { it.role != Role.PRIMARY }
+        val drop = pool.ifEmpty { list }
             .maxWith(compareBy({ if (patternGroup(it.pattern) in prioritised) 0 else 1 }, { spare(it) }, { roleRank(it.role) }))
         list.remove(drop)
         days = balance(rebuilt(days))
@@ -1162,7 +1244,7 @@ fun generateProgram(
         val target = built.withIndex().filter { (i, pair) ->
             val (plan, list) = pair
             short in plan.groups && list.size < max && list.sumOf { setsOf[it.id] ?: it.sets } + MIN_SETS <= budget &&
-                (minutes <= 0 || days[i].estimatedMinutes + 5 <= minutes)
+                (minutes <= 0 || days[i].estimatedMinutes + 5 <= minutes) && days[i].name !in lowered
         }.minByOrNull { it.value.second.size }?.value ?: return@repeat
         val added = make(target.first, target.second, groupSlots[short].orEmpty()) ?: return@repeat
         target.second.add(added)

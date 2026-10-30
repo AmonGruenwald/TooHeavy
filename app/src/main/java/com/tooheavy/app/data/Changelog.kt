@@ -12,6 +12,16 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.7.3", "2026-10-30",
+            listOf(
+                "Workouts of 45 minutes or less are built the time-efficient way: isolation exercises are dropped " +
+                    "before your main lifts go below 3 sets, and the remaining isolation exercises are paired into " +
+                    "supersets (for example curls with lateral raises) that share one rest.",
+                "Supersets from the program show on the program page and carry into the workout. To get them, " +
+                    "create your program again with a time of 30 or 45 minutes.",
+            ),
+        ),
+        ChangelogEntry(
             "1.7.2", "2026-10-30",
             listOf(
                 "Program setup asks how long a workout may take (30 to 90 minutes, or no limit). Sessions are fitted to " +
