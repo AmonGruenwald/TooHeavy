@@ -66,6 +66,7 @@ import com.tooheavy.app.data.mesoWeek
 import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.sessionsPerWeek
 import com.tooheavy.app.data.weeklyGroupSets
+import com.tooheavy.app.data.estimatedMinutes
 import com.tooheavy.app.ui.common.formatSets
 import com.tooheavy.app.data.trainingWeeks
 import com.tooheavy.app.data.mesocycle
@@ -282,6 +283,9 @@ private fun StatusCard(program: Program) {
             program.focus.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Focus: ") { MuscleGroup.label(it) },
             program.reduce.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Reduced: ") { MuscleGroup.label(it) },
             "${program.sessionsPerWeek} sessions a week".takeIf { program.sessionsPerWeek != program.days.size },
+            program.days.maxOfOrNull { it.estimatedMinutes }?.let { m ->
+                "up to about $m min per workout" + if (program.minutes > 0) " (limit ${program.minutes})" else ""
+            },
         )
         if (details.isNotEmpty()) {
             Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

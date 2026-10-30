@@ -127,7 +127,7 @@ fun HevyImportScreen(nav: NavController) {
         containerColor = Color.Transparent,
         topBar = {
             AppTopBar(
-                title = { Text("Import from Hevy") },
+                title = { Text("Import history") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

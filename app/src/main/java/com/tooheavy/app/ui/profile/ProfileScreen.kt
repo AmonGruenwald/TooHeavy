@@ -281,10 +281,10 @@ fun ProfileScreen(nav: NavController) {
 
             ProfSection("Your data") {
                 Text(
-                    "Bring your workout history over from Hevy: export your workouts there as a CSV file and import it here.",
+                    "Bring your past workouts over from Hevy: export them there as a CSV file and import it here.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = { nav.navigate(Routes.IMPORT_HEVY) }) { Text("Import from Hevy") }
+                TextButton(onClick = { nav.navigate(Routes.IMPORT_HEVY) }) { Text("Import history") }
             }
 
             ProfSection("About") {

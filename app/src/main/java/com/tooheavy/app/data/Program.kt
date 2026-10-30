@@ -197,6 +197,8 @@ data class Program(
     val mesoIndex: Int = 0,
     /** Training weeks of the current block when fatigue brought the deload forward, else 0. */
     val blockWeeks: Int = 0,
+    /** Minutes a session should take at most; 0 for no limit. */
+    val minutes: Int = 0,
 )
 
 /** What a program workout asked for on one exercise; kept on WorkoutExercise.target. */
@@ -408,7 +410,7 @@ private fun Program.nextBlock(exercise: (String) -> Exercise?): Pair<Program, Li
         })
     }
     val p = copy(
-        days = balanceVolume(reviewed, sessionsPerWeek, goal, experience, focus, reduce, raise = false),
+        days = balanceVolume(reviewed, sessionsPerWeek, goal, experience, focus, reduce, minutes, raise = false),
         mesoWeeks = weeks, mesoStart = sessionsCompleted, mesoIndex = mesoIndex + 1, blockWeeks = 0,
     )
     return p to notes
@@ -831,6 +833,27 @@ private fun sessionBudget(experience: String, focusGroups: Int, perWeek: Int) = 
     else -> 20
 } + min(6, 2 * focusGroups) + (if (perWeek <= 3) 4 else 0)
 
+/** Seconds a working set takes before its rest starts, loading the bar included. */
+private const val SET_SECONDS = 50
+
+/** Setting up, adjusting a machine or walking to the next station. */
+private const val CHANGEOVER_SECONDS = 90
+
+/** Sessions never drop below this many exercises to fit a time limit. */
+private const val MIN_EXERCISES = 3
+
+/** Warm-up time before an exercise: three ramp-up sets before a main lift, one before other compounds. */
+private fun warmupSeconds(pe: ProgramExercise) = when (pe.role) {
+    Role.PRIMARY -> 240
+    Role.SECONDARY -> 90
+    else -> 0
+}
+
+private fun ProgramExercise.seconds() = sets * (SET_SECONDS + restSeconds) - restSeconds + warmupSeconds(this) + CHANGEOVER_SECONDS
+
+/** About how long the session takes: every working set and its rest, warm-ups, and moving between exercises. */
+val ProgramDay.estimatedMinutes: Int get() = (exercises.sumOf { it.seconds() } / 60.0).roundToInt()
+
 /** Weekly sets that maintain a muscle group: about a third of the usual volume. */
 val MAINTENANCE = 3.0..6.0
 
@@ -868,9 +891,10 @@ val Program.weeklyGroupSets: Map<String, Double> get() = weeklyGroupSets(days, s
 
 /**
  * Moves each group's weekly sets into its [weeklySetRange] one set at a time while every session stays
- * within its set budget: sessions over budget lose a set from the group with the most to spare, groups
- * above their range lose a set from their biggest accessory, and with [raise] groups below their range gain
- * one on the exercise with the fewest sets, if its session has room. Exercises stay within MIN_SETS..MAX_SETS.
+ * within its set budget and, when [minutes] is set, its time limit: sessions over budget lose a set from the
+ * group with the most to spare, groups above their range lose a set from their biggest accessory, and with
+ * [raise] groups below their range gain one on the exercise with the fewest sets, if its session has room.
+ * Exercises stay within MIN_SETS..MAX_SETS.
  */
 private fun balanceVolume(
     days: List<ProgramDay>,
@@ -879,31 +903,40 @@ private fun balanceVolume(
     experience: String,
     focus: List<String>,
     reduce: List<String>,
+    minutes: Int,
     raise: Boolean,
 ): List<ProgramDay> {
     val budget = sessionBudget(experience, focus.size, perWeek)
+    fun tooLong(day: ProgramDay) = day.exercises.sumOf { it.sets } > budget ||
+        (minutes > 0 && day.exercises.sumOf { it.seconds() } > minutes * 60)
     var d = days
-    repeat(120) {
+    repeat(160) {
         val weekly = weeklyGroupSets(d, perWeek)
         val all = d.flatMap { it.exercises }
-        val dayOf = d.flatMap { day -> day.exercises.map { it.id to day.exercises.sumOf { e -> e.sets } } }.toMap()
+        val dayOf = d.flatMap { day -> day.exercises.map { it.id to day } }.toMap()
+        /** Whether one more set of [pe] still fits its session. */
+        fun roomFor(pe: ProgramExercise): Boolean {
+            val day = dayOf.getValue(pe.id)
+            return day.exercises.sumOf { it.sets } < budget &&
+                (minutes <= 0 || day.exercises.sumOf { it.seconds() } + SET_SECONDS + pe.restSeconds <= minutes * 60)
+        }
         fun direct(g: String) = all.filter { patternGroup(it.pattern) == g }
         fun range(g: String) = weeklySetRange(goal, experience, g in focus, g, g in reduce)
         fun surplus(pe: ProgramExercise) = patternGroup(pe.pattern)?.let { g -> (weekly[g] ?: 0.0) - range(g).start } ?: 0.0
-        val busy = d.firstOrNull { day -> day.exercises.sumOf { it.sets } > budget && day.exercises.any { it.sets > MIN_SETS } }
+        val busy = d.firstOrNull { day -> tooLong(day) && day.exercises.any { it.sets > MIN_SETS } }
         val over = MuscleGroup.all.firstOrNull { g ->
             (weekly[g] ?: 0.0) > range(g).endInclusive + EPS && direct(g).any { it.sets > MIN_SETS }
         }
         // The group furthest below its range, relative to the range, gets the next set.
         val under = if (busy != null || over != null || !raise) null else MuscleGroup.all.filter { g ->
-            (weekly[g] ?: 0.0) < range(g).start - EPS && direct(g).any { it.sets < MAX_SETS && dayOf.getValue(it.id) < budget }
+            (weekly[g] ?: 0.0) < range(g).start - EPS && direct(g).any { it.sets < MAX_SETS && roomFor(it) }
         }.maxByOrNull { g -> 1 - (weekly[g] ?: 0.0) / range(g).start }
         val (id, delta) = when {
             busy != null -> busy.exercises.filter { it.sets > MIN_SETS }
                 .maxWith(compareBy({ surplus(it) }, { roleRank(it.role) })).id to -1
             over != null -> direct(over).filter { it.sets > MIN_SETS }
                 .maxWith(compareBy({ it.sets }, { roleRank(it.role) })).id to -1
-            under != null -> direct(under).filter { it.sets < MAX_SETS && dayOf.getValue(it.id) < budget }
+            under != null -> direct(under).filter { it.sets < MAX_SETS && roomFor(it) }
                 .minWith(compareBy({ it.sets }, { roleRank(it.role) })).id to 1
             else -> return d
         }
@@ -947,10 +980,22 @@ private fun maxExercises(experience: String) = when (experience) {
     else -> 6
 }
 
-private fun restFor(role: String) = when (role) {
-    Role.PRIMARY -> 180
-    Role.SECONDARY -> 120
-    else -> 90
+/**
+ * Rest between sets: 2-3 minutes for compound lifts and 90 s for isolation work. Sessions of 45 minutes or
+ * less rest a little shorter, the usual trade for time-efficient training (Iversen 2021): 150 s, 90 s, 60 s.
+ */
+private fun restFor(role: String, minutes: Int) = if (minutes in 1..45) {
+    when (role) {
+        Role.PRIMARY -> 150
+        Role.SECONDARY -> 90
+        else -> 60
+    }
+} else {
+    when (role) {
+        Role.PRIMARY -> 180
+        Role.SECONDARY -> 120
+        else -> 90
+    }
 }
 
 /** RIR the starting weight is estimated at: a little conservative. */
@@ -981,6 +1026,7 @@ private fun newProgramExercise(
     unit: String,
     exercise: (String) -> Exercise?,
     best1RM: (String) -> Double?,
+    minutes: Int,
 ): ProgramExercise {
     val bodyweight = c.gear == Gear.BODYWEIGHT
     val range = repRange(goal, role, bodyweight)
@@ -990,7 +1036,7 @@ private fun newProgramExercise(
     return ProgramExercise(
         exerciseId = c.id, pattern = pattern, role = role, sets = sets, baseSets = sets,
         repMin = range.first, repMax = range.last, targetReps = range.first, weight = weight,
-        restSeconds = restFor(role), note = if (weight != null) "Starting weight estimated from your history" else "",
+        restSeconds = restFor(role, minutes), note = if (weight != null) "Starting weight estimated from your history" else "",
     )
 }
 
@@ -1003,6 +1049,9 @@ private fun newProgramExercise(
  * more weekly sets. Groups in [reduce] are kept at maintenance volume: their slots are dropped and they get
  * one exercise in the rotation, coupled onto another day if need be, unless compound lifts for other
  * groups already cover them. Days with little else left disappear, and thin days are filled up.
+ *
+ * With [minutes] set, sessions are fitted to that time: shorter rests for sessions of 45 minutes or less,
+ * fewer sets, and, if that isn't enough, fewer exercises, accessories and well-covered groups first.
  */
 fun generateProgram(
     goal: String,
@@ -1014,6 +1063,7 @@ fun generateProgram(
     split: String = Split.AUTO,
     focus: List<String> = emptyList(),
     reduce: List<String> = emptyList(),
+    minutes: Int = 0,
     best1RM: (String) -> Double? = { null },
 ): Program {
     val n = daysPerWeek.coerceIn(2, 6)
@@ -1033,7 +1083,7 @@ fun generateProgram(
         val used = have.map { it.exerciseId }.toSet()
         return slots.firstNotNullOfOrNull { slot ->
             pick(slot.pattern, slot.variant + plan.variantOffset, gear, used, experience, exercise)?.let { c ->
-                newProgramExercise(c, slot.pattern, slot.role, goal, experience, unit, exercise, best1RM)
+                newProgramExercise(c, slot.pattern, slot.role, goal, experience, unit, exercise, best1RM, minutes)
             }
         }
     }
@@ -1075,7 +1125,29 @@ fun generateProgram(
         make(target.first, target.second, maintenanceSlots[g].orEmpty())?.let(target.second::add)
     }
 
-    var days = balanceVolume(days(), n, goal, experience, prioritised, reduce, raise = true)
+    /** The days as built, keeping the sets balancing gave each exercise so far. */
+    fun rebuilt(current: List<ProgramDay>): List<ProgramDay> {
+        val sets = current.flatMap { it.exercises }.associate { it.id to it.sets }
+        return days().map { d -> d.copy(exercises = d.exercises.map { e -> sets[e.id]?.let { e.copy(sets = it, baseSets = it) } ?: e }) }
+    }
+    fun balance(current: List<ProgramDay>) = balanceVolume(current, n, goal, experience, prioritised, reduce, minutes, raise = true)
+
+    var days = balance(days())
+    // Sessions still over the time limit with every exercise at its minimum lose exercises: never the main lifts
+    // or focus groups while anything else is left, and first from the groups with the most weekly work to spare.
+    if (minutes > 0) repeat(40) {
+        val long = days.indexOfFirst { it.estimatedMinutes > minutes && it.exercises.size > MIN_EXERCISES }
+        if (long < 0) return@repeat
+        val weekly = weeklyGroupSets(days, n)
+        fun spare(pe: ProgramExercise) = patternGroup(pe.pattern)?.let { g ->
+            (weekly[g] ?: 0.0) - weeklySetRange(goal, experience, g in prioritised, g, g in reduced).start
+        } ?: 0.0
+        val list = built[long].second
+        val drop = list.filter { it.role != Role.PRIMARY }.ifEmpty { list }
+            .maxWith(compareBy({ if (patternGroup(it.pattern) in prioritised) 0 else 1 }, { spare(it) }, { roleRank(it.role) }))
+        list.remove(drop)
+        days = balance(rebuilt(days))
+    }
     // A group still well short of its weekly range with every exercise at the set cap gets one more exercise
     // on the least busy day that trains it and has room in its set budget, then the volume is balanced again.
     val budget = sessionBudget(experience, prioritised.size, n)
@@ -1087,16 +1159,14 @@ fun generateProgram(
             (weekly[g] ?: 0.0) < weeklySetRange(goal, experience, g in prioritised, g).start - 2 &&
                 all.filter { patternGroup(it.pattern) == g }.all { it.sets >= MAX_SETS }
         } ?: return@repeat
-        val target = built.filter { (plan, list) ->
-            short in plan.groups && list.size < max && list.sumOf { setsOf[it.id] ?: it.sets } + MIN_SETS <= budget
-        }.minByOrNull { it.second.size } ?: return@repeat
+        val target = built.withIndex().filter { (i, pair) ->
+            val (plan, list) = pair
+            short in plan.groups && list.size < max && list.sumOf { setsOf[it.id] ?: it.sets } + MIN_SETS <= budget &&
+                (minutes <= 0 || days[i].estimatedMinutes + 5 <= minutes)
+        }.minByOrNull { it.value.second.size }?.value ?: return@repeat
         val added = make(target.first, target.second, groupSlots[short].orEmpty()) ?: return@repeat
         target.second.add(added)
-        val sets = days.flatMap { it.exercises }.associate { it.id to it.sets }
-        days = balanceVolume(
-            days().map { d -> d.copy(exercises = d.exercises.map { e -> sets[e.id]?.let { e.copy(sets = it, baseSets = it) } ?: e }) },
-            n, goal, experience, prioritised, reduce, raise = true,
-        )
+        days = balance(rebuilt(days))
     }
     return Program(
         name = "${Split.label(resolved)} · $n days",
@@ -1108,6 +1178,7 @@ fun generateProgram(
         focus = prioritised,
         reduce = reduce,
         perWeek = n,
+        minutes = minutes,
     )
 }
 

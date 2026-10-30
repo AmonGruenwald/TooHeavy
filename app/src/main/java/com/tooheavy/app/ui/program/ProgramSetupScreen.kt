@@ -47,6 +47,7 @@ import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.Split
 import com.tooheavy.app.data.TrainingGoal
+import com.tooheavy.app.data.estimatedMinutes
 import com.tooheavy.app.data.generateProgram
 import com.tooheavy.app.data.sessionsPerWeek
 import com.tooheavy.app.data.weeklyGroupSets
@@ -74,11 +75,12 @@ fun ProgramSetupScreen(nav: NavController) {
     var split by remember { mutableStateOf(existing?.split ?: Split.AUTO) }
     var focus by remember { mutableStateOf(existing?.focus.orEmpty()) }
     var reduce by remember { mutableStateOf(existing?.reduce.orEmpty()) }
+    var minutes by remember { mutableIntStateOf(existing?.minutes ?: 60) }
     var confirmReplace by remember { mutableStateOf(false) }
 
     val unit = Repo.settings.unit
-    val preview = remember(goal, level, days, equipment, split, focus, reduce, unit) {
-        generateProgram(goal, level, days, equipment, unit, Repo::exercise, split, focus, reduce, Repo::best1RM)
+    val preview = remember(goal, level, days, equipment, split, focus, reduce, minutes, unit) {
+        generateProgram(goal, level, days, equipment, unit, Repo::exercise, split, focus, reduce, minutes, Repo::best1RM)
     }
 
     fun create() {
@@ -137,6 +139,29 @@ fun ProgramSetupScreen(nav: NavController) {
                         FilterChip(selected = days == n, onClick = { days = n }, label = { Text("$n") })
                     }
                 }
+            }
+
+            ProgramCard {
+                Text("Time per workout", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(30, 45, 60, 75, 90, 0).forEach { m ->
+                        FilterChip(
+                            selected = minutes == m,
+                            onClick = { minutes = m },
+                            label = { Text(if (m == 0) "No limit" else "$m min") },
+                        )
+                    }
+                }
+                Text(
+                    when {
+                        minutes == 0 -> "Sessions are sized by sets alone, which can take well over an hour."
+                        minutes <= 45 -> "Short sessions: slightly shorter rests, fewer sets and fewer exercises, main lifts kept. " +
+                            "Weekly volume may land below the usual range; more days a week make up for it."
+                        else -> "Sets and exercises are trimmed until each session fits, including warm-ups and rests."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             ProgramCard {
@@ -261,7 +286,7 @@ private fun PreviewCard(p: com.tooheavy.app.data.Program, goal: String, level: S
         p.days.forEach { d ->
             Column {
                 Text(
-                    "${d.name} · ${d.exercises.size} exercises · ${d.exercises.sumOf { it.sets }} sets",
+                    "${d.name} · ${d.exercises.size} exercises · ${d.exercises.sumOf { it.sets }} sets · about ${d.estimatedMinutes} min",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -332,6 +357,9 @@ private fun HowItWorksCard() {
             "Progression" to "Reps climb through the range at the same weight; once every set reaches the top, the " +
                 "weight goes up. Three stalled sessions bring the weight down about 10 % to build back up.",
             "Recovery" to "Every block ends in a deload week. If many lifts stall at once, the deload comes early.",
+            "Time" to "Session length counts every set with its rest, warm-ups and moving between exercises. To fit your " +
+                "time, sets come off first, then whole exercises from the muscles with the most work to spare, never " +
+                "the main lifts. Short sessions rest a little less between sets.",
             "Reduced muscles" to "About a third of the usual volume, even once a week, is enough to keep muscle and " +
                 "strength, so reduced groups get 3 to 6 sets a week.",
             "Adapting to you" to "After each block, exercises that earned extra sets keep one and exercises that " +
@@ -346,7 +374,8 @@ private fun HowItWorksCard() {
         Text(
             "Based on meta-analyses and reviews by Schoenfeld et al. (volume, frequency, loading, rest), Pelland et al. " +
                 "2024 (volume dose-response), Refalo et al. 2023 (proximity to failure), Helms et al. 2016 (RIR) and " +
-                "Bell et al. 2023 (deloading), Bickel et al. 2011 and Spiering et al. 2021 (maintenance).",
+                "Bell et al. 2023 (deloading), Bickel et al. 2011 and Spiering et al. 2021 (maintenance), " +
+                "Iversen et al. 2021 (time-efficient training).",
             style = MaterialTheme.typography.labelSmall,
             color = TextMuted,
         )

@@ -181,6 +181,33 @@ class TrainingTest {
     }
 
     @Test
+    fun sessionsFitTheTimeLimit() {
+        for (level in Experience.all) for (n in 2..6) {
+            val free = generateProgram(TrainingGoal.HYPERTROPHY, level, n, Equipment.GYM, "kg", lookup)
+            var lastWeekly = Double.MAX_VALUE
+            for (minutes in listOf(90, 60, 45, 30)) {
+                val p = generateProgram(TrainingGoal.HYPERTROPHY, level, n, Equipment.GYM, "kg", lookup, minutes = minutes)
+                for (d in p.days) {
+                    // Three exercises at their minimum may still run over a very short limit; nothing else may.
+                    assertTrue(
+                        "$level/$n/$minutes ${d.name}: ${d.estimatedMinutes} min, ${d.exercises.size} exercises",
+                        d.estimatedMinutes <= minutes || (d.exercises.size == 3 && d.exercises.all { it.sets == 2 }),
+                    )
+                }
+                val weekly = p.weeklyGroupSets.values.sum()
+                assertTrue("$level/$n/$minutes: $weekly sets", weekly <= lastWeekly + 0.01)
+                lastWeekly = weekly
+            }
+            assertTrue(free.days.maxOf { it.estimatedMinutes } >= generateProgram(
+                TrainingGoal.HYPERTROPHY, level, n, Equipment.GYM, "kg", lookup, minutes = 45,
+            ).days.maxOf { it.estimatedMinutes })
+        }
+        // Short sessions rest a little less.
+        val short = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 3, Equipment.GYM, "kg", lookup, minutes = 30)
+        assertEquals(150, short.days.flatMap { it.exercises }.first { it.role == Role.PRIMARY }.restSeconds)
+    }
+
+    @Test
     fun manyFocusGroups() {
         val focus = listOf(MuscleGroup.CHEST, MuscleGroup.SHOULDERS, MuscleGroup.BICEPS, MuscleGroup.GLUTES)
         val plain = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup)

@@ -12,6 +12,17 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.7.2", "2026-10-30",
+            listOf(
+                "Program setup asks how long a workout may take (30 to 90 minutes, or no limit). Sessions are fitted to " +
+                    "it, counting sets, rests, warm-ups and moving between exercises: sets come off first, then " +
+                    "exercises from the best-covered muscles, never the main lifts. Short sessions rest a little less.",
+                "The preview and the program page show about how long each workout takes. To shorten your current " +
+                    "program, open it and choose New program from the menu.",
+                "\"Import from Hevy\" is now \"Import history\".",
+            ),
+        ),
+        ChangelogEntry(
             "1.7.1", "2026-10-30",
             listOf(
                 "\"Leave out\" is now \"Reduce\": reduced muscle groups are kept at maintenance with 3 to 6 sets a " +
