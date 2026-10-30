@@ -40,8 +40,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -66,6 +65,7 @@ import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -119,9 +119,9 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
     val recent = remember(entryCount, loaded, customCount) { NutritionRepo.recentFoods() }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = {
                     Column {
                         Text("Add to " + Meal.label(meal), fontWeight = FontWeight.Bold, maxLines = 1)
@@ -142,7 +142,6 @@ fun FoodSearchScreen(nav: NavController, meal: String) {
                         Icon(Icons.Filled.QrCodeScanner, contentDescription = "Scan barcode")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
     ) { pad ->

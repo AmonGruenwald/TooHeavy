@@ -30,8 +30,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,8 +41,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,7 +61,9 @@ import com.tooheavy.app.data.RoutineExercise
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
+import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.theme.Danger
 
 private val REST_OPTIONS = listOf(0, 30, 60, 90, 120, 180)
@@ -132,9 +131,9 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
     val canSave = draft != null && draft.name.isNotBlank() && draft.exercises.isNotEmpty()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text(if (routineId == "new") "New Routine" else "Edit Routine", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { cancel() }) {
@@ -146,7 +145,6 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
                         Text("Save", fontWeight = FontWeight.SemiBold)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
     ) { pad ->
@@ -216,10 +214,8 @@ private fun RoutineExerciseCard(nav: NavController, index: Int, count: Int, re: 
     var repsText by remember { mutableStateOf(re.reps?.toString() ?: "") }
     var weightText by remember { mutableStateOf(formatWeight(re.weight)) }
 
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

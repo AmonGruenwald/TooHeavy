@@ -35,7 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,14 +53,16 @@ import com.tooheavy.app.data.Exercise
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
+import com.tooheavy.app.ui.common.ScreenHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseListScreen(nav: NavController) {
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TopAppBar(title = { Text("Exercises", fontWeight = FontWeight.Bold) }) },
+        containerColor = Color.Transparent,
+        topBar = { ScreenHeader("Library", overline = "${Repo.exercises.size} exercises") },
     ) { pad ->
         ExerciseBrowser(
             selectedIds = null,
@@ -79,9 +80,9 @@ fun ExercisePickerScreen(nav: NavController, target: String) {
     val n = selected.size
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text("Add Exercises", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {

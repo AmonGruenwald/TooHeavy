@@ -1,7 +1,8 @@
 package com.tooheavy.app.ui.nutrition
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,21 +27,18 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,11 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,16 +63,28 @@ import com.tooheavy.app.data.shiftDate
 import com.tooheavy.app.data.today
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.BarChart
-import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.common.BigNumber
+import com.tooheavy.app.ui.common.ChartCard
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.Meter
+import com.tooheavy.app.ui.common.ProgressRing
+import com.tooheavy.app.ui.common.ScreenHeader
+import com.tooheavy.app.ui.common.StackedBarChart
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.Ember
+import com.tooheavy.app.ui.theme.Hairline
+import com.tooheavy.app.ui.theme.StatNumber
+import com.tooheavy.app.ui.theme.Surface1
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val ProteinColor = Color(0xFF4FC3F7)
-private val CarbsColor = Color(0xFFFFB74D)
-private val FatColor = Color(0xFFE57373)
+private val ProteinColor = ChartColors.Protein
+private val CarbsColor = ChartColors.Carbs
+private val FatColor = ChartColors.Fat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,17 +94,13 @@ fun NutritionScreen(nav: NavController) {
     val totals = NutritionRepo.totals(date)
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Food", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { nav.navigate(Routes.NUTRITION_GOALS) }) {
-                        Icon(Icons.Filled.Flag, contentDescription = "Goals")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
+            ScreenHeader("Food", overline = "${kcalText(totals.kcal)} kcal eaten") {
+                IconButton(onClick = { nav.navigate(Routes.NUTRITION_GOALS) }) {
+                    Icon(Icons.Filled.Flag, contentDescription = "Goals")
+                }
+            }
         },
     ) { pad ->
         LazyColumn(
@@ -128,7 +130,10 @@ fun NutritionScreen(nav: NavController) {
                 MealCard(nav, date, meal)
             }
             item(key = "week") {
-                WeekCard(date)
+                WeekCard(date, goals.kcal)
+            }
+            item(key = "macro_week") {
+                MacroWeekCard(date)
             }
         }
     }
@@ -137,7 +142,11 @@ fun NutritionScreen(nav: NavController) {
 @Composable
 private fun DateSwitcher(date: String) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Surface1)
+            .border(1.dp, Hairline, RoundedCornerShape(18.dp)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -173,10 +182,8 @@ private fun SummaryCard(
 ) {
     val remaining = goalKcal - consumed
     val over = remaining < 0
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -204,44 +211,9 @@ private fun SummaryCard(
 @Composable
 private fun CalorieRing(consumed: Double, goal: Int, remaining: Double) {
     val over = remaining < 0
-    val progress = if (goal > 0) (consumed / goal).toFloat().coerceIn(0f, 1f) else 0f
-    val ringColor = if (over) Danger else Accent
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
-    Box(Modifier.size(132.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val strokeW = 12.dp.toPx()
-            val inset = strokeW / 2
-            val arcSize = Size(size.width - strokeW, size.height - strokeW)
-            val topLeft = Offset(inset, inset)
-            drawArc(
-                color = track,
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokeW),
-            )
-            if (progress > 0f) {
-                drawArc(
-                    color = ringColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f * progress,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = strokeW, cap = StrokeCap.Round),
-                )
-            }
-        }
+    ProgressRing(if (goal > 0) (consumed / goal).toFloat() else 0f, size = 136.dp, thickness = 13.dp, over = over) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                kcalText(abs(remaining)),
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (over) Danger else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-            )
+            BigNumber(kcalText(abs(remaining)), size = 30, color = if (over) Danger else MaterialTheme.colorScheme.onSurface)
             Text(
                 if (over) "kcal over" else "kcal left",
                 style = MaterialTheme.typography.labelMedium,
@@ -260,15 +232,17 @@ private fun StatLine(label: String, value: String, valueColor: Color) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = valueColor)
+        Text(value, style = StatNumber.copy(fontSize = 20.sp), color = valueColor)
     }
 }
 
 @Composable
 private fun MacroBar(label: String, value: Double, goal: Int, color: Color) {
     Column {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Text(
                 "${formatNutrient(value)} / $goal g",
                 style = MaterialTheme.typography.bodySmall,
@@ -276,14 +250,7 @@ private fun MacroBar(label: String, value: Double, goal: Int, color: Color) {
             )
         }
         Spacer(Modifier.height(4.dp))
-        LinearProgressIndicator(
-            progress = { if (goal > 0) (value / goal).toFloat().coerceIn(0f, 1f) else 0f },
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = color,
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            gapSize = 0.dp,
-            drawStopIndicator = {},
-        )
+        Meter(if (goal > 0) (value / goal).toFloat() else 0f, color)
     }
 }
 
@@ -294,10 +261,8 @@ private fun MealCard(nav: NavController, date: String, meal: String) {
     val yesterdayHasEntries = entries.isEmpty() && NutritionRepo.entriesFor(yesterday, meal).isNotEmpty()
     val mealKcal = entries.sumOf { it.kcal }
 
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(Modifier.padding(vertical = 4.dp)) {
             Row(
@@ -306,8 +271,7 @@ private fun MealCard(nav: NavController, date: String, meal: String) {
             ) {
                 Text(
                     Meal.label(meal),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -316,7 +280,7 @@ private fun MealCard(nav: NavController, date: String, meal: String) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 IconButton(onClick = { nav.navigate(Routes.foodSearch(meal)) }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add food to ${Meal.label(meal)}", tint = Accent)
+                    Icon(Icons.Filled.Add, contentDescription = "Add food to ${Meal.label(meal)}", tint = AccentBright)
                 }
             }
             if (entries.isEmpty()) {
@@ -421,26 +385,40 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit, onEdit: () -> Unit, 
 }
 
 @Composable
-private fun WeekCard(date: String) {
+private fun WeekCard(date: String, goalKcal: Int) {
     val days = (6 downTo 0).map { shiftDate(date, -it) }
     val kcals = days.map { NutritionRepo.totals(it).kcal }
     val labels = days.map { weekdayInitial(it) }
     val logged = kcals.filter { it > 0.0 }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ChartCard(
+        "Last 7 days",
+        value = if (logged.isEmpty()) null else kcalText(logged.average()),
+        unit = if (logged.isEmpty()) null else "kcal / day avg",
+        caption = "${logged.size} of 7 days logged · goal ${kcalText(goalKcal.toDouble())}",
+        icon = Icons.Filled.LocalFireDepartment,
+        tint = Ember,
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Last 7 days", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            BarChart(values = kcals, labels = labels)
-            Text(
-                if (logged.isEmpty()) "No food logged in the last 7 days"
-                else "Avg ${kcalText(logged.average())} kcal/day · ${logged.size} of 7 days logged",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        BarChart(
+            values = kcals, labels = labels, goal = goalKcal.toDouble(),
+            highlight = days.indexOf(date),
+            tooltipLabels = days.map { friendlyDate(it) },
+        )
+    }
+}
+
+@Composable
+private fun MacroWeekCard(date: String) {
+    val days = (6 downTo 0).map { shiftDate(date, -it) }
+    val totals = days.map { NutritionRepo.totals(it) }
+    ChartCard("Macro split", caption = "Calories from protein, carbs and fat", icon = Icons.Filled.PieChart, tint = CarbsColor) {
+        StackedBarChart(
+            stacks = totals.map { listOf(it.protein * 4, it.carbs * 4, it.fat * 9) },
+            labels = days.map { weekdayInitial(it) },
+            colors = listOf(ProteinColor, CarbsColor, FatColor),
+            names = listOf("Protein", "Carbs", "Fat"),
+            goal = NutritionRepo.goals.kcal.toDouble(),
+            tooltipLabels = days.map { friendlyDate(it) },
+        )
     }
 }
 

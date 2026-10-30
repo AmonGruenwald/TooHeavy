@@ -24,20 +24,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -62,9 +65,21 @@ import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.titleCase
+import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.AreaChart
 import com.tooheavy.app.ui.common.AssetImage
+import com.tooheavy.app.ui.common.BarChart
+import com.tooheavy.app.ui.common.ChartCard
+import com.tooheavy.app.ui.common.ChartPoint
 import com.tooheavy.app.ui.common.ExerciseAnimation
-import com.tooheavy.app.ui.common.LineChart
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.SegmentedTabs
+import com.tooheavy.app.ui.common.StatTile
+import com.tooheavy.app.ui.common.compact
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.ChartColors
+import com.tooheavy.app.ui.theme.Ember
+import com.tooheavy.app.ui.theme.Success
 import com.tooheavy.app.ui.theme.Warmup
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -72,14 +87,14 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExerciseDetailScreen(nav: NavController, exerciseId: String) {
+fun ExerciseDetailScreen(nav: NavController, exerciseId: String, initialTab: Int = 0) {
     val exercise = Repo.exercise(exerciseId)
-    var tab by rememberSaveable { mutableStateOf(0) }
+    var tab by rememberSaveable { mutableStateOf(initialTab) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = {
                     Text(
                         exercise?.name ?: "Exercise",
@@ -102,11 +117,10 @@ fun ExerciseDetailScreen(nav: NavController, exerciseId: String) {
             }
         } else {
             Column(Modifier.padding(pad).fillMaxSize()) {
-                TabRow(selectedTabIndex = tab) {
-                    listOf("About", "History", "Charts").forEachIndexed { i, title ->
-                        Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
-                    }
-                }
+                SegmentedTabs(
+                    listOf("About", "History", "Charts"), tab, { tab = it },
+                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
                 when (tab) {
                     0 -> DetailAboutTab(exercise)
                     1 -> DetailHistoryTab(exercise.id)
@@ -248,9 +262,8 @@ private fun DetailHistoryTab(exerciseId: String) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(history) { (w, we) ->
-            Card(
+            GlassCard(
                 Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             ) {
                 Column(Modifier.padding(14.dp)) {
                     Text(
@@ -282,54 +295,83 @@ private fun DetailHistoryTab(exerciseId: String) {
 
 // ---------------------------------------------------------------- Charts / records
 
+private class Metric(val name: String, val unit: String?, val color: Color, val points: List<ChartPoint>, val format: (Double) -> String)
+
 @Composable
 private fun DetailChartsTab(exerciseId: String) {
     val history = Repo.exerciseHistory(exerciseId)
     val unit = Repo.settings.unit
-    val sets = history.flatMap { it.second.sets }
+    val sets = history.flatMap { it.second.sets }.filter { it.type != SetType.WARMUP }
 
     val heaviest = sets.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull()
     val best1rm = sets.mapNotNull { it.estimated1RM() }.maxOrNull()
     val bestVolume = sets.map { (it.weight ?: 0.0) * (it.reps ?: 0) }.filter { it > 0 }.maxOrNull()
     val mostReps = sets.mapNotNull { it.reps }.filter { it > 0 }.maxOrNull()
 
+    val fmt = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val chrono = history.sortedBy { it.first.startTime }
-    val oneRmSeries = chrono.mapNotNull { (_, we) -> we.sets.mapNotNull { it.estimated1RM() }.maxOrNull() }
-    val heaviestSeries = chrono.mapNotNull { (_, we) ->
-        we.sets.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull()
-    }
+    fun series(pick: (List<SetEntry>) -> Double?) = chrono.mapNotNull { (w, we) ->
+        pick(we.sets.filter { it.type != SetType.WARMUP })?.let { w.startTime to it }
+    }.mapIndexed { i, (t, v) -> ChartPoint(i.toFloat(), Math.round(v * 10) / 10.0, fmt.format(Date(t))) }
+    val one = { v: Double -> formatWeight(Math.round(v * 10) / 10.0) }
+    val metrics = listOf(
+        Metric("Est. 1RM", unit, ChartColors.series[0], series { s -> s.mapNotNull { it.estimated1RM() }.maxOrNull() }, one),
+        Metric("Heaviest", unit, ChartColors.series[1], series { s -> s.mapNotNull { it.weight }.filter { it > 0 }.maxOrNull() }, one),
+        Metric("Volume", unit, ChartColors.series[2], series { s -> s.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) }.takeIf { it > 0 } }, ::compact),
+        Metric("Reps", "reps", ChartColors.series[3], series { s -> s.sumOf { it.reps ?: 0 }.toDouble().takeIf { it > 0 } }, { "${it.toInt()}" }),
+    )
+    var selected by rememberSaveable { mutableStateOf(0) }
+    val metric = metrics[selected]
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Personal records", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Best e1RM", best1rm?.let { one(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.EmojiEvents, tint = Warmup)
+            StatTile("Heaviest", heaviest?.let { formatWeight(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.FitnessCenter, tint = Ember)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Best set", bestVolume?.let { compact(it) } ?: "–", Modifier.weight(1f), unit = unit, icon = Icons.Filled.BarChart, tint = Success)
+            StatTile("Most reps", mostReps?.toString() ?: "–", Modifier.weight(1f), icon = Icons.Filled.Repeat, tint = AccentBright)
+        }
+
+        val pts = metric.points
+        val change = if (pts.size > 1) pts.last().y - pts.first().y else null
+        ChartCard(
+            "Progress",
+            value = pts.lastOrNull()?.let { metric.format(it.y) } ?: "–",
+            unit = metric.unit,
+            caption = change?.let { (if (it >= 0) "+" else "") + metric.format(it) + " ${metric.unit.orEmpty()} since ${pts.first().label}" } ?: "Latest session",
+            icon = Icons.AutoMirrored.Filled.TrendingUp,
+            tint = metric.color,
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetailRecordRow("Heaviest weight", heaviest?.let { "${formatWeight(it)} $unit" })
-                DetailRecordRow("Best estimated 1RM", best1rm?.let { "${formatWeight(Math.round(it * 10) / 10.0)} $unit" })
-                DetailRecordRow("Best set volume", bestVolume?.let { "${formatWeight(Math.round(it * 10) / 10.0)} $unit" })
-                DetailRecordRow("Most reps", mostReps?.toString())
+            SegmentedTabs(metrics.map { it.name }, selected, { selected = it })
+            Spacer(Modifier.height(14.dp))
+            key(selected) {
+                AreaChart(pts, height = 190.dp, color = metric.color, valueFormat = metric.format, emptyText = "Log this exercise twice to see a trend")
             }
         }
 
-        Text("Estimated 1RM ($unit)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        ) {
-            LineChart(oneRmSeries, Modifier.padding(16.dp))
+        val recent = chrono.takeLast(10)
+        ChartCard("Volume per session", caption = "Weight × reps of working sets, last ${recent.size} sessions", icon = Icons.Filled.BarChart, tint = ChartColors.series[2]) {
+            BarChart(
+                recent.map { (_, we) -> we.sets.filter { it.type != SetType.WARMUP }.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) } },
+                recent.map { (w, _) -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(w.startTime)) },
+                height = 150.dp,
+                color = ChartColors.series[2],
+                tooltipLabels = recent.map { (w, _) -> fmt.format(Date(w.startTime)) },
+            )
         }
 
-        Text("Heaviest weight ($unit)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        ) {
-            LineChart(heaviestSeries, Modifier.padding(16.dp))
+        val buckets = listOf("1-5" to 1..5, "6-8" to 6..8, "9-12" to 9..12, "13-20" to 13..20, "20+" to 21..1000)
+        val counts = buckets.map { (_, r) -> sets.count { (it.reps ?: 0) in r }.toDouble() }
+        ChartCard("Rep ranges", caption = "How many working sets landed in each rep range", icon = Icons.Filled.Insights, tint = ChartColors.series[4]) {
+            BarChart(
+                counts, buckets.map { it.first }, height = 140.dp, color = ChartColors.series[4],
+                highlight = counts.indices.maxByOrNull { counts[it] }, valueFormat = { "${it.toInt()}" },
+                tooltipLabels = buckets.map { "${it.first} reps" },
+            )
         }
         Spacer(Modifier.height(8.dp))
     }

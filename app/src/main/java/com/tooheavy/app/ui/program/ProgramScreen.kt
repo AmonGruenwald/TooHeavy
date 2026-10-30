@@ -24,23 +24,18 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -76,9 +72,16 @@ import com.tooheavy.app.data.swapTo
 import com.tooheavy.app.data.targetRir
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
-import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.GradientButton
+import com.tooheavy.app.ui.common.Meter
+import com.tooheavy.app.ui.common.Pill
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.BrandColors
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.Surface3
 import com.tooheavy.app.ui.theme.Warmup
 
 /** "3 × 8 @ 60 kg", "3 × 8-12 reps" (load not known yet), "3 × 12" (bodyweight). */
@@ -119,9 +122,9 @@ fun ProgramScreen(nav: NavController) {
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text(program.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
@@ -151,7 +154,6 @@ fun ProgramScreen(nav: NavController) {
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
     ) { pad ->
@@ -257,14 +259,7 @@ private fun StatusCard(program: Program) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val weeks = program.mesoWeeks + 1
-        LinearProgressIndicator(
-            progress = { program.mesoWeek / weeks.toFloat() },
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = if (deload) Warmup else Accent,
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            gapSize = 0.dp,
-            drawStopIndicator = {},
-        )
+        Meter(program.mesoWeek / weeks.toFloat(), if (deload) Warmup else AccentBright)
         Text(
             if (deload) "Lighter week to shed fatigue: about half the sets at 90 % of the weight. Keep every set easy."
             else "Stop each set with about ${program.targetRir} ${if (program.targetRir == 1) "rep" else "reps"} left in the tank. " +
@@ -287,17 +282,8 @@ private fun DayCard(
 ) {
     ProgramCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(day.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (isNext) {
-                Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                    Text(
-                        "Next",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
-            }
+            Text(day.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (isNext) Pill("Up next", BrandColors[1])
         }
         Column {
             day.exercises.forEachIndexed { i, pe ->
@@ -305,8 +291,15 @@ private fun DayCard(
                 ExerciseRow(program, pe, unit, onOpenExercise, onSwap, onEdit)
             }
         }
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-            Text("Start ${day.name}", fontWeight = FontWeight.SemiBold)
+        if (isNext) {
+            GradientButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text("Start ${day.name}") }
+        } else {
+            Button(
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Surface3, contentColor = MaterialTheme.colorScheme.onSurface),
+            ) { Text("Start ${day.name}", fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -350,7 +343,7 @@ private fun ExerciseRow(
                     pe.note,
                     style = MaterialTheme.typography.bodySmall,
                     fontStyle = FontStyle.Italic,
-                    color = Accent,
+                    color = AccentBright,
                 )
             }
         }
@@ -491,10 +484,8 @@ private fun EditTargetDialog(pe: ProgramExercise, unit: String, onSave: (Program
 
 @Composable
 internal fun ProgramCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }

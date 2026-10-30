@@ -20,10 +20,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,7 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.SetEntry
@@ -61,10 +62,23 @@ import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatDuration
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
+import com.tooheavy.app.data.muscleSets
+import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.data.volume
+import com.tooheavy.app.data.volumeByExercise
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.CardLabel
+import com.tooheavy.app.ui.common.ChartCard
 import com.tooheavy.app.ui.common.ExerciseThumbnail
+import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.RankedBars
+import com.tooheavy.app.ui.common.compact
+import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
+import com.tooheavy.app.ui.theme.Overline
+import com.tooheavy.app.ui.theme.StatNumber
 import com.tooheavy.app.ui.theme.Warmup
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,9 +94,9 @@ fun WorkoutDetailScreen(nav: NavController, workoutId: String) {
     var confirmDelete by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text(w?.name ?: "Workout", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
@@ -141,6 +155,7 @@ fun WorkoutDetailScreen(nav: NavController, workoutId: String) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { DetailSummary(w, unit) }
+                item { DetailCharts(w, unit) }
                 items(w.exercises) { we -> DetailExerciseCard(nav, we, unit) }
             }
         }
@@ -168,12 +183,13 @@ fun WorkoutDetailScreen(nav: NavController, workoutId: String) {
 @Composable
 private fun DetailSummary(w: Workout, unit: String) {
     val dateFmt = remember { SimpleDateFormat("EEEE, MMM d, yyyy 'at' h:mm a", Locale.getDefault()) }
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(18.dp)) {
+            CardLabel("Workout summary", icon = Icons.Filled.EmojiEvents, tint = Color.White)
+            Spacer(Modifier.height(4.dp))
             Text(
                 dateFmt.format(Date(w.startTime)),
                 style = MaterialTheme.typography.bodyMedium,
@@ -197,8 +213,33 @@ private fun DetailSummary(w: Workout, unit: String) {
 @Composable
 private fun DetailStat(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(label.uppercase(), style = Overline, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = StatNumber.copy(fontSize = 22.sp), maxLines = 1)
+    }
+}
+
+@Composable
+private fun DetailCharts(w: Workout, unit: String) {
+    val byExercise = w.volumeByExercise().filter { it.second > 0 }
+    val muscles = muscleSets(listOf(w), 0L, Repo::exercise)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (byExercise.isNotEmpty()) {
+            ChartCard("Volume by exercise", icon = Icons.Filled.BarChart, tint = AccentBright) {
+                RankedBars(
+                    byExercise.map { (id, v) -> (Repo.exercise(id)?.name ?: "Exercise") to v },
+                    valueFormat = { "${compact(it)} $unit" },
+                )
+            }
+        }
+        if (muscles.isNotEmpty()) {
+            ChartCard("Muscles worked", icon = Icons.Filled.AccessibilityNew, tint = ChartColors.series[4]) {
+                RankedBars(
+                    muscles.map { it.first.titleCase() to it.second.toDouble() },
+                    color = ChartColors.series[4],
+                    valueFormat = { "${it.toInt()} sets" },
+                )
+            }
+        }
     }
 }
 
@@ -226,9 +267,7 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
         .maxByOrNull { it.estimated1RM() ?: 0.0 }
         ?.id
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -245,7 +284,7 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
                     ex?.name ?: "Unknown exercise",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = AccentBright,
                     modifier = Modifier.weight(1f),
                 )
             }
