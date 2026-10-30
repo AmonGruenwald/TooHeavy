@@ -5,6 +5,8 @@ An offline Android workout and calorie tracker in the style of Hevy. Kotlin + Je
 ## Features
 
 - **Workouts**: empty workouts or routines, sets with weight/reps/type, previous-session values, rest timer, history, personal records and progress charts.
+- **Adaptive training program**: answer four questions (goal, experience, days per week, equipment) and get a full-body, upper/lower or push/pull/legs plan. After each program workout the next session's targets are set from what you lifted: reps climb through the rep range, the weight goes up once every set reaches the top, three stalled sessions reset the weight by about 10 %, and sets are added or removed depending on whether you hit your targets. Four-week blocks build effort (3 → 1 reps in reserve) and end in a deload week. Exercises can be swapped or edited at any time.
+- **Adaptive calorie coach**: estimates your real energy expenditure from logged intake and the smoothed body-weight trend (shrunk toward the Mifflin-St Jeor estimate until there are about three weeks of data), then sets calorie and macro targets for your goal, weekly rate, protein level and diet style at a weekly check-in.
 - **Exercise library**: 873 exercises with start/end position photos (shown as a looping animation), step-by-step instructions, muscles and equipment.
 - **Calorie tracker**: daily diary by meal, calorie ring and macro bars, 12,650 bundled foods, custom foods, quick add, goals with a TDEE calculator, body-weight log.
 - **Barcode scanning**: scans with ZXing; unknown barcodes are looked up on Open Food Facts and saved on the device. Products that aren't found can be entered by hand and are stored with their barcode for the next scan.
@@ -36,6 +38,12 @@ Then:
 ```
 
 The APK is written to `app/build/outputs/apk/release/app-release.apk` (signed with the debug key, so it can be sideloaded directly).
+
+Unit tests for the coach and program engines (`app/src/test`) run on the JVM:
+
+```bash
+./gradlew testDebugUnitTest
+```
 
 ## Releases and updates
 

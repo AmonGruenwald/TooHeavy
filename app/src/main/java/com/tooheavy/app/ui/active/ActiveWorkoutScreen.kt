@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.SetEntry
+import com.tooheavy.app.data.SetTarget
 import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.Workout
 import com.tooheavy.app.data.WorkoutExercise
@@ -482,6 +483,11 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
                 }
             }
 
+            we.target?.let { t ->
+                Spacer(Modifier.height(8.dp))
+                ProgramTargetBox(we, t, unit)
+            }
+
             Spacer(Modifier.height(8.dp))
             CompactField(
                 value = notes,
@@ -578,6 +584,40 @@ private fun ExerciseCard(nav: NavController, we: WorkoutExercise, index: Int, co
             },
             confirmButton = { TextButton(onClick = { restDialog = false }) { Text("Close") } },
         )
+    }
+}
+
+/** What the program asks for on this exercise, plus why it changed or how to pick a first weight. */
+@Composable
+private fun ProgramTargetBox(we: WorkoutExercise, t: SetTarget, unit: String) {
+    val bodyweight = Repo.exercise(we.exerciseId)?.equipment.let { it == null || it == "body only" }
+    val note = Repo.program?.days?.flatMap { it.exercises }?.firstOrNull { it.id == we.programExerciseId }?.note
+    val hint = when {
+        t.deload -> "Deload: keep every set comfortable."
+        t.weight == null && !bodyweight -> "First session: pick a weight you could lift for about ${t.rir} more reps at the end of each set."
+        !note.isNullOrBlank() -> note
+        else -> null
+    }
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                buildString {
+                    append("Target ${t.sets} × ${t.reps}")
+                    t.weight?.let { append(" @ ${formatWeight(it)} $unit") }
+                    append("  ·  range ${t.repMin}-${t.repMax}  ·  ~${t.rir} in reserve")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (t.deload) Warmup else Accent,
+            )
+            if (hint != null) {
+                Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 

@@ -130,6 +130,8 @@ data class NutritionData(
     val goals: NutritionGoals = NutritionGoals(),
     val profile: BodyProfile = BodyProfile(),
     val weights: List<WeightEntry> = emptyList(),
+    val coach: CoachSettings = CoachSettings(),
+    val checkIns: List<CheckIn> = emptyList(),
 )
 
 // ---------- dates ----------
@@ -147,6 +149,20 @@ fun shiftDate(date: String, days: Int): String {
     return dayFormat.format(c.time)
 }
 
+/** Whole days from [from] to [to] (negative if [to] is earlier). */
+fun daysBetween(from: String, to: String): Int {
+    val a = dayFormat.parse(from) ?: return 0
+    val b = dayFormat.parse(to) ?: return 0
+    return ((b.time - a.time) / 86_400_000.0).roundToInt()
+}
+
+/** Calendar.DAY_OF_WEEK of a "yyyy-MM-dd" date (Calendar.SUNDAY = 1 .. Calendar.SATURDAY = 7). */
+fun dayOfWeek(date: String): Int {
+    val c = Calendar.getInstance()
+    c.time = dayFormat.parse(date) ?: return c.get(Calendar.DAY_OF_WEEK)
+    return c.get(Calendar.DAY_OF_WEEK)
+}
+
 /** "Today", "Yesterday", "Tomorrow" or e.g. "Mon, Oct 27". */
 fun friendlyDate(date: String): String = when (date) {
     today() -> "Today"
@@ -161,11 +177,11 @@ fun formatNutrient(v: Double): String =
 
 // ---------- calculator ----------
 
+/** Mifflin-St Jeor basal metabolic rate. */
+fun BodyProfile.bmr(): Double = 10 * weightKg + 6.25 * heightCm - 5 * age + if (sex == "female") -161 else 5
+
 /** Mifflin-St Jeor BMR x activity. */
-fun BodyProfile.tdee(): Int {
-    val bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + if (sex == "female") -161 else 5
-    return (bmr * activity).roundToInt()
-}
+fun BodyProfile.tdee(): Int = (bmr() * activity).roundToInt()
 
 /** Goals from the profile: -500 kcal to lose, +300 to gain; protein 2 g/kg, fat 25 % of kcal, rest carbs. */
 fun BodyProfile.suggestedGoals(): NutritionGoals {
@@ -200,6 +216,10 @@ object NutritionRepo {
         private set
     var profile by mutableStateOf(BodyProfile())
         private set
+    var coach by mutableStateOf(CoachSettings())
+        private set
+    /** Weekly check-ins, oldest first, at most one per date. */
+    val checkIns = mutableStateListOf<CheckIn>()
 
     /** Diary date currently shown ("yyyy-MM-dd"); food screens log into this date. */
     var selectedDate by mutableStateOf(today())
@@ -214,6 +234,8 @@ object NutritionRepo {
                 weights.addAll(d.weights.orEmpty().sortedBy { it.date })
                 goals = d.goals ?: NutritionGoals()
                 profile = d.profile ?: BodyProfile()
+                coach = d.coach ?: CoachSettings()
+                checkIns.addAll(d.checkIns.orEmpty().sortedBy { it.date })
             }
         }
         val app = context.applicationContext
@@ -235,7 +257,9 @@ object NutritionRepo {
     }
 
     private fun save() {
-        val snapshot = gson.toJson(NutritionData(entries.toList(), customFoods.toList(), goals, profile, weights.toList()))
+        val snapshot = gson.toJson(
+            NutritionData(entries.toList(), customFoods.toList(), goals, profile, weights.toList(), coach, checkIns.toList())
+        )
         io.execute {
             val tmp = File(file.parentFile, "nutrition.json.tmp")
             tmp.writeText(snapshot)
@@ -371,6 +395,36 @@ object NutritionRepo {
 
     fun deleteWeight(date: String) {
         weights.removeAll { it.date == date }
+        save()
+    }
+
+    // ---------- adaptive coach ----------
+
+    /** Logged kcal per date. */
+    fun dailyKcal(): Map<String, Double> = entries.groupBy { it.date }.mapValues { (_, es) -> es.sumOf { it.kcal } }
+
+    fun expenditure(asOf: String = today()): Expenditure = estimateExpenditure(profile, dailyKcal(), weights.toList(), asOf)
+
+    fun trend(): List<TrendPoint> = weightTrend(weights.toList())
+
+    fun lastCheckIn(): CheckIn? = checkIns.lastOrNull()
+
+    fun checkInDue(): Boolean = isCheckInDue(coach, lastCheckIn()?.date, today())
+
+    fun proposeCheckIn(date: String = today()): CheckInProposal =
+        buildCheckIn(profile, coach, dailyKcal(), weights.toList(), date)
+
+    /** Records the check-in and makes its targets the daily goals. */
+    fun applyCheckIn(p: CheckInProposal) {
+        checkIns.removeAll { it.date == p.date }
+        checkIns.add(p.toCheckIn())
+        checkIns.sortBy { it.date }
+        goals = p.goals
+        save()
+    }
+
+    fun updateCoach(s: CoachSettings) {
+        coach = s
         save()
     }
 }

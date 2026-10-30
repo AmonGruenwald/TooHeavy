@@ -32,6 +32,11 @@ object Repo {
         private set
     var settings by mutableStateOf(Settings())
         private set
+    /** Adaptive training program, null until the user creates one. */
+    var program by mutableStateOf<Program?>(null)
+        private set
+    /** Changes the last finished program workout made to the program (not persisted). */
+    var programUpdate by mutableStateOf<ProgramUpdate?>(null)
 
     /** Routine currently being edited in RoutineEditScreen (survives trips to the exercise picker). */
     var routineDraft by mutableStateOf<Routine?>(null)
@@ -54,12 +59,13 @@ object Repo {
                 routines.addAll(d.routines.orEmpty())
                 activeWorkout = d.activeWorkout
                 settings = d.settings ?: Settings()
+                program = d.program
             }
         }
     }
 
     private fun save() {
-        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings))
+        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings, program))
         io.execute {
             val tmp = File(file.parentFile, "data.json.tmp")
             tmp.writeText(snapshot)
@@ -115,7 +121,15 @@ object Repo {
                 .map { we -> we.copy(sets = we.sets.filter { it.completed }) }
                 .filter { it.sets.isNotEmpty() },
         )
-        if (cleaned.exercises.isNotEmpty()) workouts.add(0, cleaned)
+        if (cleaned.exercises.isNotEmpty()) {
+            workouts.add(0, cleaned)
+            val p = program
+            if (p != null && p.days.any { it.id == cleaned.programDayId }) {
+                val (next, changes) = p.afterSession(cleaned, settings.unit, this::exercise)
+                program = next
+                programUpdate = ProgramUpdate(cleaned.name, changes)
+            }
+        }
         activeWorkout = null
         stopRest()
         save()
@@ -189,6 +203,27 @@ object Repo {
             RoutineExercise(we.exerciseId, sets = we.sets.size, reps = last?.reps, weight = last?.weight, restSeconds = we.restSeconds)
         },
     )
+
+    // ---------- program ----------
+
+    fun saveProgram(p: Program?) {
+        program = p
+        programUpdate = null
+        save()
+    }
+
+    fun startProgramWorkout(dayIndex: Int) {
+        val w = program?.buildWorkout(dayIndex, settings.unit, this::exercise) ?: return
+        activeWorkout = w
+        save()
+    }
+
+    /** Best estimated one-rep max from the last 5 sessions of this exercise, null without history. */
+    fun best1RM(exerciseId: String): Double? =
+        exerciseHistory(exerciseId).take(5)
+            .flatMap { (_, we) -> we.sets.filter { it.completed && it.type != SetType.WARMUP } }
+            .mapNotNull { it.estimated1RM() }
+            .maxOrNull()
 
     // ---------- settings ----------
 

@@ -132,6 +132,13 @@ fun NutritionGoalsScreen(nav: NavController) {
         ) {
             // ---------- Daily goals ----------
             SectionCard("Daily goals") {
+                if (NutritionRepo.coach.enabled) {
+                    Text(
+                        "The adaptive coach sets these at each weekly check-in. Changes here last until the next one.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 NumberField("Calories", kcalText, { kcalText = it }, decimal = false, suffix = "kcal", modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumberField("Protein", proteinText, { proteinText = it }, decimal = false, suffix = "g", modifier = Modifier.weight(1f))
@@ -359,7 +366,7 @@ fun NutritionGoalsScreen(nav: NavController) {
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -373,7 +380,7 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
 }
 
 @Composable
-private fun NumberField(
+internal fun NumberField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
@@ -395,6 +402,6 @@ private fun NumberField(
 }
 
 /** Accepts both "." and "," as the decimal separator. */
-private fun parseNum(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
+internal fun parseNum(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
 
-private fun intText(v: Int): String = String.format(Locale.US, "%,d", v)
+internal fun intText(v: Int): String = String.format(Locale.US, "%,d", v)

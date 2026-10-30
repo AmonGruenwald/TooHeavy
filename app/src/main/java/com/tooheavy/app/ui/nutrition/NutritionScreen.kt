@@ -109,6 +109,9 @@ fun NutritionScreen(nav: NavController) {
             item(key = "date") {
                 DateSwitcher(date)
             }
+            item(key = "coach") {
+                CoachSummaryCard { nav.navigate(Routes.COACH) }
+            }
             item(key = "summary") {
                 SummaryCard(
                     consumed = totals.kcal,
