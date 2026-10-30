@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Release builds get their version from the git tag: ./gradlew assembleRelease -PappVersion=1.2.3
+val appVersion = (findProperty("appVersion") as String?) ?: "1.0.0"
+val appVersionCode = appVersion.split(".").map { it.toInt() }.let { (major, minor, patch) ->
+    require(minor < 100 && patch < 100) { "appVersion minor/patch must be < 100: $appVersion" }
+    major * 10000 + minor * 100 + patch
+}
+
 android {
     namespace = "com.tooheavy.app"
     compileSdk = 35
@@ -12,14 +19,26 @@ android {
         applicationId = "com.tooheavy.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersion
+    }
+
+    signingConfigs {
+        // CI signs with the key from these env vars; local builds fall back to the debug key.
+        System.getenv("TOOHEAVY_KEYSTORE")?.let { path ->
+            create("release") {
+                storeFile = file(path)
+                storePassword = System.getenv("TOOHEAVY_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("TOOHEAVY_KEY_ALIAS")
+                keyPassword = System.getenv("TOOHEAVY_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -31,6 +50,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     androidResources {
         noCompress += "webp"

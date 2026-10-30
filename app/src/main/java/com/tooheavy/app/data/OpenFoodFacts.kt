@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Barcode lookup against the Open Food Facts API (open database, ODbL). Only network call in the app. */
+/** Barcode lookup against the Open Food Facts API (open database, ODbL). */
 object OpenFoodFacts {
     sealed interface Result {
         /** [food] has source SOURCE_OFF and the barcode set, but no customId yet (save it with NutritionRepo.saveCustomFood).
