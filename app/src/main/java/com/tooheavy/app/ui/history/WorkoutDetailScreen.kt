@@ -60,7 +60,8 @@ import com.tooheavy.app.data.completedSetCount
 import com.tooheavy.app.data.durationMs
 import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatDuration
-import com.tooheavy.app.data.formatSetTime
+import com.tooheavy.app.data.cardioText
+import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.groupCredit
@@ -318,7 +319,13 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                 Text("SET", Modifier.width(40.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (ex?.isTimed == true) "TIME" else "WEIGHT × REPS", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    when {
+                        ex?.tracksDistance == true -> "DISTANCE · TIME · PACE"
+                        ex?.isTimed == true -> "TIME"
+                        else -> "WEIGHT × REPS"
+                    },
+                    Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("1RM", Modifier.width(80.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
             }
             Spacer(Modifier.height(4.dp))
@@ -347,7 +354,7 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
                 ) {
                     Text(labels[i], Modifier.width(40.dp), color = labelColor, fontWeight = FontWeight.Bold)
                     Text(
-                        s.seconds?.let { formatSetTime(it) } ?: "$weightText × $repsText",
+                        s.cardioText(distanceUnit(unit)) ?: "$weightText × $repsText",
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                     )

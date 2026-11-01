@@ -12,6 +12,19 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.12.0", "2026-11-01",
+            listOf(
+                "Running workouts: the new Running exercise logs distance and time, and shows your pace. Treadmill " +
+                    "runs and walks, trail runs, bikes, rowers and the elliptical log distance too. Distances are in " +
+                    "km, or miles if you lift in pounds.",
+                "Running plans: Train → Running plan. Paste or write your own plan (\"Week 1\" starts a week, every " +
+                    "other line is a run; distances and times become targets), pick the week it starts, and follow it " +
+                    "week by week. Start a run from the plan and it's ticked off when you finish; runs can also be " +
+                    "marked done, skipped, edited, added and moved around by week.",
+                "Your own exercises can log distance and time.",
+            ),
+        ),
+        ChangelogEntry(
             "1.11.0", "2026-11-01",
             listOf(
                 "Mark a day in the food diary as not properly tracked (⋮ next to the timeline): it then doesn't count " +

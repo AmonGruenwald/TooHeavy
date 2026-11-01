@@ -39,6 +39,9 @@ object Repo {
     /** Adaptive training program, null until the user creates one. */
     var program by mutableStateOf<Program?>(null)
         private set
+    /** The running plan being followed, null without one. */
+    var runPlan by mutableStateOf<RunPlan?>(null)
+        private set
     /** Changes the last finished program workout made to the program (not persisted). */
     var programUpdate by mutableStateOf<ProgramUpdate?>(null)
 
@@ -57,7 +60,7 @@ object Repo {
         bundled = listOf("exercises.json", "exercises_extra.json").flatMap { name ->
             val json = context.assets.open(name).bufferedReader().use { it.readText() }
             gson.fromJson<List<Exercise>>(json, object : TypeToken<List<Exercise>>() {}.type)
-        }
+        }.map { it.withDefaultTracking() }
         file = File(context.filesDir, "data.json")
         if (file.exists()) {
             runCatching { gson.fromJson(file.readText(), AppData::class.java) }.getOrNull()?.let { d ->
@@ -67,6 +70,7 @@ object Repo {
                 settings = d.settings ?: Settings()
                 program = d.program?.migrated()?.ordered()
                 customExercises = d.customExercises.orEmpty()
+                runPlan = d.runPlan
             }
         }
         rebuildLibrary()
@@ -78,7 +82,7 @@ object Repo {
     }
 
     private fun save() {
-        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings, program, customExercises))
+        val snapshot = gson.toJson(AppData(workouts.toList(), routines.toList(), activeWorkout, settings, program, customExercises, runPlan))
         io.execute {
             val tmp = File(file.parentFile, "data.json.tmp")
             tmp.writeText(snapshot)
@@ -138,7 +142,9 @@ object Repo {
                 WorkoutExercise(
                     exerciseId = re.exerciseId,
                     restSeconds = re.restSeconds,
-                    sets = List(re.sets.coerceAtLeast(1)) { SetEntry(weight = re.weight, reps = re.reps, seconds = re.seconds) },
+                    sets = List(re.sets.coerceAtLeast(1)) {
+                        SetEntry(weight = re.weight, reps = re.reps, seconds = re.seconds, distanceKm = re.distanceKm)
+                    },
                     supersetId = re.supersetId,
                 )
             },
@@ -209,6 +215,8 @@ object Repo {
         )
         if (cleaned.exercises.isNotEmpty()) {
             workouts.add(0, cleaned)
+            val runId = cleaned.plannedRunId
+            if (runId != null) runPlan = runPlan?.updateRun(runId) { it.copy(doneWorkoutId = cleaned.id, skipped = false) }
             val p = program
             if (p != null && p.days.any { it.id == cleaned.programDayId }) {
                 val (next, changes) = p.afterSession(cleaned, settings.unit, this::exercise)
@@ -303,7 +311,7 @@ object Repo {
             val last = working.lastOrNull()
             RoutineExercise(
                 we.exerciseId, sets = working.size, reps = last?.reps, weight = last?.weight,
-                restSeconds = we.restSeconds, supersetId = we.supersetId, seconds = last?.seconds,
+                restSeconds = we.restSeconds, supersetId = we.supersetId, seconds = last?.seconds, distanceKm = last?.distanceKm,
             )
         },
     )
@@ -332,6 +340,33 @@ object Repo {
             .flatMap { (_, we) -> we.sets.filter { it.completed && it.type != SetType.WARMUP } }
             .mapNotNull { it.estimated1RM() }
             .maxOrNull()
+
+    // ---------- running plan ----------
+
+    /** Replaces the running plan; null deletes it. */
+    fun saveRunPlan(p: RunPlan?) {
+        runPlan = p
+        save()
+    }
+
+    fun updateRunPlan(transform: (RunPlan) -> RunPlan) {
+        val p = runPlan ?: return
+        saveRunPlan(transform(p))
+    }
+
+    /** Starts a workout for a planned run: its exercise with one set, and the plan's notes on it. */
+    fun startPlannedRun(runId: String) {
+        val run = runPlan?.findRun(runId) ?: return
+        val exerciseId = run.exerciseId.takeIf { exercise(it) != null } ?: RUNNING_EXERCISE_ID
+        activeWorkout = Workout(
+            name = run.name.take(60),
+            plannedRunId = run.id,
+            exercises = listOf(
+                WorkoutExercise(exerciseId = exerciseId, restSeconds = 0, notes = run.notes, sets = listOf(SetEntry())),
+            ),
+        )
+        save()
+    }
 
     // ---------- settings ----------
 

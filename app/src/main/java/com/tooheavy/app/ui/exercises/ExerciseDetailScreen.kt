@@ -65,7 +65,12 @@ import com.tooheavy.app.data.SetEntry
 import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatDuration
+import com.tooheavy.app.data.cardioText
+import com.tooheavy.app.data.distanceUnit
+import com.tooheavy.app.data.formatDistance
+import com.tooheavy.app.data.formatPace
 import com.tooheavy.app.data.formatSetTime
+import com.tooheavy.app.data.kmIn
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.data.volume
@@ -132,7 +137,11 @@ fun ExerciseDetailScreen(nav: NavController, exerciseId: String, initialTab: Int
                 when (tab) {
                     0 -> DetailAboutTab(exercise)
                     1 -> DetailHistoryTab(exercise.id)
-                    else -> if (exercise.isTimed) DetailTimeChartsTab(exercise.id) else DetailChartsTab(exercise.id)
+                    else -> when {
+                        exercise.tracksDistance -> DetailDistanceChartsTab(exercise.id)
+                        exercise.isTimed -> DetailTimeChartsTab(exercise.id)
+                        else -> DetailChartsTab(exercise.id)
+                    }
                 }
             }
         }
@@ -289,7 +298,7 @@ private fun DetailHistoryTab(exerciseId: String) {
                     we.sets.forEachIndexed { i, s ->
                         val weightText = if (s.weight != null) "${formatWeight(s.weight)} $unit" else "-"
                         val repsText = s.reps?.toString() ?: "-"
-                        val setText = s.seconds?.let { formatSetTime(it) } ?: "$weightText × $repsText"
+                        val setText = s.cardioText(distanceUnit(unit)) ?: "$weightText × $repsText"
                         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                             Text(
                                 labels[i],
@@ -382,6 +391,47 @@ private fun DetailChartsTab(exerciseId: String) {
                 counts, buckets.map { it.first }, height = 140.dp,
                 highlight = counts.indices.maxByOrNull { counts[it] }, valueFormat = { "${it.toInt()}" },
                 tooltipLabels = buckets.map { "${it.first} reps" },
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Charts for a distance exercise (e.g. a run): distance per session, longest, fastest pace and total. */
+@Composable
+private fun DetailDistanceChartsTab(exerciseId: String) {
+    val unit = distanceUnit(Repo.settings.unit)
+    val chrono = Repo.exerciseHistory(exerciseId).sortedBy { it.first.startTime }
+    val sets = chrono.flatMap { it.second.sets }.filter { it.type != SetType.WARMUP }
+    val perSession = chrono.map { (w, we) -> w to we.sets.sumOf { it.distanceKm ?: 0.0 } }
+    val longest = sets.mapNotNull { it.distanceKm }.filter { it > 0 }.maxOrNull()
+    val total = perSession.sumOf { it.second }
+    // Fastest pace over sets of at least 1 km, so a short sprint doesn't set it.
+    val fastest = sets.filter { (it.distanceKm ?: 0.0) >= 1.0 && (it.seconds ?: 0) > 0 }.minByOrNull { it.seconds!! / it.distanceKm!! }
+    val fmt = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val recent = perSession.takeLast(10)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Longest", longest?.let { formatDistance(it, unit) } ?: "–", Modifier.weight(1f), icon = Icons.Filled.EmojiEvents)
+            StatTile(
+                "Best pace", fastest?.let { formatPace(it.seconds, it.distanceKm, unit) } ?: "–",
+                Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.TrendingUp,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Total", if (total > 0) formatDistance(total, unit) else "–", Modifier.weight(1f), icon = Icons.Filled.BarChart)
+            StatTile("Sessions", "${perSession.count { it.second > 0 }}", Modifier.weight(1f), icon = Icons.Filled.Repeat)
+        }
+        ChartCard("Distance per session", caption = "In $unit, last ${recent.size} sessions", icon = Icons.Filled.BarChart) {
+            BarChart(
+                recent.map { kmIn(it.second, unit) },
+                recent.map { (w, _) -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(w.startTime)) },
+                height = 150.dp,
+                valueFormat = { String.format(Locale.US, "%.1f", it) },
+                tooltipLabels = recent.map { (w, _) -> fmt.format(Date(w.startTime)) },
             )
         }
         Spacer(Modifier.height(8.dp))
