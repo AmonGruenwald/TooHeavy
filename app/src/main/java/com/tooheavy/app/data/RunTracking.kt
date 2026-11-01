@@ -56,19 +56,61 @@ fun acceptPoint(prev: GpsPoint?, p: GpsPoint, accuracyM: Float?): Boolean {
     return s > 0 && m / s <= MAX_SPEED_MS
 }
 
+// ---------- auto-pause ----------
+
+/** Slower than this (m/s, about 2.5 km/h) counts as standing still. */
+const val STOP_SPEED_MS = 0.7
+
+/** Faster than this (m/s, about 4.3 km/h) counts as moving again; above STOP_SPEED_MS so it doesn't flicker. */
+const val MOVE_SPEED_MS = 1.2
+
+/** Standing still this long pauses the run. */
+const val STOP_AFTER_MS = 6_000L
+
+/** Moving this many fixes in a row resumes it. */
+const val MOVE_FIXES = 2
+
+/** Auto-pause memory between fixes: since when the runner has been slow, and how many fast fixes in a row. */
+data class AutoPauseState(val slowSince: Long? = null, val fastFixes: Int = 0)
+
+/**
+ * The result of one fix: the new [state], [pauseFrom] set when the run should pause (the time the runner stopped,
+ * so standing still isn't counted as moving time), and [resume] when an auto-paused run should carry on.
+ */
+data class AutoPauseStep(val state: AutoPauseState, val pauseFrom: Long? = null, val resume: Boolean = false)
+
+/**
+ * Auto-pause: a running run pauses after STOP_AFTER_MS below STOP_SPEED_MS, an auto-paused one resumes after
+ * MOVE_FIXES fixes above MOVE_SPEED_MS. [speedMs] is the speed of the fix at [now].
+ */
+fun autoPauseStep(state: AutoPauseState, autoPaused: Boolean, speedMs: Double, now: Long): AutoPauseStep =
+    if (!autoPaused) {
+        if (speedMs < STOP_SPEED_MS) {
+            val since = state.slowSince ?: now
+            if (now - since >= STOP_AFTER_MS) AutoPauseStep(AutoPauseState(), pauseFrom = since)
+            else AutoPauseStep(AutoPauseState(slowSince = since))
+        } else {
+            AutoPauseStep(AutoPauseState())
+        }
+    } else {
+        val fast = if (speedMs >= MOVE_SPEED_MS) state.fastFixes + 1 else 0
+        if (fast >= MOVE_FIXES) AutoPauseStep(AutoPauseState(), resume = true)
+        else AutoPauseStep(AutoPauseState(fastFixes = fast))
+    }
+
 /** Distance of a route in km, without the gaps between segments. */
 fun routeDistanceKm(points: List<GpsPoint>): Double =
     (1 until points.size).sumOf { i -> if (points[i].seg == points[i - 1].seg) distanceKm(points[i - 1], points[i]) else 0.0 }
 
 /** One split of a run: [km] long (the last one may be shorter), run in [seconds]. */
-data class Split(val number: Int, val km: Double, val seconds: Int)
+data class RunSplit(val number: Int, val km: Double, val seconds: Int)
 
 /**
  * Splits of [points] every [splitKm] (1 for kilometres, 1.609 for miles). Time between segments (pauses) isn't
  * counted; the time a split boundary is crossed is interpolated between the fixes around it. A last split shorter
  * than 10 m is left out.
  */
-fun splits(points: List<GpsPoint>, splitKm: Double): List<Split> {
+fun splits(points: List<GpsPoint>, splitKm: Double): List<RunSplit> {
     if (points.size < 2 || splitKm <= 0) return emptyList()
     // Cumulative distance and moving time at each point.
     val dist = DoubleArray(points.size)
@@ -79,7 +121,7 @@ fun splits(points: List<GpsPoint>, splitKm: Double): List<Split> {
         time[i] = time[i - 1] + if (same) (points[i].time - points[i - 1].time) / 1000.0 else 0.0
     }
     val total = dist.last()
-    val out = ArrayList<Split>()
+    val out = ArrayList<RunSplit>()
     var lastTime = 0.0
     var k = 1
     var i = 1
@@ -89,12 +131,12 @@ fun splits(points: List<GpsPoint>, splitKm: Double): List<Split> {
         val span = dist[i] - dist[i - 1]
         val f = if (span > 0) (target - dist[i - 1]) / span else 1.0
         val t = time[i - 1] + f * (time[i] - time[i - 1])
-        out.add(Split(k, splitKm, Math.round(t - lastTime).toInt()))
+        out.add(RunSplit(k, splitKm, Math.round(t - lastTime).toInt()))
         lastTime = t
         k++
     }
     val rest = total - (k - 1) * splitKm
-    if (rest >= 0.01) out.add(Split(k, rest, Math.round(time.last() - lastTime).toInt()))
+    if (rest >= 0.01) out.add(RunSplit(k, rest, Math.round(time.last() - lastTime).toInt()))
     return out
 }
 

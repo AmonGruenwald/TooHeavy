@@ -52,9 +52,14 @@ class RunTrackingService : Service(), LocationListener {
     }
 
     override fun onLocationChanged(location: Location) {
-        RunTracker.onLocation(location.latitude, location.longitude, if (location.hasAccuracy()) location.accuracy else null)
+        val changed = RunTracker.onLocation(
+            location.latitude,
+            location.longitude,
+            if (location.hasAccuracy()) location.accuracy else null,
+            if (location.hasSpeed()) location.speed else null,
+        )
         val now = System.currentTimeMillis()
-        if (now - lastNotify >= 5_000) {
+        if (changed || now - lastNotify >= 5_000) {
             lastNotify = now
             runCatching { getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification()) }
         }
@@ -81,16 +86,17 @@ class RunTrackingService : Service(), LocationListener {
         val open = launch?.let { PendingIntent.getActivity(this, 1, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT) }
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_run)
-            .setContentTitle("Recording run")
+            .setContentTitle(if (t?.autoPaused == true) "Run auto-paused" else "Recording run")
             .setContentText(
                 when {
                     t == null -> "Starting GPS"
+                    t.autoPaused -> "${formatDistance(t.distanceKm, unit)} · ${formatClock(t.movingMs(now))} · starts again when you move"
                     t.lastAccuracy == null -> "Waiting for GPS"
                     else -> formatDistance(t.distanceKm, unit)
                 },
             )
-            // The system counts the moving time up by itself.
-            .setUsesChronometer(true)
+            // The system counts the moving time up by itself while moving.
+            .setUsesChronometer(t?.paused != true)
             .setShowWhen(true)
             .setWhen(now - (t?.movingMs(now) ?: 0))
             .setOngoing(true)

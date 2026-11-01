@@ -144,6 +144,10 @@ data class Settings(
     val autoWarmups: Boolean = true,
     /** Home dashboard widgets in display order; null until the user customizes it (default layout). */
     val dashboard: List<DashboardWidget>? = null,
+    /** Pause a GPS-recorded run by itself while standing still, and carry on once moving again. */
+    val autoPauseRuns: Boolean = true,
+    /** The battery optimisation explanation was shown once before recording a run. */
+    val batteryPromptShown: Boolean = false,
 )
 
 /** Everything persisted to filesDir/data.json. */

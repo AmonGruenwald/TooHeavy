@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tooheavy.app.data.ActiveTrack
 import com.tooheavy.app.data.MAX_ACCURACY_M
+import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.RunTracker
 import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatDistanceValue
@@ -65,6 +69,20 @@ import kotlin.math.roundToInt
 private fun hasPreciseLocation(context: Context): Boolean =
     context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+/** Whether Android may restrict TooHeavy in the background to save battery (it isn't exempt). */
+fun batteryRestricted(context: Context): Boolean =
+    runCatching { !context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName) }
+        .getOrDefault(false)
+
+/** Asks Android to leave TooHeavy out of battery optimisation, or opens the list where that is set. */
+fun openBatterySettings(context: Context) {
+    val ask = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+    val list = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+    for (intent in listOf(ask, list)) {
+        if (runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) return
+    }
+}
+
 private fun gpsOn(context: Context): Boolean =
     runCatching { context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false)
 
@@ -76,6 +94,11 @@ private fun gpsOn(context: Context): Boolean =
 fun RecordRunButton(onStart: () -> Unit) {
     val context = LocalContext.current
     var problem by remember { mutableStateOf<String?>(null) }
+    var batteryDialog by remember { mutableStateOf(false) }
+    // The first time, explains battery optimisation before recording; after that just records.
+    fun begin() {
+        if (batteryRestricted(context) && !Repo.settings.batteryPromptShown) batteryDialog = true else onStart()
+    }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         when {
             result[Manifest.permission.ACCESS_FINE_LOCATION] != true ->
@@ -83,7 +106,7 @@ fun RecordRunButton(onStart: () -> Unit) {
             !gpsOn(context) -> problem = "Location is switched off."
             else -> {
                 problem = null
-                onStart()
+                begin()
             }
         }
     }
@@ -102,7 +125,7 @@ fun RecordRunButton(onStart: () -> Unit) {
                     !gpsOn(context) -> problem = "Location is switched off."
                     else -> {
                         problem = null
-                        onStart()
+                        begin()
                     }
                 }
             },
@@ -126,6 +149,29 @@ fun RecordRunButton(onStart: () -> Unit) {
             }
         }
     }
+
+    if (batteryDialog) {
+        fun answer(allow: Boolean) {
+            batteryDialog = false
+            Repo.updateSettings(Repo.settings.copy(batteryPromptShown = true))
+            onStart()
+            if (allow) openBatterySettings(context)
+        }
+        AlertDialog(
+            onDismissRequest = { answer(false) },
+            title = { Text("Keep recording with the screen off") },
+            text = {
+                Text(
+                    "To save battery, Android can stop apps in the background, which would cut a run short. Allow " +
+                        "TooHeavy to run without battery restrictions? It only uses GPS while a run is recorded.\n\n" +
+                        "On Samsung, Xiaomi and some other phones, also set TooHeavy's battery use to \"Unrestricted\" " +
+                        "in its app settings.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { answer(true) }) { Text("Allow") } },
+            dismissButton = { TextButton(onClick = { answer(false) }) { Text("Not now") } },
+        )
+    }
 }
 
 /** The run being recorded: map, distance, time and pace, with pause/resume, finish and discard. */
@@ -141,6 +187,7 @@ fun LiveRunPanel(track: ActiveTrack, unit: String) {
     }
     var confirmDiscard by remember { mutableStateOf(false) }
     val accuracy = track.lastAccuracy
+    val context = LocalContext.current
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -161,6 +208,7 @@ fun LiveRunPanel(track: ActiveTrack, unit: String) {
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when {
+                        track.autoPaused -> "Auto-paused · carries on when you move"
                         track.paused -> "Paused"
                         accuracy == null -> "Waiting for GPS…"
                         accuracy > MAX_ACCURACY_M -> "Weak GPS signal (±${accuracy.roundToInt()} m)"
@@ -168,7 +216,22 @@ fun LiveRunPanel(track: ActiveTrack, unit: String) {
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
+                Text("Auto-pause", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+                Switch(checked = Repo.settings.autoPauseRuns, onCheckedChange = { RunTracker.setAutoPause(it) })
+            }
+            if (batteryRestricted(context)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Battery optimisation is on: the recording may stop with the screen off.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Warmup,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { openBatterySettings(context) }) { Text("Fix") }
+                }
             }
             if (track.points.isNotEmpty()) {
                 RouteMap(track.points, Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(10.dp)), follow = true)

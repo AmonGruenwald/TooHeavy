@@ -19,6 +19,10 @@ object Changelog {
                     "screen off. Finishing fills in the set's distance and time.",
                 "Recorded routes are shown on an OpenStreetMap map in the workout, with the time and pace of every " +
                     "km (or mile). Maps need a connection; recording doesn't.",
+                "Auto-pause: standing still for a few seconds pauses the recording, and it carries on once you move " +
+                    "again. Switch it off in the recording panel.",
+                "Before the first recording, the app asks to be left out of battery optimisation so Android doesn't " +
+                    "stop it with the screen off; the recording panel warns while it's still on.",
                 "If the app is closed while recording, the run comes back paused, ready to resume or finish.",
                 "Fartlek is a new kind of run for running plans.",
             ),
