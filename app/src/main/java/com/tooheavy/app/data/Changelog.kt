@@ -12,6 +12,15 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.13.0", "2026-11-01",
+            listOf(
+                "Running plans are built in the app instead of from text: pick the name, the start week and the " +
+                    "number of weeks, then add each run with its kind (easy, long, tempo, intervals, recovery or " +
+                    "race), the day, a distance or time target and a note.",
+                "Add a note to any run or week. Copy a week's runs to the next week to fill the plan quickly.",
+            ),
+        ),
+        ChangelogEntry(
             "1.12.0", "2026-11-01",
             listOf(
                 "Running workouts: the new Running exercise logs distance and time, and shows your pace. Treadmill " +

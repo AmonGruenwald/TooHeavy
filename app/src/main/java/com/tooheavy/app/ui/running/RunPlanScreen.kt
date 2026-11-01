@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,12 +32,14 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +66,10 @@ import androidx.navigation.NavController
 import com.tooheavy.app.data.PlannedRun
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.RunPlan
+import com.tooheavy.app.data.RunType
 import com.tooheavy.app.data.RunWeek
+import com.tooheavy.app.data.copyRunsToNextWeek
+import com.tooheavy.app.data.saveRun
 import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatDistanceValue
@@ -70,13 +77,14 @@ import com.tooheavy.app.data.kmFrom
 import com.tooheavy.app.data.mondayOf
 import com.tooheavy.app.data.newId
 import com.tooheavy.app.data.nextRun
-import com.tooheavy.app.data.parseRunPlan
 import com.tooheavy.app.data.parseSetTime
 import com.tooheavy.app.data.progress
 import com.tooheavy.app.data.shiftDate
+import com.tooheavy.app.data.title
 import com.tooheavy.app.data.today
 import com.tooheavy.app.data.updateRun
 import com.tooheavy.app.data.weekIndexOn
+import com.tooheavy.app.data.weekdayShort
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.CardLabel
@@ -91,9 +99,6 @@ import com.tooheavy.app.ui.theme.Success
 import com.tooheavy.app.ui.theme.Warmup
 import java.text.SimpleDateFormat
 import java.util.Locale
-
-/** Example shown in the plan text field. */
-private const val PLAN_EXAMPLE = "Week 1\nEasy run 3 km\nRun 1 min, walk 90 s × 8\nLong run 5 km\n\nWeek 2: Easy run 4 km; Tempo 20 min; Long run 6 km"
 
 /** "Mon, Nov 2" */
 private fun dayLabel(date: String): String =
@@ -136,14 +141,13 @@ fun StartRunDialog(nav: NavController, runId: String, onDismiss: () -> Unit) {
     )
 }
 
-/** The running plan: write or paste one, then follow it week by week. */
+/** The running plan: build it week by week and run by run, then follow it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RunPlanScreen(nav: NavController) {
     val plan = Repo.runPlan
     var menuOpen by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
-    var addText by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -171,13 +175,6 @@ fun RunPlanScreen(nav: NavController) {
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Add weeks from text") },
-                                    onClick = {
-                                        menuOpen = false
-                                        addText = true
-                                    },
-                                )
-                                DropdownMenuItem(
                                     text = { Text("Delete plan", color = Danger) },
                                     onClick = {
                                         menuOpen = false
@@ -201,9 +198,6 @@ fun RunPlanScreen(nav: NavController) {
     if (plan != null && settings) {
         PlanSettingsDialog(plan) { settings = false }
     }
-    if (plan != null && addText) {
-        AddWeeksDialog { addText = false }
-    }
     if (plan != null && confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -226,18 +220,15 @@ fun RunPlanScreen(nav: NavController) {
 private fun PlanSetup(modifier: Modifier) {
     var name by remember { mutableStateOf("") }
     var start by remember { mutableStateOf(mondayOf(today())) }
-    var text by remember { mutableStateOf("") }
-    val weeks = remember(text) { parseRunPlan(text) }
-    val runs = weeks.sumOf { it.runs.size }
+    var weeks by remember { mutableStateOf(8) }
 
     Column(
         modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            "Follow your own running plan week by week. Paste it below or write it line by line: \"Week 1\" starts a " +
-                "week and every other line is a run. Distances (5 km, 10k, 3 miles) and times (30 min) become the " +
-                "run's targets. You can change everything afterwards.",
+            "Set up your plan, then add the runs of each week: the kind of run, the day, distance or time, and " +
+                "a note. Copy a week's runs to the next week to build the plan quickly.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -250,17 +241,20 @@ private fun PlanSetup(modifier: Modifier) {
             modifier = Modifier.fillMaxWidth(),
         )
         StartPicker(start) { start = it }
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text("Plan") },
-            placeholder = { Text(PLAN_EXAMPLE) },
-            minLines = 8,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Weeks", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("$weeks", style = MaterialTheme.typography.titleMedium)
+            }
+            IconButton(onClick = { weeks = (weeks - 1).coerceAtLeast(1) }, enabled = weeks > 1) {
+                Icon(Icons.Filled.Remove, contentDescription = "Fewer weeks")
+            }
+            IconButton(onClick = { weeks = (weeks + 1).coerceAtMost(52) }, enabled = weeks < 52) {
+                Icon(Icons.Filled.Add, contentDescription = "More weeks")
+            }
+        }
         Text(
-            if (runs == 0) "No runs yet." else "${weeks.size} week${if (weeks.size == 1) "" else "s"}, $runs run${if (runs == 1) "" else "s"}",
+            "Ends ${dayLabel(shiftDate(start, weeks * 7 - 1))}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -270,12 +264,12 @@ private fun PlanSetup(modifier: Modifier) {
                     RunPlan(
                         name = name.trim().ifEmpty { "Running plan" },
                         startDate = start,
-                        weeks = weeks.filter { it.runs.isNotEmpty() }.ifEmpty { listOf(RunWeek()) },
+                        weeks = List(weeks) { RunWeek() },
                     ),
                 )
             },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (runs == 0) "Start with an empty week" else "Create plan") }
+        ) { Text("Create plan") }
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -306,6 +300,8 @@ private fun PlanOverview(nav: NavController, plan: RunPlan, modifier: Modifier) 
     val unit = distanceUnit(Repo.settings.unit)
     var startDialog by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<Pair<Int, PlannedRun>?>(null) }
+    var weekNote by remember { mutableStateOf<Int?>(null) }
+    var runNote by remember { mutableStateOf<PlannedRun?>(null) }
 
     LazyColumn(
         modifier,
@@ -324,6 +320,8 @@ private fun PlanOverview(nav: NavController, plan: RunPlan, modifier: Modifier) 
                 unit = unit,
                 onStart = { startDialog = startRun(nav, it) },
                 onEdit = { editing = i to it },
+                onNote = { weekNote = i },
+                onRunNote = { runNote = it },
                 onOpenWorkout = { nav.navigate(Routes.workoutDetail(it)) },
             )
         }
@@ -342,11 +340,22 @@ private fun PlanOverview(nav: NavController, plan: RunPlan, modifier: Modifier) 
 
     startDialog?.let { id -> StartRunDialog(nav, id) { startDialog = null } }
     editing?.let { (weekIndex, run) ->
-        RunEditDialog(run, unit, onDismiss = { editing = null }) { edited ->
+        RunEditDialog(run, unit, weekIndex, onDismiss = { editing = null }) { edited ->
             editing = null
-            Repo.updateRunPlan { p ->
-                if (p.weeks.any { w -> w.runs.any { it.id == edited.id } }) p.updateRun(edited.id) { edited }
-                else p.copy(weeks = p.weeks.mapIndexed { i, w -> if (i == weekIndex) w.copy(runs = w.runs + edited) else w })
+            Repo.updateRunPlan { it.saveRun(weekIndex, edited) }
+        }
+    }
+    runNote?.let { run ->
+        NoteDialog("Note for ${run.name}", run.notes, onDismiss = { runNote = null }) { note ->
+            runNote = null
+            Repo.updateRunPlan { p -> p.updateRun(run.id) { it.copy(notes = note) } }
+        }
+    }
+    weekNote?.let { i ->
+        plan.weeks.getOrNull(i)?.let { week ->
+            NoteDialog("Week ${i + 1} note", week.note, onDismiss = { weekNote = null }) { note ->
+                weekNote = null
+                Repo.updateRunPlan { p -> p.copy(weeks = p.weeks.mapIndexed { j, w -> if (j == i) w.copy(note = note) else w }) }
             }
         }
     }
@@ -375,7 +384,7 @@ private fun PlanSummaryCard(plan: RunPlan, unit: String, onStart: (String) -> Un
             Meter(if (total > 0) done.toFloat() / total else 0f, Accent)
             if (next != null) {
                 val (w, run) = next
-                Text("Next: ${run.name}", style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("Next: ${run.title()}", style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val target = run.targetText(unit)
                 Text(
                     listOf("Week ${w + 1}", target).filter { it.isNotEmpty() }.joinToString(" · "),
@@ -401,6 +410,8 @@ private fun WeekCard(
     unit: String,
     onStart: (String) -> Unit,
     onEdit: (PlannedRun) -> Unit,
+    onNote: () -> Unit,
+    onRunNote: (PlannedRun) -> Unit,
     onOpenWorkout: (String) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -430,6 +441,22 @@ private fun WeekCard(
                             },
                         )
                         DropdownMenuItem(
+                            text = { Text(if (week.note.isBlank()) "Add note" else "Edit note") },
+                            onClick = {
+                                menuOpen = false
+                                onNote()
+                            },
+                        )
+                        if (index + 1 < plan.weeks.size && week.runs.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Copy runs to next week") },
+                                onClick = {
+                                    menuOpen = false
+                                    Repo.updateRunPlan { it.copyRunsToNextWeek(index) }
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
                             text = { Text("Duplicate week") },
                             onClick = {
                                 menuOpen = false
@@ -449,13 +476,23 @@ private fun WeekCard(
                     }
                 }
             }
-            if (week.runs.isEmpty()) {
-                TextButton(onClick = { onEdit(PlannedRun(name = "")) }) { Text("Add a run") }
+            if (week.note.isNotBlank()) {
+                Text(
+                    week.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AccentBright,
+                    modifier = Modifier.padding(end = 12.dp, bottom = 4.dp).clickable { onNote() },
+                )
             }
             week.runs.forEach { run ->
                 key(run.id) {
-                    RunRow(run, missed = index < current && run.open, unit, onStart, onEdit, onOpenWorkout)
+                    RunRow(run, missed = index < current && run.open, unit, onStart, onEdit, onRunNote, onOpenWorkout)
                 }
+            }
+            TextButton(onClick = { onEdit(PlannedRun(name = "")) }) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Add run")
             }
         }
     }
@@ -468,6 +505,7 @@ private fun RunRow(
     unit: String,
     onStart: (String) -> Unit,
     onEdit: (PlannedRun) -> Unit,
+    onNote: (PlannedRun) -> Unit,
     onOpenWorkout: (String) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -496,7 +534,7 @@ private fun RunRow(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                run.name,
+                run.title(),
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (run.skipped) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
@@ -509,7 +547,6 @@ private fun RunRow(
                     missed -> "missed"
                     else -> null
                 },
-                run.notes.takeIf { it.isNotBlank() },
             )
             if (details.isNotEmpty()) {
                 Text(
@@ -517,6 +554,15 @@ private fun RunRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (missed) Warmup else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (run.notes.isNotBlank()) {
+                Text(
+                    run.notes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AccentBright,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -567,6 +613,13 @@ private fun RunRow(
                     )
                 }
                 DropdownMenuItem(
+                    text = { Text(if (run.notes.isBlank()) "Add note" else "Edit note") },
+                    onClick = {
+                        menuOpen = false
+                        onNote(run)
+                    },
+                )
+                DropdownMenuItem(
                     text = { Text("Edit") },
                     onClick = {
                         menuOpen = false
@@ -589,25 +642,38 @@ private fun RunRow(
 
 // ---------- dialogs ----------
 
-/** Edits a run (or a new one, with an empty name): what to do, notes and targets. */
+/**
+ * Edits a run (or a new one, with an empty name): the kind of run, the day, distance and time targets and a
+ * note. [weekIndex] is the week it's in, for the dates of the days.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RunEditDialog(run: PlannedRun, unit: String, onDismiss: () -> Unit, onSave: (PlannedRun) -> Unit) {
-    var name by remember { mutableStateOf(run.name) }
+private fun RunEditDialog(run: PlannedRun, unit: String, weekIndex: Int, onDismiss: () -> Unit, onSave: (PlannedRun) -> Unit) {
+    val isNew = run.name.isEmpty()
+    var type by remember { mutableStateOf(run.type ?: if (isNew) RunType.EASY else null) }
+    var day by remember { mutableStateOf(run.day) }
     var notes by remember { mutableStateOf(run.notes) }
     var dist by remember { mutableStateOf(run.distanceKm?.let { formatDistanceValue(it, unit) }.orEmpty()) }
     var time by remember { mutableStateOf(run.seconds?.let { formatClock(it * 1000L) }.orEmpty()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (run.name.isEmpty()) "New run" else "Edit run") },
+        title = { Text(if (isNew) "New run · week ${weekIndex + 1}" else "Edit run") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Run (e.g. Easy run, 6 × 400 m)") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                FieldLabel("Run")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RunType.all.forEach { t ->
+                        FilterChip(selected = type == t, onClick = { type = t }, label = { Text(RunType.label(t)) })
+                    }
+                }
+                FieldLabel("Day")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = day == null, onClick = { day = null }, label = { Text("Any") })
+                    (1..7).forEach { d ->
+                        FilterChip(selected = day == d, onClick = { day = d }, label = { Text(weekdayShort(d)) })
+                    }
+                }
+                FieldLabel("Target (optional)")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = dist,
@@ -629,7 +695,9 @@ private fun RunEditDialog(run: PlannedRun, unit: String, onDismiss: () -> Unit, 
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notes (optional)") },
+                    label = { Text("Note (optional)") },
+                    placeholder = { Text(if (type == RunType.INTERVALS) "e.g. 6 × 400 m at 5K pace, 90 s jog" else "e.g. Keep it conversational") },
+                    minLines = 2,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -637,11 +705,14 @@ private fun RunEditDialog(run: PlannedRun, unit: String, onDismiss: () -> Unit, 
         },
         confirmButton = {
             TextButton(
-                enabled = name.isNotBlank(),
+                enabled = type != null || !isNew,
                 onClick = {
                     onSave(
                         run.copy(
-                            name = name.trim(),
+                            // Runs from before there were types keep their name until a type is picked.
+                            name = type?.let { RunType.label(it) } ?: run.name,
+                            type = type,
+                            day = day,
                             notes = notes.trim(),
                             distanceKm = dist.toDoubleOrNull()?.takeIf { it > 0 }?.let { kmFrom(it, unit) },
                             seconds = parseSetTime(time),
@@ -651,6 +722,38 @@ private fun RunEditDialog(run: PlannedRun, unit: String, onDismiss: () -> Unit, 
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Edits a note; saving an empty one removes it. */
+@Composable
+private fun NoteDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("Note") },
+                minLines = 3,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text.trim()) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
@@ -678,40 +781,6 @@ private fun PlanSettingsDialog(plan: RunPlan, onDismiss: () -> Unit) {
                 onDismiss()
                 Repo.updateRunPlan { it.copy(name = name.trim().ifEmpty { it.name }, startDate = start) }
             }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
-/** Appends weeks written as text (same format as when creating the plan). */
-@Composable
-private fun AddWeeksDialog(onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf("") }
-    val weeks = remember(text) { parseRunPlan(text).filter { it.runs.isNotEmpty() } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add weeks") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "They go after the last week. \"Week N\" starts a week; every other line is a run.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text(PLAN_EXAMPLE) },
-                    minLines = 6,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = weeks.isNotEmpty(), onClick = {
-                onDismiss()
-                Repo.updateRunPlan { it.copy(weeks = it.weeks + weeks) }
-            }) { Text(if (weeks.isEmpty()) "Add" else "Add ${weeks.size} week${if (weeks.size == 1) "" else "s"}") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

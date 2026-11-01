@@ -93,6 +93,7 @@ import com.tooheavy.app.data.formatDistanceValue
 import com.tooheavy.app.data.formatSetTime
 import com.tooheavy.app.data.kmFrom
 import com.tooheavy.app.data.findRun
+import com.tooheavy.app.data.title
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.groupCredit
@@ -788,7 +789,7 @@ private fun PlannedRunBox(run: PlannedRun, distUnit: String) {
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                "Plan: ${run.name}",
+                "Plan: ${run.title()}",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = AccentBright,
