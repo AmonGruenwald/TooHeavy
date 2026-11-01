@@ -67,7 +67,7 @@ git tag v1.3.0 && git push origin v1.3.0
 
 Or publish a release on GitHub (Releases → Draft a new release) with a new `vX.Y.Z` tag on `main`: creating the tag starts the same workflow, which attaches the APK to your release a few minutes later. Until it's attached, installed apps ignore the release.
 
-Without tag rights (for example from a Claude Code cloud session, which can only push its own branch), run the workflow by hand: Actions → Release → Run workflow on `main` with a version such as `1.9.0`. It tags that commit `v1.9.0`, builds the APK and publishes the release.
+Without tag rights (for example from a Claude Code cloud session, which can only push its own branch), put a line `Release: 1.9.0` in the message of a commit pushed to `main`, such as the merge commit of a pull request. The workflow tags that commit `v1.9.0`, builds the APK and publishes the release; pushes to `main` without that line don't release. Actions → Release → Run workflow does the same by hand.
 
 The tag sets `versionName` (`1.3.0`) and `versionCode` (`10300`). The app looks for a newer release in two ways:
 
