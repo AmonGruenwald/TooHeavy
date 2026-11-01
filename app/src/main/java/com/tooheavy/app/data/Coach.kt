@@ -104,10 +104,10 @@ data class Expenditure(
 /**
  * Daily energy expenditure as of the morning of [asOf], from the [EXPENDITURE_WINDOW] days before it.
  *
- * Intake is averaged over logged days only. Logging that is consistently incomplete still converges
- * on working targets, because the estimate is relative to what gets logged. The trend change over the
- * same days is converted to energy stored or burned off. Until there are about three weeks of logs and
- * regular weigh-ins the result is shrunk toward the formula estimate.
+ * [dailyKcal] holds the days that count (see countedKcal). Intake is averaged over those days only.
+ * Logging that is consistently incomplete still converges on working targets, because the estimate is
+ * relative to what gets logged. The trend change over the same days is converted to energy stored or burned
+ * off. Until there are about three weeks of logs and regular weigh-ins the result is shrunk toward the formula.
  */
 fun estimateExpenditure(
     profile: BodyProfile,
@@ -122,7 +122,7 @@ fun estimateExpenditure(
     val start = if (first != null && first > windowStart) first else windowStart
     val span = if (first == null) 0 else daysBetween(start, asOf)
     // Morning weight on day d reflects intake up to d - 1, so intake runs from start to asOf - 1.
-    val logged = (0 until span).mapNotNull { dailyKcal[shiftDate(start, it)]?.takeIf { k -> k > 0 } }
+    val logged = (0 until span).mapNotNull { dailyKcal[shiftDate(start, it)] }
     val weighIns = trend.count { it.date >= start }
     val startTrend = trend.trendOn(start)
     val endTrend = trend.trendOn(asOf)

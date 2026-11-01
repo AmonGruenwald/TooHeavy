@@ -27,7 +27,7 @@ fun kcalGoalAt(date: String, history: List<KcalGoalChange>, current: Int): Int =
 
 /**
  * Calories carried into [date]: positive when earlier days were eaten under their goal, negative when over.
- * [dailyKcal] is the logged intake per date (days without food logged don't count), [goalOn] the goal a day had.
+ * [dailyKcal] is the intake of the days that count (see countedKcal; days missing from it don't), [goalOn] the goal a day had.
  */
 fun carryOverKcal(date: String, dailyKcal: Map<String, Double>, goalOn: (String) -> Int): Int {
     class Open(val day: Int, var kcal: Int)
@@ -35,7 +35,7 @@ fun carryOverKcal(date: String, dailyKcal: Map<String, Double>, goalOn: (String)
     val open = ArrayList<Open>()
     datesBefore(date, REPLAY_DAYS).forEachIndexed { day, d ->
         open.removeAll { day - it.day > CARRY_OVER_DAYS }
-        val eaten = dailyKcal[d]?.takeIf { it > 0 } ?: return@forEachIndexed
+        val eaten = dailyKcal[d] ?: return@forEachIndexed
         var diff = goalOn(d) - eaten.roundToInt()
         while (diff != 0 && open.isNotEmpty() && (open[0].kcal > 0) != (diff > 0)) {
             if (abs(diff) >= abs(open[0].kcal)) {

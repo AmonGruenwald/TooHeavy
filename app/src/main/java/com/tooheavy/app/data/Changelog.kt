@@ -12,6 +12,15 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.11.0", "2026-11-01",
+            listOf(
+                "Mark a day in the food diary as not properly tracked (⋮ next to the timeline): it then doesn't count " +
+                    "for the calorie carry-over, the coach's expenditure estimate or the intake averages.",
+                "Or mark a day without food as left empty on purpose: it counts as 0 kcal eaten, so its calorie goal " +
+                    "carries over to the next days. Logging food on the day clears the mark.",
+            ),
+        ),
+        ChangelogEntry(
             "1.9.0", "2026-11-01",
             listOf(
                 "Calorie carry-over: eat over your calorie goal and the next days' goals go down by the difference; " +

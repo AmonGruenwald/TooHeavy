@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.google.gson.Gson
@@ -224,7 +225,28 @@ data class NutritionData(
     val carryOver: Boolean = true,
     /** Calorie goal changes, oldest first, so past days keep the goal they had. */
     val kcalGoalHistory: List<KcalGoalChange> = emptyList(),
+    /** Days marked in the diary: date -> DayMark.UNTRACKED or DayMark.EMPTY. */
+    val dayMarks: Map<String, String> = emptyMap(),
 )
+
+/** How a diary day counts for the carry-over, the coach and the intake averages. Unmarked days count when food is logged. */
+object DayMark {
+    /** Not properly tracked: the day isn't used for anything, whatever was logged. */
+    const val UNTRACKED = "untracked"
+    /** Left empty on purpose: the day counts with 0 kcal eaten. Logging food on it clears the mark. */
+    const val EMPTY = "empty"
+}
+
+/**
+ * Intake of the days that count, from the logged intake per date and the [marks]: days with food logged,
+ * without the days marked not properly tracked, plus the days left empty on purpose (0 kcal when nothing is logged).
+ */
+fun countedKcal(dailyKcal: Map<String, Double>, marks: Map<String, String>): Map<String, Double> {
+    val out = HashMap<String, Double>()
+    for ((d, k) in dailyKcal) if (k > 0 && marks[d] != DayMark.UNTRACKED) out[d] = k
+    for ((d, m) in marks) if (m == DayMark.EMPTY) out[d] = dailyKcal[d] ?: 0.0
+    return out
+}
 
 // ---------- dates ----------
 
@@ -340,6 +362,8 @@ object NutritionRepo {
         private set
     /** Calorie goal changes, oldest first. */
     val kcalGoalHistory = mutableStateListOf<KcalGoalChange>()
+    /** Diary days marked not properly tracked or left empty on purpose (date -> DayMark). */
+    val dayMarks = mutableStateMapOf<String, String>()
 
     /** Recipe being edited in RecipeScreen (survives trips to the ingredient search). */
     var recipeDraft by mutableStateOf<RecipeDraft?>(null)
@@ -362,6 +386,7 @@ object NutritionRepo {
                 water.addAll(d.water.orEmpty())
                 carryOver = d.carryOver
                 kcalGoalHistory.addAll(d.kcalGoalHistory.orEmpty().sortedBy { it.date })
+                dayMarks.putAll(d.dayMarks.orEmpty())
             }
         }
         val app = context.applicationContext
@@ -386,7 +411,7 @@ object NutritionRepo {
         val snapshot = gson.toJson(
             NutritionData(
                 entries.toList(), customFoods.toList(), goals, profile, weights.toList(), coach, checkIns.toList(), water.toList(),
-                carryOver, kcalGoalHistory.toList(),
+                carryOver, kcalGoalHistory.toList(), dayMarks.toMap(),
             )
         )
         io.execute {
@@ -493,12 +518,14 @@ object NutritionRepo {
 
     fun addEntry(e: FoodEntry) {
         entries.add(e)
+        clearEmptyMark(e.date)
         save()
     }
 
     fun updateEntry(e: FoodEntry) {
         val i = entries.indexOfFirst { it.id == e.id }
         if (i >= 0) entries[i] = e else entries.add(e)
+        clearEmptyMark(e.date)
         save()
     }
 
@@ -510,8 +537,33 @@ object NutritionRepo {
     /** Copies every entry of [fromDate] to [toDate], keeping the times of day. */
     fun copyDay(fromDate: String, toDate: String) {
         entriesFor(fromDate).forEach { entries.add(it.copy(id = newId(), date = toDate, createdAt = timeOn(toDate, it.createdAt))) }
+        clearEmptyMark(toDate)
         save()
     }
+
+    // ---------- day marks ----------
+
+    /** DayMark of [date], or null for a normal day. */
+    fun dayMark(date: String): String? = dayMarks[date]
+
+    /** Marks [date] (DayMark.UNTRACKED or DayMark.EMPTY), or clears its mark with null. */
+    fun setDayMark(date: String, mark: String?) {
+        if (mark == null) dayMarks.remove(date) else dayMarks[date] = mark
+        save()
+    }
+
+    /** A day with food logged isn't empty any more. */
+    private fun clearEmptyMark(date: String) {
+        if (dayMarks[date] == DayMark.EMPTY) dayMarks.remove(date)
+    }
+
+    /** Intake of [date] if the day counts (see countedKcal), null if it doesn't. */
+    fun countedKcalOn(date: String): Double? =
+        when (dayMarks[date]) {
+            DayMark.UNTRACKED -> null
+            DayMark.EMPTY -> totals(date).kcal
+            else -> totals(date).kcal.takeIf { it > 0 }
+        }
 
     // ---------- water ----------
 
@@ -586,7 +638,7 @@ object NutritionRepo {
 
     /** Calories carried into [date] from the days before; 0 when carry-over is off and for days after today. */
     fun carriedKcal(date: String): Int =
-        if (!carryOver || date > today()) 0 else carryOverKcal(date, dailyKcal()) { kcalGoalOn(it) }
+        if (!carryOver || date > today()) 0 else carryOverKcal(date, countedDailyKcal()) { kcalGoalOn(it) }
 
     /** The calorie goal for [date] with the carry-over applied. */
     fun dayKcalGoal(date: String): Int = adjustedKcalGoal(kcalGoalOn(date), carriedKcal(date), profile.minKcal())
@@ -619,7 +671,10 @@ object NutritionRepo {
     /** Logged kcal per date. */
     fun dailyKcal(): Map<String, Double> = entries.groupBy { it.date }.mapValues { (_, es) -> es.sumOf { it.kcal } }
 
-    fun expenditure(asOf: String = today()): Expenditure = estimateExpenditure(profile, dailyKcal(), weights.toList(), asOf)
+    /** Intake of the days that count for the carry-over and the coach (see countedKcal). */
+    fun countedDailyKcal(): Map<String, Double> = countedKcal(dailyKcal(), dayMarks)
+
+    fun expenditure(asOf: String = today()): Expenditure = estimateExpenditure(profile, countedDailyKcal(), weights.toList(), asOf)
 
     fun trend(): List<TrendPoint> = weightTrend(weights.toList())
 
@@ -628,7 +683,7 @@ object NutritionRepo {
     fun checkInDue(): Boolean = isCheckInDue(coach, lastCheckIn()?.date, today())
 
     fun proposeCheckIn(date: String = today()): CheckInProposal =
-        buildCheckIn(profile, coach, dailyKcal(), weights.toList(), date)
+        buildCheckIn(profile, coach, countedDailyKcal(), weights.toList(), date)
 
     /** Records the check-in and makes its targets the daily goals. */
     fun applyCheckIn(p: CheckInProposal) {
