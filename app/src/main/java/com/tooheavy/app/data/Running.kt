@@ -80,14 +80,17 @@ object RunType {
     const val LONG = "long"
     const val TEMPO = "tempo"
     const val INTERVALS = "intervals"
+    /** Unstructured speed play: bursts of faster running mixed into an easy run, by feel. */
+    const val FARTLEK = "fartlek"
     const val RECOVERY = "recovery"
     const val RACE = "race"
-    val all = listOf(EASY, LONG, TEMPO, INTERVALS, RECOVERY, RACE)
+    val all = listOf(EASY, LONG, TEMPO, INTERVALS, FARTLEK, RECOVERY, RACE)
     fun label(type: String?): String = when (type) {
         EASY -> "Easy run"
         LONG -> "Long run"
         TEMPO -> "Tempo run"
         INTERVALS -> "Intervals"
+        FARTLEK -> "Fartlek"
         RECOVERY -> "Recovery run"
         RACE -> "Race"
         else -> "Run"

@@ -696,7 +696,15 @@ private fun RunEditDialog(run: PlannedRun, unit: String, weekIndex: Int, onDismi
                     value = notes,
                     onValueChange = { notes = it },
                     label = { Text("Note (optional)") },
-                    placeholder = { Text(if (type == RunType.INTERVALS) "e.g. 6 × 400 m at 5K pace, 90 s jog" else "e.g. Keep it conversational") },
+                    placeholder = {
+                        Text(
+                            when (type) {
+                                RunType.INTERVALS -> "e.g. 6 × 400 m at 5K pace, 90 s jog"
+                                RunType.FARTLEK -> "e.g. 8 × 1 min hard whenever you feel like it, easy in between"
+                                else -> "e.g. Keep it conversational"
+                            },
+                        )
+                    },
                     minLines = 2,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.fillMaxWidth(),

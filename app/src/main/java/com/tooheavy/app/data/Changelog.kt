@@ -12,6 +12,10 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.13.1", "2026-11-01",
+            listOf("Fartlek is a new kind of run for running plans."),
+        ),
+        ChangelogEntry(
             "1.13.0", "2026-11-01",
             listOf(
                 "Running plans are built in the app instead of from text: pick the name, the start week and the " +
