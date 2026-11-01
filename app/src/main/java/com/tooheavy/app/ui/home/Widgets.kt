@@ -378,8 +378,9 @@ private fun CaloriesToday(def: DashboardWidgets.Def, wide: Boolean, modifier: Mo
     val t = today()
     val totals = NutritionRepo.totals(t)
     val goals = NutritionRepo.goals
-    val remaining = goals.kcal - totals.kcal
-    val progress = if (goals.kcal > 0) (totals.kcal / goals.kcal).toFloat() else 0f
+    val goalKcal = NutritionRepo.dayKcalGoal(t)
+    val remaining = goalKcal - totals.kcal
+    val progress = if (goalKcal > 0) (totals.kcal / goalKcal).toFloat() else 0f
     WidgetCard(def, modifier, onClick = onClick) {
         @Composable
         fun Ring(size: Dp) {

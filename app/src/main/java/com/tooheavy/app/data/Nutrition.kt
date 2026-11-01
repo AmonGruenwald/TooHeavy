@@ -220,6 +220,10 @@ data class NutritionData(
     val coach: CoachSettings = CoachSettings(),
     val checkIns: List<CheckIn> = emptyList(),
     val water: List<WaterEntry> = emptyList(),
+    /** Carry differences from the calorie goal over to the next days (see CarryOver.kt). */
+    val carryOver: Boolean = true,
+    /** Calorie goal changes, oldest first, so past days keep the goal they had. */
+    val kcalGoalHistory: List<KcalGoalChange> = emptyList(),
 )
 
 // ---------- dates ----------
@@ -290,6 +294,9 @@ fun BodyProfile.bmr(): Double = 10 * weightKg + 6.25 * heightCm - 5 * age + if (
 /** Mifflin-St Jeor BMR x activity. */
 fun BodyProfile.tdee(): Int = (bmr() * activity).roundToInt()
 
+/** Lowest daily calorie goal the coach and the carry-over set. */
+fun BodyProfile.minKcal(): Int = if (sex == "female") 1200 else 1500
+
 /** Goals from the profile: -500 kcal to lose, +300 to gain; protein 2 g/kg, fat 25 % of kcal, rest carbs. */
 fun BodyProfile.suggestedGoals(): NutritionGoals {
     val kcal = tdee() + when (goal) { "lose" -> -500; "gain" -> 300; else -> 0 }
@@ -328,6 +335,11 @@ object NutritionRepo {
     /** Weekly check-ins, oldest first, at most one per date. */
     val checkIns = mutableStateListOf<CheckIn>()
     val water = mutableStateListOf<WaterEntry>()
+    /** When on, eating over or under the calorie goal moves the next days' goals by the difference. */
+    var carryOver by mutableStateOf(true)
+        private set
+    /** Calorie goal changes, oldest first. */
+    val kcalGoalHistory = mutableStateListOf<KcalGoalChange>()
 
     /** Recipe being edited in RecipeScreen (survives trips to the ingredient search). */
     var recipeDraft by mutableStateOf<RecipeDraft?>(null)
@@ -348,6 +360,8 @@ object NutritionRepo {
                 coach = d.coach ?: CoachSettings()
                 checkIns.addAll(d.checkIns.orEmpty().sortedBy { it.date })
                 water.addAll(d.water.orEmpty())
+                carryOver = d.carryOver
+                kcalGoalHistory.addAll(d.kcalGoalHistory.orEmpty().sortedBy { it.date })
             }
         }
         val app = context.applicationContext
@@ -370,7 +384,10 @@ object NutritionRepo {
 
     private fun save() {
         val snapshot = gson.toJson(
-            NutritionData(entries.toList(), customFoods.toList(), goals, profile, weights.toList(), coach, checkIns.toList(), water.toList())
+            NutritionData(
+                entries.toList(), customFoods.toList(), goals, profile, weights.toList(), coach, checkIns.toList(), water.toList(),
+                carryOver, kcalGoalHistory.toList(),
+            )
         )
         io.execute {
             val tmp = File(file.parentFile, "nutrition.json.tmp")
@@ -542,9 +559,37 @@ object NutritionRepo {
 
     /** Sets the calorie and macro goals; the water goal is kept (see updateWaterGoal). */
     fun updateGoals(g: NutritionGoals) {
+        recordKcalGoal(g.kcal)
         goals = g.copy(waterMl = goals.waterMl)
         save()
     }
+
+    /** Notes that the calorie goal changes to [kcal] today, so days before keep the goal they had. */
+    private fun recordKcalGoal(kcal: Int) {
+        if (kcal == goals.kcal) return
+        if (kcalGoalHistory.isEmpty()) kcalGoalHistory.add(KcalGoalChange("", goals.kcal))
+        val day = today()
+        kcalGoalHistory.removeAll { it.date == day }
+        kcalGoalHistory.add(KcalGoalChange(day, kcal))
+        kcalGoalHistory.sortBy { it.date }
+    }
+
+    // ---------- carry-over ----------
+
+    fun updateCarryOver(on: Boolean) {
+        carryOver = on
+        save()
+    }
+
+    /** The calorie goal [date] had, before carry-over. */
+    fun kcalGoalOn(date: String): Int = kcalGoalAt(date, kcalGoalHistory, goals.kcal)
+
+    /** Calories carried into [date] from the days before; 0 when carry-over is off and for days after today. */
+    fun carriedKcal(date: String): Int =
+        if (!carryOver || date > today()) 0 else carryOverKcal(date, dailyKcal()) { kcalGoalOn(it) }
+
+    /** The calorie goal for [date] with the carry-over applied. */
+    fun dayKcalGoal(date: String): Int = adjustedKcalGoal(kcalGoalOn(date), carriedKcal(date), profile.minKcal())
 
     fun updateWaterGoal(ml: Int) {
         goals = goals.copy(waterMl = ml)
@@ -587,6 +632,7 @@ object NutritionRepo {
 
     /** Records the check-in and makes its targets the daily goals. */
     fun applyCheckIn(p: CheckInProposal) {
+        recordKcalGoal(p.goals.kcal)
         checkIns.removeAll { it.date == p.date }
         checkIns.add(p.toCheckIn())
         checkIns.sortBy { it.date }
