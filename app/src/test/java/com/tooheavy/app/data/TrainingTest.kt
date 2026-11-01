@@ -171,6 +171,69 @@ class TrainingTest {
         assertTrue(find("").size == library.size)
     }
 
+    // ---------- timed exercises ----------
+
+    @Test
+    fun generalWarmupIsTimedAndWorksNoMuscle() {
+        val warmup = byId["General_Warmup"]!!
+        assertTrue(warmup.isTimed)
+        assertEquals(CATEGORY_WARMUP, warmup.category)
+        assertTrue(warmup.primaryMuscles.isEmpty() && warmup.secondaryMuscles.isEmpty())
+        assertTrue("General_Warmup" in library.filter { ExerciseSearch.matches(it, "warm up") }.map { it.id })
+        // No rest after it, no ramp-up sets for it, and it doesn't take the squat's ramp-up sets away.
+        assertEquals(0, RestTimes.auto(warmup))
+        assertFalse(WarmUps.suits(warmup))
+        val w = Workout(exercises = listOf(WorkoutExercise(exerciseId = "General_Warmup", sets = listOf(SetEntry(seconds = 300))), we("Barbell_Squat", 100.0)))
+        val out = WarmUps.apply(w, "kg", lookup, { null })
+        assertEquals(listOf(0, 3), out.exercises.map { e -> e.sets.count { it.type == SetType.WARMUP } })
+        // It counts toward no muscle and no volume.
+        val done = out.exercises.first().let { it.copy(sets = it.sets.map { s -> s.copy(completed = true) }) }
+        assertTrue(muscleCredit(listOf(done), lookup).isEmpty())
+        assertEquals(0.0, Workout(exercises = listOf(done)).volume(), 0.0)
+    }
+
+    @Test
+    fun warmupsAreOrderedFirst() {
+        val ids = listOf("Barbell_Squat", "Dumbbell_Bicep_Curl", "General_Warmup")
+        val ordered = orderWorkout(ids.map { WorkoutExercise(exerciseId = it) }, lookup).map { it.exerciseId }
+        assertEquals("General_Warmup", ordered.first())
+        // A custom warm-up without muscles too.
+        val custom = Exercise(id = Exercise.newCustomId(), name = "Rowing warm-up", category = CATEGORY_WARMUP, tracking = Tracking.TIME)
+        val withCustom: (String) -> Exercise? = { if (it == custom.id) custom else byId[it] }
+        val again = orderWorkout(listOf("Barbell_Squat", custom.id).map { WorkoutExercise(exerciseId = it) }, withCustom).map { it.exerciseId }
+        assertEquals(custom.id, again.first())
+    }
+
+    @Test
+    fun setTimesParseAndFormat() {
+        assertEquals(300, parseSetTime("5"))
+        assertEquals(330, parseSetTime("5:30"))
+        assertEquals(3723, parseSetTime("1:02:03"))
+        assertNull(parseSetTime(""))
+        assertNull(parseSetTime("0"))
+        assertNull(parseSetTime("5:"))
+        assertNull(parseSetTime("a"))
+        assertEquals("45s", formatSetTime(45))
+        assertEquals("5:00", formatSetTime(300))
+        assertEquals("1:02:03", formatSetTime(3723))
+        // A running stopwatch counts on from the time already logged.
+        assertEquals(70, SetEntry(seconds = 10, timerStartedAt = 1_000L).secondsAt(61_000L))
+        assertEquals(10, SetEntry(seconds = 10).secondsAt(61_000L))
+        assertNull(SetEntry().secondsAt(61_000L))
+    }
+
+    @Test
+    fun timedSetsAndExercisesRoundTrip() {
+        val gson = Gson()
+        val e = Exercise(id = "custom-x", name = "Bike", category = CATEGORY_WARMUP, tracking = Tracking.TIME)
+        assertEquals(e, gson.fromJson(gson.toJson(e), Exercise::class.java))
+        val set = SetEntry(seconds = 300, completed = true)
+        assertEquals(set, gson.fromJson(gson.toJson(set), SetEntry::class.java))
+        // Older data has neither field.
+        val old = gson.fromJson("""{"id":"a","name":"Squat"}""", Exercise::class.java)
+        assertFalse(old.isTimed)
+    }
+
     // ---------- muscles ----------
 
     @Test

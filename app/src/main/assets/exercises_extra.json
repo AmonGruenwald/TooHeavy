@@ -1,5 +1,21 @@
 [
   {
+    "id": "General_Warmup",
+    "name": "General Warmup",
+    "level": "beginner",
+    "primaryMuscles": [],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Raise your body temperature with 5 to 10 minutes of easy, whole-body movement: a bike, rower, cross-trainer, brisk walk or skipping rope.",
+      "Start easy and build up until you are breathing a little harder and starting to sweat, without getting tired.",
+      "Finish with a few dynamic movements for the joints you are about to train, such as arm circles, leg swings, hip circles and bodyweight squats.",
+      "Log how long you warmed up. The first lifts still get their own ramp-up sets."
+    ],
+    "category": "warmup",
+    "tracking": "time",
+    "images": []
+  },
+  {
     "id": "Bulgarian_Split_Squat",
     "name": "Bulgarian Split Squat",
     "force": "push",

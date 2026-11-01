@@ -39,14 +39,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.tooheavy.app.data.CATEGORY_WARMUP
 import com.tooheavy.app.data.Exercise
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.Tracking
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.theme.Danger
 
-/** Categories offered for custom exercises (the library's own categories). */
-private val exerciseCategories = listOf("strength", "powerlifting", "olympic weightlifting", "cardio", "plyometrics", "stretching", "strongman")
+/** Categories offered for custom exercises (the library's own categories, plus warm-ups). */
+private val exerciseCategories =
+    listOf("strength", "powerlifting", "olympic weightlifting", "cardio", "plyometrics", "stretching", "strongman", CATEGORY_WARMUP)
 
 /** Editor for a user-created exercise; [id] = "new" or a custom Exercise.id. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -60,6 +63,7 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
     var secondary by remember { mutableStateOf(existing?.secondaryMuscles.orEmpty().toSet()) }
     var equipment by remember { mutableStateOf(existing?.equipment) }
     var category by remember { mutableStateOf(existing?.category ?: "strength") }
+    var tracking by remember { mutableStateOf(existing?.tracking) }
     var instructions by remember { mutableStateOf(existing?.instructions.orEmpty().joinToString("\n")) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -70,17 +74,18 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
         val p = primary
         when {
             n.isEmpty() -> error = "Enter a name."
-            p == null -> error = "Pick the main muscle."
             else -> {
                 Repo.saveCustomExercise(
                     Exercise(
                         id = existing?.id ?: Exercise.newCustomId(),
                         name = n,
                         equipment = equipment,
-                        primaryMuscles = listOf(p),
+                        // No main muscle is fine: a warm-up or cardio then counts toward no muscle group.
+                        primaryMuscles = listOfNotNull(p),
                         secondaryMuscles = secondary.filter { it != p }.sorted(),
                         category = category,
                         instructions = instructions.lines().map { it.trim() }.filter { it.isNotEmpty() },
+                        tracking = tracking,
                     )
                 )
                 nav.popBackStack()
@@ -122,6 +127,7 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
 
             ExerciseFieldLabel("Main muscle")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = primary == null, onClick = { primary = null }, label = { Text("None") })
                 muscles.forEach { m ->
                     FilterChip(selected = primary == m, onClick = { primary = m; error = null }, label = { Text(m.titleCase()) })
                 }
@@ -149,8 +155,23 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
             ExerciseFieldLabel("Type")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 exerciseCategories.forEach { c ->
-                    FilterChip(selected = category == c, onClick = { category = c }, label = { Text(c.titleCase()) })
+                    FilterChip(
+                        selected = category == c,
+                        onClick = {
+                            // Warm-ups are usually timed; switching away from one goes back to weight and reps.
+                            if (c == CATEGORY_WARMUP) tracking = Tracking.TIME
+                            else if (category == CATEGORY_WARMUP) tracking = null
+                            category = c
+                        },
+                        label = { Text(c.titleCase()) },
+                    )
                 }
+            }
+
+            ExerciseFieldLabel("Track")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = tracking == null, onClick = { tracking = null }, label = { Text("Weight & reps") })
+                FilterChip(selected = tracking == Tracking.TIME, onClick = { tracking = Tracking.TIME }, label = { Text("Time") })
             }
 
             OutlinedTextField(

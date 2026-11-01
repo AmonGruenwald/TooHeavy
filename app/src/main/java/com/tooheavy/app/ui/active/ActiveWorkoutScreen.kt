@@ -35,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -84,6 +86,7 @@ import com.tooheavy.app.data.WorkoutExercise
 import com.tooheavy.app.data.completedSetCount
 import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatDuration
+import com.tooheavy.app.data.formatSetTime
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.groupCredit
@@ -91,6 +94,8 @@ import com.tooheavy.app.data.linkWithNext
 import com.tooheavy.app.data.muscleCredit
 import com.tooheavy.app.data.normalizeSupersets
 import com.tooheavy.app.data.orderWorkout
+import com.tooheavy.app.data.parseSetTime
+import com.tooheavy.app.data.secondsAt
 import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.volume
@@ -118,6 +123,8 @@ private val SetColW = 34.dp
 private val CheckColW = 38.dp
 private const val PrevWeight = 1.15f
 private const val RirWeight = 0.62f
+/** The time field of a timed set spans the weight, reps and RIR columns, less the stopwatch button. */
+private const val TimeWeight = 1.62f
 
 // ---------- state update helpers ----------
 
@@ -165,8 +172,12 @@ private fun unlinkSuperset(index: Int) = Repo.updateActive { w ->
 
 private fun parseWeight(t: String): Double? = t.replace(',', '.').toDoubleOrNull()
 
+/** "5:00" for editing a set duration, "" when there is none. */
+private fun timeFieldText(seconds: Int?): String = seconds?.let { formatClock(it * 1000L) }.orEmpty()
+
 private fun previousText(p: SetEntry?, unit: String): String {
     if (p == null) return "-"
+    p.seconds?.let { return formatSetTime(it) }
     val w = p.weight
     val r = p.reps
     return when {
@@ -504,6 +515,8 @@ private fun RestTimerBar() {
 private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExercise, index: Int, superset: String?, unit: String) {
     val count = workout.exercises.size
     val exercise = Repo.exercise(we.exerciseId)
+    // Timed exercises (e.g. a general warm-up) log a duration per set instead of weight and reps.
+    val timed = exercise?.isTimed == true
     val previous = remember(we.exerciseId) { Repo.previousSets(we.exerciseId) }
     var menuOpen by remember { mutableStateOf(false) }
     var restDialog by remember { mutableStateOf(false) }
@@ -568,13 +581,15 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                                 restDialog = true
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Add warm-up sets") },
-                            onClick = {
-                                menuOpen = false
-                                Repo.addWarmups(we.id)
-                            },
-                        )
+                        if (!timed) {
+                            DropdownMenuItem(
+                                text = { Text("Add warm-up sets") },
+                                onClick = {
+                                    menuOpen = false
+                                    Repo.addWarmups(we.id)
+                                },
+                            )
+                        }
                         if (index < count - 1 && !linkedToNext) {
                             DropdownMenuItem(
                                 text = { Text("Superset with next") },
@@ -633,9 +648,14 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
             ) {
                 HeaderCell("SET", Modifier.width(SetColW))
                 HeaderCell("PREVIOUS", Modifier.weight(PrevWeight))
-                HeaderCell(unit.uppercase(), Modifier.weight(1f))
-                HeaderCell("REPS", Modifier.weight(1f))
-                HeaderCell("RIR", Modifier.weight(RirWeight))
+                if (timed) {
+                    HeaderCell("TIME", Modifier.weight(TimeWeight))
+                    Spacer(Modifier.width(CheckColW))
+                } else {
+                    HeaderCell(unit.uppercase(), Modifier.weight(1f))
+                    HeaderCell("REPS", Modifier.weight(1f))
+                    HeaderCell("RIR", Modifier.weight(RirWeight))
+                }
                 Box(Modifier.width(CheckColW), contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Check,
@@ -654,18 +674,24 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                     val warm = entry.type == SetType.WARMUP
                     val nth = we.sets.take(idx).count { (it.type == SetType.WARMUP) == warm }
                     val number = we.sets.take(idx + 1).count { it.type != SetType.WARMUP }
-                    SetRow(
-                        weId = we.id,
-                        entry = entry,
-                        setNumber = number,
-                        previous = (if (warm) prevWarmups else prevWorking).getOrNull(nth),
-                        unit = unit,
-                        targetRir = we.target?.rir,
-                        restAfter = {
-                            val w = Repo.activeWorkout ?: workout
-                            RestTimes.after(w, w.exercises.indexOfFirst { it.id == we.id }, entry.id)
-                        },
-                    )
+                    val previousSet = (if (warm) prevWarmups else prevWorking).getOrNull(nth)
+                    val restAfter = {
+                        val w = Repo.activeWorkout ?: workout
+                        RestTimes.after(w, w.exercises.indexOfFirst { it.id == we.id }, entry.id)
+                    }
+                    if (timed) {
+                        TimedSetRow(weId = we.id, entry = entry, setNumber = number, previous = previousSet, restAfter = restAfter)
+                    } else {
+                        SetRow(
+                            weId = we.id,
+                            entry = entry,
+                            setNumber = number,
+                            previous = previousSet,
+                            unit = unit,
+                            targetRir = we.target?.rir,
+                            restAfter = restAfter,
+                        )
+                    }
                 }
             }
 
@@ -674,7 +700,7 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                 onClick = {
                     val last = we.sets.lastOrNull()
                     updateExercise(we.id) { e ->
-                        e.copy(sets = e.sets + SetEntry(weight = last?.weight, reps = last?.reps))
+                        e.copy(sets = e.sets + SetEntry(weight = last?.weight, reps = last?.reps, seconds = last?.seconds))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -694,7 +720,8 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        "Suggested for this exercise: ${restLabel(RestTimes.auto(exercise))}. Your choice is remembered for next time.",
+                        "Suggested for this exercise: ${RestTimes.auto(exercise).let { if (it <= 0) "none" else restLabel(it) }}. " +
+                            "Your choice is remembered for next time.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1012,6 +1039,199 @@ private fun SetRow(
             },
             dismissButton = { TextButton(onClick = { halfDialog = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/**
+ * A set of a timed exercise: how long it took, typed as minutes ("5", "5:30") or measured with the stopwatch.
+ * The stopwatch start is stored in the set, so it keeps running while the screen is left.
+ */
+@Composable
+private fun TimedSetRow(
+    weId: String,
+    entry: SetEntry,
+    setNumber: Int,
+    previous: SetEntry?,
+    restAfter: () -> Int,
+) {
+    val focus = LocalFocusManager.current
+    var timeText by remember(entry.id) { mutableStateOf(timeFieldText(entry.seconds)) }
+    var typeMenu by remember { mutableStateOf(false) }
+    val running = entry.timerStartedAt != null
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(entry.timerStartedAt) {
+        while (entry.timerStartedAt != null) {
+            now = System.currentTimeMillis()
+            delay(250)
+        }
+    }
+
+    fun stopTimer(): Int? {
+        val secs = entry.secondsAt(System.currentTimeMillis())
+        timeText = timeFieldText(secs)
+        return secs
+    }
+
+    val onCheck: () -> Unit = {
+        focus.clearFocus()
+        if (!entry.completed) {
+            val secs = if (running) stopTimer() else parseSetTime(timeText) ?: previous?.seconds
+            timeText = timeFieldText(secs)
+            updateSet(weId, entry.id) { it.copy(seconds = secs, timerStartedAt = null, completed = true) }
+            val rest = restAfter()
+            if (rest > 0) Repo.startRest(rest) else Repo.stopRest()
+        } else {
+            updateSet(weId, entry.id) { it.copy(completed = false) }
+        }
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (entry.completed) Success.copy(alpha = 0.18f) else Color.Transparent)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.width(SetColW), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(width = 30.dp, height = 30.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    .clickable { typeMenu = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (entry.type == SetType.WARMUP) "W" else setNumber.toString(),
+                    color = if (entry.type == SetType.WARMUP) Warmup else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                )
+            }
+            DropdownMenu(expanded = typeMenu, onDismissRequest = { typeMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Normal set") },
+                    onClick = {
+                        typeMenu = false
+                        updateSet(weId, entry.id) { it.copy(type = SetType.NORMAL) }
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Warm-up set", color = Warmup) },
+                    onClick = {
+                        typeMenu = false
+                        updateSet(weId, entry.id) { it.copy(type = SetType.WARMUP) }
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete set", color = Danger) },
+                    onClick = {
+                        typeMenu = false
+                        updateExercise(weId) { e -> e.copy(sets = e.sets.filter { it.id != entry.id }) }
+                    },
+                )
+            }
+        }
+
+        // previous
+        Box(
+            Modifier
+                .weight(PrevWeight)
+                .height(36.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(enabled = previous?.seconds != null && !running) {
+                    val secs = previous?.seconds ?: return@clickable
+                    timeText = timeFieldText(secs)
+                    updateSet(weId, entry.id) { it.copy(seconds = secs) }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                previous?.seconds?.let { formatSetTime(it) } ?: "-",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        // time: typed, or counting up while the stopwatch runs
+        if (running) {
+            Box(
+                Modifier
+                    .weight(TimeWeight)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Accent.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    formatClock((entry.secondsAt(now) ?: 0) * 1000L),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AccentBright,
+                )
+            }
+        } else {
+            CompactField(
+                value = timeText,
+                onValueChange = { raw ->
+                    val t = raw.filter { c -> c.isDigit() || c == ':' }.take(8)
+                    timeText = t
+                    updateSet(weId, entry.id) { it.copy(seconds = parseSetTime(t)) }
+                },
+                placeholder = previous?.seconds?.let { timeFieldText(it) } ?: "min",
+                modifier = Modifier.weight(TimeWeight),
+                keyboardType = KeyboardType.Number,
+            )
+        }
+
+        // stopwatch
+        Box(Modifier.width(CheckColW), contentAlignment = Alignment.Center) {
+            IconButton(
+                onClick = {
+                    focus.clearFocus()
+                    if (running) {
+                        val secs = stopTimer()
+                        updateSet(weId, entry.id) { it.copy(seconds = secs, timerStartedAt = null) }
+                    } else {
+                        // Starts from the time already entered, so a paused stopwatch carries on.
+                        val start = parseSetTime(timeText)
+                        updateSet(weId, entry.id) {
+                            it.copy(seconds = start, timerStartedAt = System.currentTimeMillis(), completed = false)
+                        }
+                    }
+                },
+                modifier = Modifier.size(34.dp),
+            ) {
+                Icon(
+                    if (running) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                    contentDescription = if (running) "Stop timer" else "Start timer",
+                    tint = if (running) AccentBright else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        // check
+        Box(Modifier.width(CheckColW), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(width = 34.dp, height = 34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (entry.completed) Success else MaterialTheme.colorScheme.surfaceContainerHighest)
+                    .clickable { onCheck() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = if (entry.completed) "Mark set incomplete" else "Mark set complete",
+                    modifier = Modifier.size(20.dp),
+                    tint = if (entry.completed) OnAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

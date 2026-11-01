@@ -62,7 +62,9 @@ import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.Routine
 import com.tooheavy.app.data.RoutineExercise
+import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatWeight
+import com.tooheavy.app.data.parseSetTime
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
@@ -253,6 +255,9 @@ private fun RoutineExerciseCard(
     val unit = Repo.settings.unit
     var repsText by remember { mutableStateOf(re.reps?.toString() ?: "") }
     var weightText by remember { mutableStateOf(formatWeight(re.weight)) }
+    // Timed exercises (e.g. a general warm-up) get a time per set instead of reps and weight.
+    val timed = ex?.isTimed == true
+    var timeText by remember { mutableStateOf(re.seconds?.let { formatClock(it * 1000L) }.orEmpty()) }
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -276,7 +281,7 @@ private fun RoutineExerciseCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val muscle = ex?.primaryMuscles?.firstOrNull()
+                    val muscle = ex?.primaryMuscles?.firstOrNull() ?: ex?.category
                     if (muscle != null) {
                         Text(
                             muscle.titleCase(),
@@ -307,35 +312,53 @@ private fun RoutineExerciseCard(
                     onChange = { v -> updateExercise(index) { it.copy(sets = v) } },
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
-                    value = repsText,
-                    onValueChange = { s ->
-                        if (s.length <= 3 && s.all { it.isDigit() }) {
-                            repsText = s
-                            updateExercise(index) { it.copy(reps = s.toIntOrNull()) }
-                        }
-                    },
-                    label = { Text("Target reps") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
+                if (timed) {
+                    OutlinedTextField(
+                        value = timeText,
+                        onValueChange = { s ->
+                            if (s.length <= 8 && s.all { it.isDigit() || it == ':' }) {
+                                timeText = s
+                                updateExercise(index) { it.copy(seconds = parseSetTime(s)) }
+                            }
+                        },
+                        label = { Text("Time (min)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = repsText,
+                        onValueChange = { s ->
+                            if (s.length <= 3 && s.all { it.isDigit() }) {
+                                repsText = s
+                                updateExercise(index) { it.copy(reps = s.toIntOrNull()) }
+                            }
+                        },
+                        label = { Text("Target reps") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = { s ->
-                        if (s.length <= 7 && s.all { it.isDigit() || it == '.' } && s.count { it == '.' } <= 1) {
-                            weightText = s
-                            updateExercise(index) { it.copy(weight = s.replace(',', '.').toDoubleOrNull()) }
-                        }
-                    },
-                    label = { Text("Weight ($unit)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
+                if (!timed) {
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { s ->
+                            if (s.length <= 7 && s.all { it.isDigit() || it == '.' } && s.count { it == '.' } <= 1) {
+                                weightText = s
+                                updateExercise(index) { it.copy(weight = s.replace(',', '.').toDoubleOrNull()) }
+                            }
+                        },
+                        label = { Text("Weight ($unit)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 RestPicker(
                     seconds = re.restSeconds,
                     onChange = { v -> updateExercise(index) { it.copy(restSeconds = v) } },

@@ -97,7 +97,8 @@ fun ProfileScreen(nav: NavController) {
     val weeks = weeklyBuckets(workouts, 8)
     val streak = weekStreak(workouts)
     val topMuscles = muscleSets(workouts, System.currentTimeMillis() - 30L * 86_400_000L, Repo::exercise).take(8)
-    val prs = personalRecords(workouts).take(10)
+    // Timed exercises like a general warm-up have no weights to set records with.
+    val prs = personalRecords(workouts).filter { Repo.exercise(it.exerciseId)?.isTimed != true }.take(10)
 
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = Accent,

@@ -64,6 +64,8 @@ import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.SetEntry
 import com.tooheavy.app.data.SetType
 import com.tooheavy.app.data.estimated1RM
+import com.tooheavy.app.data.formatDuration
+import com.tooheavy.app.data.formatSetTime
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.data.volume
@@ -130,7 +132,7 @@ fun ExerciseDetailScreen(nav: NavController, exerciseId: String, initialTab: Int
                 when (tab) {
                     0 -> DetailAboutTab(exercise)
                     1 -> DetailHistoryTab(exercise.id)
-                    else -> DetailChartsTab(exercise.id)
+                    else -> if (exercise.isTimed) DetailTimeChartsTab(exercise.id) else DetailChartsTab(exercise.id)
                 }
             }
         }
@@ -287,6 +289,7 @@ private fun DetailHistoryTab(exerciseId: String) {
                     we.sets.forEachIndexed { i, s ->
                         val weightText = if (s.weight != null) "${formatWeight(s.weight)} $unit" else "-"
                         val repsText = s.reps?.toString() ?: "-"
+                        val setText = s.seconds?.let { formatSetTime(it) } ?: "$weightText × $repsText"
                         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                             Text(
                                 labels[i],
@@ -294,7 +297,7 @@ private fun DetailHistoryTab(exerciseId: String) {
                                 color = if (s.type == SetType.WARMUP) Warmup else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.SemiBold,
                             )
-                            Text("$weightText × $repsText", style = MaterialTheme.typography.bodyLarge)
+                            Text(setText, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
@@ -379,6 +382,36 @@ private fun DetailChartsTab(exerciseId: String) {
                 counts, buckets.map { it.first }, height = 140.dp,
                 highlight = counts.indices.maxByOrNull { counts[it] }, valueFormat = { "${it.toInt()}" },
                 tooltipLabels = buckets.map { "${it.first} reps" },
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Charts for a timed exercise (e.g. a general warm-up): how long each session's sets took. */
+@Composable
+private fun DetailTimeChartsTab(exerciseId: String) {
+    val chrono = Repo.exerciseHistory(exerciseId).sortedBy { it.first.startTime }
+    val perSession = chrono.map { (w, we) -> w to we.sets.sumOf { it.seconds ?: 0 } }
+    val longest = chrono.flatMap { it.second.sets }.mapNotNull { it.seconds }.maxOrNull()
+    val total = perSession.sumOf { it.second }
+    val fmt = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val recent = perSession.takeLast(10)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Longest", longest?.let { formatSetTime(it) } ?: "–", Modifier.weight(1f), icon = Icons.Filled.EmojiEvents)
+            StatTile("Total", if (total > 0) formatDuration(total * 1000L) else "–", Modifier.weight(1f), icon = Icons.Filled.BarChart)
+        }
+        ChartCard("Time per session", caption = "Minutes, last ${recent.size} sessions", icon = Icons.Filled.BarChart) {
+            BarChart(
+                recent.map { it.second / 60.0 },
+                recent.map { (w, _) -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(w.startTime)) },
+                height = 150.dp,
+                valueFormat = { formatSetTime(Math.round(it * 60).toInt()) },
+                tooltipLabels = recent.map { (w, _) -> fmt.format(Date(w.startTime)) },
             )
         }
         Spacer(Modifier.height(8.dp))

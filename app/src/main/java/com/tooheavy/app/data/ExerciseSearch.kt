@@ -58,6 +58,7 @@ object ExerciseSearch {
         "v-bar pulldown" to "neutral grip lat pulldown",
         "shrug" to "traps",
         "calf press" to "leg press calf raise",
+        "warmup" to "warm up warm-up",
     )
 
     private fun normalize(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
