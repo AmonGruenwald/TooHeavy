@@ -70,5 +70,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    // OpenStreetMap maps for recorded runs (no API key or Google services).
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     testImplementation("junit:junit:4.13.2")
 }

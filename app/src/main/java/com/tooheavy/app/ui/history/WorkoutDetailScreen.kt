@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,7 +61,13 @@ import com.tooheavy.app.data.completedSetCount
 import com.tooheavy.app.data.durationMs
 import com.tooheavy.app.data.estimated1RM
 import com.tooheavy.app.data.formatDuration
+import com.tooheavy.app.data.KM_PER_MILE
+import com.tooheavy.app.data.RouteStore
 import com.tooheavy.app.data.cardioText
+import com.tooheavy.app.data.formatDistanceValue
+import com.tooheavy.app.data.paceText
+import com.tooheavy.app.data.splits
+import com.tooheavy.app.ui.running.RouteMap
 import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
@@ -376,6 +383,53 @@ private fun DetailExerciseCard(nav: NavController, we: WorkoutExercise, unit: St
                     }
                 }
             }
+            we.sets.mapNotNull { it.routeId }.forEach { routeId ->
+                key(routeId) {
+                    Spacer(Modifier.height(10.dp))
+                    RouteDetail(routeId, distanceUnit(unit))
+                }
+            }
+        }
+    }
+}
+
+/** A recorded route: the map, then the time of each km (or mile) with its pace bar. */
+@Composable
+private fun RouteDetail(routeId: String, distUnit: String) {
+    val points = remember(routeId) { RouteStore.load(routeId) }
+    if (points.isNullOrEmpty()) {
+        Text("Route not found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    RouteMap(points, Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(10.dp)))
+    val splitKm = if (distUnit == "mi") KM_PER_MILE else 1.0
+    val parts = remember(routeId, distUnit) { splits(points, splitKm) }
+    if (parts.isEmpty()) return
+    // Bars are as long as the split is slow, relative to the slowest full split.
+    val paces = parts.map { if (it.km > 0) it.seconds / it.km else 0.0 }
+    val slowest = paces.maxOrNull()?.takeIf { it > 0 } ?: 1.0
+    Spacer(Modifier.height(10.dp))
+    Text("Splits", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    parts.forEachIndexed { i, sp ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (sp.km < splitKm - 0.001) formatDistanceValue(sp.km, distUnit) else "${sp.number}",
+                Modifier.width(44.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+                Box(
+                    Modifier.fillMaxWidth((paces[i] / slowest).toFloat().coerceIn(0.05f, 1f)).height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)).background(AccentBright),
+                )
+            }
+            Text(
+                "${paceText(paces[i], distUnit)} /$distUnit",
+                Modifier.width(92.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End,
+            )
         }
     }
 }

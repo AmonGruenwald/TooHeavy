@@ -70,6 +70,8 @@ data class SetEntry(
     val seconds: Int? = null,
     /** Distance of a set of a distance exercise (Exercise.tracksDistance), always in km. */
     val distanceKm: Double? = null,
+    /** Id of the GPS route recorded for this set (RouteStore), null when it wasn't recorded. */
+    val routeId: String? = null,
     /** Epoch ms when the set's stopwatch was started, null while it isn't running. */
     val timerStartedAt: Long? = null,
 )

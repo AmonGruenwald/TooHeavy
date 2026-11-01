@@ -49,6 +49,13 @@ fun formatPace(seconds: Int?, km: Double?, unit: String): String? {
     return "${formatClock(perUnit * 1000L)} /$unit"
 }
 
+/** A pace in seconds per km as "5:30" per [unit] ("km" or "mi"), "–" when there is none. */
+fun paceText(secPerKm: Double?, unit: String): String {
+    if (secPerKm == null || secPerKm <= 0 || secPerKm.isInfinite() || secPerKm.isNaN()) return "–"
+    val perUnit = if (unit == "mi") secPerKm * KM_PER_MILE else secPerKm
+    return formatClock(Math.round(perUnit) * 1000L)
+}
+
 /** "5 km · 27:30 · 5:30 /km" for a set of a distance or timed exercise; null for weight-and-reps sets. */
 fun SetEntry.cardioText(unit: String): String? {
     val km = distanceKm?.takeIf { it > 0 }

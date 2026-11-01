@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.RunTracker
 import com.tooheavy.app.data.Updater
 import com.tooheavy.app.data.WhatsNew
 import com.tooheavy.app.ui.AppRoot
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Repo.init(applicationContext)
         NutritionRepo.init(applicationContext)
+        RunTracker.init(applicationContext)
         Updater.check(applicationContext)
         Updater.scheduleDailyCheck(applicationContext)
         WhatsNew.onAppStart(applicationContext)

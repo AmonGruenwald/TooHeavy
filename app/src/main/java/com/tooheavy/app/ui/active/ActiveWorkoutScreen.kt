@@ -78,6 +78,7 @@ import androidx.navigation.NavController
 import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.RestTimes
+import com.tooheavy.app.data.RunTracker
 import com.tooheavy.app.data.SetEntry
 import com.tooheavy.app.data.SetTarget
 import com.tooheavy.app.data.SetType
@@ -113,6 +114,8 @@ import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.GradientButton
 import com.tooheavy.app.ui.common.MuscleOverview
 import com.tooheavy.app.ui.common.MuscleTags
+import com.tooheavy.app.ui.running.LiveRunPanel
+import com.tooheavy.app.ui.running.RecordRunButton
 import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
@@ -166,6 +169,7 @@ private fun moveExercise(weId: String, delta: Int) {
 }
 
 private fun removeExercise(weId: String) {
+    if (RunTracker.isFor(weId)) RunTracker.discard()
     Repo.updateActive { w ->
         w.copy(exercises = w.exercises.filter { it.id != weId }.normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) })
     }
@@ -655,6 +659,22 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                 modifier = Modifier.fillMaxWidth(),
                 center = false,
             )
+
+            // GPS recording for runs, rides and rows: one at a time, into the first set not done yet.
+            if (distUnit != null) {
+                val track = RunTracker.track
+                if (track != null && track.weId == we.id) {
+                    Spacer(Modifier.height(8.dp))
+                    LiveRunPanel(track, distUnit)
+                } else if (track == null) {
+                    Spacer(Modifier.height(8.dp))
+                    RecordRunButton {
+                        val open = we.sets.firstOrNull { !it.completed }
+                        val setId = open?.id ?: SetEntry().also { s -> updateExercise(we.id) { e -> e.copy(sets = e.sets + s) } }.id
+                        RunTracker.start(we.id, setId)
+                    }
+                }
+            }
 
             Spacer(Modifier.height(8.dp))
             // table header
