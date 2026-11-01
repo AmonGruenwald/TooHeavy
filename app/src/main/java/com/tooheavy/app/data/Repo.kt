@@ -138,7 +138,7 @@ object Repo {
                 WorkoutExercise(
                     exerciseId = re.exerciseId,
                     restSeconds = re.restSeconds,
-                    sets = List(re.sets.coerceAtLeast(1)) { SetEntry(weight = re.weight, reps = re.reps) },
+                    sets = List(re.sets.coerceAtLeast(1)) { SetEntry(weight = re.weight, reps = re.reps, seconds = re.seconds) },
                     supersetId = re.supersetId,
                 )
             },
@@ -203,7 +203,7 @@ object Repo {
         val cleaned = w.copy(
             endTime = System.currentTimeMillis(),
             exercises = w.exercises
-                .map { we -> we.copy(sets = we.sets.filter { it.completed }) }
+                .map { we -> we.copy(sets = we.sets.filter { it.completed }.map { it.copy(timerStartedAt = null) }) }
                 .filter { it.sets.isNotEmpty() }
                 .normalizeSupersets({ it.supersetId }) { it.copy(supersetId = null) },
         )
@@ -303,7 +303,7 @@ object Repo {
             val last = working.lastOrNull()
             RoutineExercise(
                 we.exerciseId, sets = working.size, reps = last?.reps, weight = last?.weight,
-                restSeconds = we.restSeconds, supersetId = we.supersetId,
+                restSeconds = we.restSeconds, supersetId = we.supersetId, seconds = last?.seconds,
             )
         },
     )

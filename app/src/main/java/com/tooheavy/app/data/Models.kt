@@ -19,15 +19,29 @@ data class Exercise(
     val category: String? = null,
     /** Asset paths, e.g. "exercises/Barbell_Squat/0.webp". 0 = start position, 1 = end position. May be empty. */
     val images: List<String> = emptyList(),
+    /** What a set logs: Tracking.TIME for a duration only, null for weight and reps. */
+    val tracking: String? = null,
 ) {
     /** Created by the user (stored in AppData.customExercises) rather than bundled. */
     val isCustom: Boolean get() = id.startsWith(CUSTOM_PREFIX)
+
+    /** Sets log a duration instead of weight and reps. */
+    val isTimed: Boolean get() = tracking == Tracking.TIME
 
     companion object {
         const val CUSTOM_PREFIX = "custom-"
         fun newCustomId() = CUSTOM_PREFIX + newId()
     }
 }
+
+/** What the sets of an exercise log (Exercise.tracking). */
+object Tracking {
+    /** Only how long the set took, e.g. a general warm-up. */
+    const val TIME = "time"
+}
+
+/** Exercise.category of warm-ups; they come first in a workout and don't need muscles. */
+const val CATEGORY_WARMUP = "warmup"
 
 object SetType {
     const val NORMAL = "normal"
@@ -47,6 +61,10 @@ data class SetEntry(
     val rir: Int? = null,
     /** Partial reps after the full ones; each counts as half a rep in volume. */
     val halfReps: Int? = null,
+    /** Duration of a set of a timed exercise (Exercise.isTimed). */
+    val seconds: Int? = null,
+    /** Epoch ms when the set's stopwatch was started, null while it isn't running. */
+    val timerStartedAt: Long? = null,
 )
 
 data class WorkoutExercise(
@@ -83,6 +101,8 @@ data class RoutineExercise(
     val weight: Double? = null,
     val restSeconds: Int = 90,
     val supersetId: String? = null,
+    /** Duration per set, for timed exercises. */
+    val seconds: Int? = null,
 )
 
 data class Routine(
@@ -158,6 +178,26 @@ fun formatDuration(ms: Long): String {
         m > 0 -> "${m}m"
         else -> "${totalSec}s"
     }
+}
+
+/** Seconds of a set with its stopwatch running counted up to [now]. */
+fun SetEntry.secondsAt(now: Long): Int? =
+    timerStartedAt?.let { (seconds ?: 0) + ((now - it) / 1000).toInt().coerceAtLeast(0) } ?: seconds
+
+/** "5:00" / "45s" / "1:02:03" for a set duration. */
+fun formatSetTime(seconds: Int): String = if (seconds < 60) "${seconds}s" else formatClock(seconds * 1000L)
+
+/** "5" -> 300 (minutes), "5:30" -> 330, "1:02:03" -> 3723; null when it isn't a time. */
+fun parseSetTime(text: String): Int? {
+    val parts = text.trim().split(":")
+    if (parts.isEmpty() || parts.size > 3 || parts.any { it.isEmpty() || !it.all(Char::isDigit) || it.length > 3 }) return null
+    val n = parts.map { it.toInt() }
+    val total = when (n.size) {
+        1 -> n[0] * 60
+        2 -> n[0] * 60 + n[1]
+        else -> n[0] * 3600 + n[1] * 60 + n[2]
+    }
+    return total.takeIf { it > 0 }
 }
 
 /** "4:05" / "1:02:03" */

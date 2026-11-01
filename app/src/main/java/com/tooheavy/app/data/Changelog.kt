@@ -18,6 +18,9 @@ object Changelog {
                     "for the calorie carry-over, the coach's expenditure estimate or the intake averages.",
                 "Or mark a day without food as left empty on purpose: it counts as 0 kcal eaten, so its calorie goal " +
                     "carries over to the next days. Logging food on the day clears the mark.",
+                "New exercise: General Warmup. It logs time instead of weight and reps, works no particular muscle " +
+                    "and always goes first when exercises are ordered. Type the minutes or use the stopwatch on each set.",
+                "Your own exercises can be timed too, don't need a main muscle any more, and can have the new type Warmup.",
             ),
         ),
         ChangelogEntry(

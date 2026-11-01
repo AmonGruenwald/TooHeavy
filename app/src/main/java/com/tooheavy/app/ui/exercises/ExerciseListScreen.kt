@@ -278,7 +278,7 @@ private fun ExerciseListRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            val muscleLabel = ex.primaryMuscles.firstOrNull()?.titleCase() ?: "Other"
+            val muscleLabel = ex.primaryMuscles.firstOrNull()?.titleCase() ?: ex.category?.titleCase() ?: "Other"
             val equipLabel = ex.equipment?.titleCase() ?: "No equipment"
             Text(
                 (if (ex.isCustom) "Custom · " else "") + "$muscleLabel · $equipLabel",

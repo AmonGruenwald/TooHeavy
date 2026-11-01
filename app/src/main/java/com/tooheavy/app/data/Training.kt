@@ -105,9 +105,10 @@ private val loadedEquipment = setOf("barbell", "e-z curl bar", "dumbbell", "kett
 private val conditioning = setOf("cardio", "stretching", "plyometrics")
 
 object RestTimes {
-    /** Rest that suits the kind of exercise: long for heavy compounds, short for small muscles and conditioning. */
+    /** Rest that suits the kind of exercise: none after a warm-up, long for heavy compounds, short for small muscles and conditioning. */
     fun auto(e: Exercise?): Int = when {
         e == null -> 90
+        e.category == CATEGORY_WARMUP -> 0
         e.category in conditioning -> 60
         e.mechanic == "compound" && (e.equipment == "barbell" || e.category == "powerlifting" || e.category == "olympic weightlifting") -> 180
         e.mechanic == "compound" && e.equipment in loadedEquipment -> 120
@@ -135,9 +136,9 @@ object RestTimes {
 // ---------- warm-ups ----------
 
 object WarmUps {
-    /** Whether ramp-up sets make sense: a loaded strength exercise. */
+    /** Whether ramp-up sets make sense: a loaded strength exercise that logs weight and reps. */
     fun suits(e: Exercise?): Boolean =
-        e != null && e.category !in conditioning && e.equipment in loadedEquipment
+        e != null && !e.isTimed && e.category != CATEGORY_WARMUP && e.category !in conditioning && e.equipment in loadedEquipment
 
     /** Muscle groups (or muscles outside the groups) an exercise works, primary and secondary. */
     private fun groupsOf(e: Exercise?, primaryOnly: Boolean): Set<String> {
@@ -212,7 +213,7 @@ class OrderItem<T>(
 
 /**
  * Orders a session the way the research on exercise order suggests (Simão 2012, Nunes 2021):
- * - Explosive work first, then the most demanding compound lifts, other compounds, isolation work, and
+ * - Warm-ups first, then explosive work, the most demanding compound lifts, other compounds, isolation work, and
  *   core and calves last, so no muscle a big lift relies on is tired out by isolation work beforehand.
  * - Within each tier, focus muscle groups first and reduced ones last: what comes first is done fresh and
  *   gains the most strength.
@@ -261,9 +262,13 @@ fun exerciseGroups(e: Exercise?): Set<String> =
 /** Muscle groups of an exercise's primary muscles. */
 fun mainGroups(e: Exercise?): Set<String> = e?.primaryMuscles?.map { MuscleGroup.of(it) ?: it }?.toSet().orEmpty()
 
-/** How demanding an exercise is, for ordering: 0 explosive, 1 heavy compound, 2 compound, 3 isolation, 4 core and calves, 5 cardio and stretching. */
+/**
+ * How demanding an exercise is, for ordering: -1 warm-up (always first), 0 explosive, 1 heavy compound, 2 compound,
+ * 3 isolation, 4 core and calves, 5 cardio and stretching.
+ */
 fun exerciseTier(e: Exercise?): Int = when {
     e == null -> 3
+    e.category == CATEGORY_WARMUP -> -1
     e.category == "plyometrics" || e.category == "olympic weightlifting" -> 0
     e.category == "cardio" || e.category == "stretching" -> 5
     e.primaryMuscles.all { it in setOf("abdominals", "calves", "forearms", "neck") } -> 4
