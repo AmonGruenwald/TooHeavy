@@ -60,6 +60,18 @@
             android:name=".data.RunTrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <!-- Habit reminders: the alarm, the notification's Done button, and setting the alarm again after a
+             reboot, an app update or a clock change. -->
+        <receiver
+            android:name=".data.HabitReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".data.UpdateReceiver"
             android:exported="false">

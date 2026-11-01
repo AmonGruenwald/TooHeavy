@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CardDefaults
@@ -101,6 +102,9 @@ import com.tooheavy.app.ui.profile.ProfileScreen
 import com.tooheavy.app.ui.program.ProgramScreen
 import com.tooheavy.app.ui.program.ProgramSetupScreen
 import com.tooheavy.app.ui.running.RunPlanScreen
+import com.tooheavy.app.ui.habits.HabitDetailScreen
+import com.tooheavy.app.ui.habits.HabitEditScreen
+import com.tooheavy.app.ui.habits.HabitsScreen
 import com.tooheavy.app.ui.workout.RoutineEditScreen
 import com.tooheavy.app.ui.workout.WorkoutTabScreen
 import kotlinx.coroutines.delay
@@ -126,6 +130,17 @@ object Routes {
     const val IMPORT_HEVY = "import_hevy"
     /** The running plan: create one from text, follow it week by week. */
     const val RUN_PLAN = "run_plan"
+    /** Habit tracking (a tab). */
+    const val HABITS = "habits"
+
+    /** Habit editor; id = "new" (optionally filled with a suggested [name] and daily [target]) or a Habit.id. */
+    fun habitEdit(id: String, name: String? = null, target: Int? = null): String {
+        val q = listOfNotNull(name?.let { "name=${Uri.encode(it)}" }, target?.let { "target=$it" }).joinToString("&")
+        return "habit_edit/${Uri.encode(id)}" + if (q.isEmpty()) "" else "?$q"
+    }
+
+    /** A habit's streaks, completion and charts. */
+    fun habitDetail(id: String) = "habit/${Uri.encode(id)}"
 
     /** Exercise library detail page. */
     fun exercise(id: String) = "exercise/${Uri.encode(id)}"
@@ -201,6 +216,7 @@ private val tabs = listOf(
     Tab(Routes.HISTORY, "History", Icons.Filled.History),
     Tab(Routes.EXERCISES, "Library", Icons.AutoMirrored.Filled.MenuBook),
     Tab(Routes.NUTRITION, "Food", Icons.Filled.Restaurant),
+    Tab(Routes.HABITS, "Habits", Icons.Filled.TaskAlt),
 )
 
 @Composable
@@ -256,6 +272,22 @@ fun AppRoot() {
                 composable(Routes.PROGRAM_SETUP) { ProgramSetupScreen(nav) }
                 composable(Routes.IMPORT_HEVY) { HevyImportScreen(nav) }
                 composable(Routes.RUN_PLAN) { RunPlanScreen(nav) }
+                composable(Routes.HABITS) { HabitsScreen(nav) }
+                composable("habit/{id}") { HabitDetailScreen(nav, it.arguments?.getString("id").orEmpty()) }
+                composable(
+                    "habit_edit/{id}?name={name}&target={target}",
+                    arguments = listOf(
+                        navArgument("name") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("target") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    ),
+                ) {
+                    HabitEditScreen(
+                        nav,
+                        it.arguments?.getString("id").orEmpty(),
+                        prefillName = it.arguments?.getString("name"),
+                        prefillTarget = it.arguments?.getString("target")?.toIntOrNull(),
+                    )
+                }
                 composable("food_search/{mode}") { FoodSearchScreen(nav, it.arguments?.getString("mode") ?: Routes.MODE_LOG) }
                 composable(
                     "food_amount?food={food}&mode={mode}&entry={entry}",

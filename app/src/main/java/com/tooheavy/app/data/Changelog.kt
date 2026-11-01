@@ -12,6 +12,18 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.15.0", "2026-11-02",
+            listOf(
+                "Habits: a new tab to track anything you want to do regularly. Every day, on chosen days or a number " +
+                    "of days a week; as a simple yes or a count (like 8 glasses of water).",
+                "Reminders at the times you pick, only when the habit isn't done yet, with a Done button right in " +
+                    "the notification.",
+                "Tick off today and the last week from the list. Each habit shows its streak, best streak, completion " +
+                    "over 7, 30 and 90 days and a year, a calendar of done days and charts by week and by day.",
+                "A \"Habits today\" widget for the Home screen (tap the tune icon to add it).",
+            ),
+        ),
+        ChangelogEntry(
             "1.14.0", "2026-11-01",
             listOf(
                 "Record runs with GPS: in a workout, tap \"Record with GPS\" on a run (or a ride or row). A live map, " +
