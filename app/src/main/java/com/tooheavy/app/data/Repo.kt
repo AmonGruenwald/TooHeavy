@@ -205,6 +205,8 @@ object Repo {
      * Returns the id of the saved workout, null when it was discarded.
      */
     fun finishWorkout(): String? {
+        // A run still recording goes into its set first.
+        if (RunTracker.track != null) RunTracker.finish()
         val w = activeWorkout ?: return null
         val cleaned = w.copy(
             endTime = System.currentTimeMillis(),
@@ -231,6 +233,7 @@ object Repo {
     }
 
     fun discardWorkout() {
+        RunTracker.discard()
         activeWorkout = null
         stopRest()
         save()
@@ -241,6 +244,7 @@ object Repo {
     fun workout(id: String): Workout? = workouts.firstOrNull { it.id == id }
 
     fun deleteWorkout(id: String) {
+        workout(id)?.exercises?.flatMap { it.sets }?.mapNotNull { it.routeId }?.forEach { RouteStore.delete(it) }
         workouts.removeAll { it.id == id }
         save()
     }

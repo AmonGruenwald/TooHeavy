@@ -71,6 +71,8 @@ class RunningTest {
         assertEquals("Mon · Easy run", p.findRun("easy")?.title())
         assertEquals("Tempo run", anyDay.title())
         assertEquals("Run", RunType.label(null))
+        assertEquals("Fartlek", RunType.label(RunType.FARTLEK))
+        assertTrue(RunType.FARTLEK in RunType.all)
     }
 
     @Test

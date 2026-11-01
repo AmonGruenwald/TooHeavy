@@ -12,6 +12,18 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.14.0", "2026-11-01",
+            listOf(
+                "Record runs with GPS: in a workout, tap \"Record with GPS\" on a run (or a ride or row). A live map, " +
+                    "distance, moving time, average and current pace; pause and resume; it keeps recording with the " +
+                    "screen off. Finishing fills in the set's distance and time.",
+                "Recorded routes are shown on an OpenStreetMap map in the workout, with the time and pace of every " +
+                    "km (or mile). Maps need a connection; recording doesn't.",
+                "If the app is closed while recording, the run comes back paused, ready to resume or finish.",
+                "Fartlek is a new kind of run for running plans.",
+            ),
+        ),
+        ChangelogEntry(
             "1.13.0", "2026-11-01",
             listOf(
                 "Running plans are built in the app instead of from text: pick the name, the start week and the " +

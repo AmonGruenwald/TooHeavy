@@ -49,6 +49,13 @@ fun formatPace(seconds: Int?, km: Double?, unit: String): String? {
     return "${formatClock(perUnit * 1000L)} /$unit"
 }
 
+/** A pace in seconds per km as "5:30" per [unit] ("km" or "mi"), "–" when there is none. */
+fun paceText(secPerKm: Double?, unit: String): String {
+    if (secPerKm == null || secPerKm <= 0 || secPerKm.isInfinite() || secPerKm.isNaN()) return "–"
+    val perUnit = if (unit == "mi") secPerKm * KM_PER_MILE else secPerKm
+    return formatClock(Math.round(perUnit) * 1000L)
+}
+
 /** "5 km · 27:30 · 5:30 /km" for a set of a distance or timed exercise; null for weight-and-reps sets. */
 fun SetEntry.cardioText(unit: String): String? {
     val km = distanceKm?.takeIf { it > 0 }
@@ -80,14 +87,17 @@ object RunType {
     const val LONG = "long"
     const val TEMPO = "tempo"
     const val INTERVALS = "intervals"
+    /** Unstructured speed play: bursts of faster running mixed into an easy run, by feel. */
+    const val FARTLEK = "fartlek"
     const val RECOVERY = "recovery"
     const val RACE = "race"
-    val all = listOf(EASY, LONG, TEMPO, INTERVALS, RECOVERY, RACE)
+    val all = listOf(EASY, LONG, TEMPO, INTERVALS, FARTLEK, RECOVERY, RACE)
     fun label(type: String?): String = when (type) {
         EASY -> "Easy run"
         LONG -> "Long run"
         TEMPO -> "Tempo run"
         INTERVALS -> "Intervals"
+        FARTLEK -> "Fartlek"
         RECOVERY -> "Recovery run"
         RACE -> "Race"
         else -> "Run"
