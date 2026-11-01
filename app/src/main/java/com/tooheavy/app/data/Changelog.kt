@@ -12,6 +12,17 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.9.0", "2026-11-01",
+            listOf(
+                "Calorie carry-over: eat over your calorie goal and the next days' goals go down by the difference; " +
+                    "eat under it and they go up. Days that go the other way make up the oldest difference first, and " +
+                    "whatever isn't made up within a week is dropped. Days without food logged don't count.",
+                "The food diary and the Calories today widget show the adjusted goal and how much was carried over. " +
+                    "Lowered goals don't go below 1,200 kcal for women or 1,500 kcal for men; the rest waits for the next days.",
+                "Turn it off in Goals & Body. Changing your goal, or a coach check-in, doesn't change past days.",
+            ),
+        ),
+        ChangelogEntry(
             "1.8.0", "2026-10-30",
             listOf(
                 "29 more exercises, including Bulgarian split squats, dumbbell and Smith machine Romanian deadlifts, " +

@@ -130,7 +130,9 @@ fun NutritionScreen(nav: NavController) {
             item(key = "summary") {
                 SummaryCard(
                     consumed = totals.kcal,
-                    goalKcal = goals.kcal,
+                    goalKcal = NutritionRepo.dayKcalGoal(date),
+                    baseKcal = NutritionRepo.kcalGoalOn(date),
+                    carried = NutritionRepo.carriedKcal(date),
                     protein = totals.protein,
                     carbs = totals.carbs,
                     fat = totals.fat,
@@ -190,6 +192,9 @@ private fun DateSwitcher(date: String) {
 private fun SummaryCard(
     consumed: Double,
     goalKcal: Int,
+    /** The goal before carry-over, and the calories carried into the day ([goalKcal] may hold some back). */
+    baseKcal: Int,
+    carried: Int,
     protein: Double,
     carbs: Double,
     fat: Double,
@@ -217,6 +222,13 @@ private fun SummaryCard(
                     )
                 }
             }
+            if (carried != 0) {
+                Text(
+                    carryOverNote(goalKcal, baseKcal, carried),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 MacroBar("Protein", protein, goalProtein, ProteinColor)
                 MacroBar("Carbs", carbs, goalCarbs, CarbsColor)
@@ -235,6 +247,23 @@ private fun SummaryCard(
                 )
             }
         }
+    }
+}
+
+/** "300 kcal less than your 2,000 kcal goal, for eating over it on the days before." */
+private fun carryOverNote(goalKcal: Int, baseKcal: Int, carried: Int): String {
+    fun kcal(v: Int) = kcalText(v.toDouble())
+    val shift = goalKcal - baseKcal
+    // Above 0 when the minimum goal holds back part of what was eaten over.
+    val held = shift - carried
+    val base = kcal(baseKcal)
+    return when {
+        shift > 0 -> "${kcal(shift)} kcal more than your $base kcal goal, for eating under it on the days before."
+        held <= 0 -> "${kcal(-shift)} kcal less than your $base kcal goal, for eating over it on the days before."
+        shift < 0 -> "${kcal(-shift)} kcal less than your $base kcal goal, for eating over it on the days before. " +
+            "The other ${kcal(held)} kcal carry on to the next days, since the goal doesn't go below ${kcal(goalKcal)} kcal."
+        else -> "You ate ${kcal(held)} kcal over your goal on the days before. They carry on to the next days, " +
+            "since the goal doesn't go below $base kcal."
     }
 }
 

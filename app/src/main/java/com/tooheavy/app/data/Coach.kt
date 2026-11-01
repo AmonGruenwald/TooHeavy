@@ -145,8 +145,7 @@ fun CoachSettings.weeklyChangeKg(profile: BodyProfile, weightKg: Double): Double
 
 /** Calories for the target rate of change on top of [expenditure], split into macros by the diet style. */
 fun coachGoals(expenditure: Int, profile: BodyProfile, settings: CoachSettings, weightKg: Double): NutritionGoals {
-    val floor = if (profile.sex == "female") 1200 else 1500
-    val kcal = (expenditure + settings.weeklyChangeKg(profile, weightKg) * KCAL_PER_KG / 7).roundToInt().coerceAtLeast(floor)
+    val kcal = (expenditure + settings.weeklyChangeKg(profile, weightKg) * KCAL_PER_KG / 7).roundToInt().coerceAtLeast(profile.minKcal())
     // Protein follows body weight, capped at the weight for BMI 27 so it doesn't balloon at high body fat
     // and at 40 % of calories so very low targets keep room for carbs and fat.
     val heightM = profile.heightCm / 100

@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +53,7 @@ import com.tooheavy.app.data.NutritionGoals
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.friendlyDate
+import com.tooheavy.app.data.minKcal
 import com.tooheavy.app.data.shiftDate
 import com.tooheavy.app.data.suggestedGoals
 import com.tooheavy.app.data.tdee
@@ -189,6 +191,33 @@ fun NutritionGoalsScreen(nav: NavController) {
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Text("Save goals", fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            // ---------- Carry-over ----------
+            SectionCard("Carry-over") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Carry over to the next days", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "Eat over your calorie goal and the next days' goals go down by the difference; eat under it " +
+                                "and they go up. Whatever isn't made up within a week is dropped. Goals don't go below " +
+                                "${intText(savedProfile.minKcal())} kcal.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = NutritionRepo.carryOver, onCheckedChange = { NutritionRepo.updateCarryOver(it) })
+                }
+                val carried = NutritionRepo.carriedKcal(today())
+                if (carried != 0) {
+                    Text(
+                        String.format(Locale.US, "Today: %+,d kcal carried over, ", carried) +
+                            "goal ${intText(NutritionRepo.dayKcalGoal(today()))} kcal",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
 

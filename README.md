@@ -15,6 +15,7 @@ An offline Android workout and calorie tracker. Kotlin + Jetpack Compose, no acc
 - **Adaptive calorie coach**: estimates your real energy expenditure from logged intake and the smoothed body-weight trend (shrunk toward the Mifflin-St Jeor estimate until there are about three weeks of data), then sets calorie and macro targets for your goal, weekly rate, protein level and diet style at a weekly check-in.
 - **Exercise library**: 902 exercises: 873 with start/end position photos (shown as a looping animation), plus 29 common gym exercises the photo set lacks (`assets/exercises_extra.json`), with step-by-step instructions, muscles and equipment, plus your own custom exercises. Search understands common gym names and synonyms (`data/ExerciseSearch.kt`).
 - **Calorie tracker**: a daily timeline of everything eaten (with times), calorie ring and macro bars, optional fiber/sugar/salt, 12,650 bundled foods, custom foods, recipes built from other foods (servings and cooked weight), quick add, goals with a TDEE calculator, body-weight log.
+- **Calorie carry-over**: eating over the calorie goal lowers the next days' goals by the difference, eating under it raises them. Differences the other way make up the oldest one first, and whatever is left of a difference is dropped after a week (`data/CarryOver.kt`). Lowered goals stop at the coach's minimum (1,200 / 1,500 kcal). Can be turned off in Goals & Body.
 - **Hydration**: one-tap water logging against a daily goal, on the Food tab and as a Home widget.
 - **Import history**: Profile → Your data reads Hevy's workout CSV export (`data/HevyImport.kt`), matches its exercises to the library (editable before importing), adds missing ones as custom exercises, converts weights to your unit, keeps supersets and turns RPE into RIR, and skips workouts that were already imported.
 - **Barcode scanning**: scans with ZXing; unknown barcodes are looked up on Open Food Facts and saved on the device. Products that aren't found can be entered by hand (scanning the barcode into the form) and are stored with their barcode for the next scan.
@@ -63,6 +64,8 @@ Pushing a version tag builds a signed APK and publishes it as a GitHub release (
 ```bash
 git tag v1.3.0 && git push origin v1.3.0
 ```
+
+Or publish a release on GitHub (Releases → Draft a new release) with a new `vX.Y.Z` tag on `main`: creating the tag starts the same workflow, which attaches the APK to your release a few minutes later. Until it's attached, installed apps ignore the release.
 
 The tag sets `versionName` (`1.3.0`) and `versionCode` (`10300`). The app looks for a newer release in two ways:
 
