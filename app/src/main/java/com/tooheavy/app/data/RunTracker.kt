@@ -25,6 +25,8 @@ data class ActiveTrack(
     val resumedAt: Long? = null,
     /** Accuracy of the last fix in metres, null before the first fix. */
     val lastAccuracy: Float? = null,
+    /** Paused by auto-pause (standing still): GPS keeps running to notice moving again. False for a manual pause. */
+    val autoPaused: Boolean = false,
     /** When this was last written to disk, to recover the moving time if the app is closed while recording. */
     val savedAt: Long = 0,
 ) {
@@ -62,6 +64,10 @@ object RunTracker {
     var track by mutableStateOf<ActiveTrack?>(null)
         private set
 
+    /** Auto-pause memory and the last raw fix (for speed when the GPS doesn't report one); not saved. */
+    private var autoState = AutoPauseState()
+    private var lastRaw: GpsPoint? = null
+
     fun init(context: Context) {
         if (::file.isInitialized) return
         appContext = context.applicationContext
@@ -71,7 +77,7 @@ object RunTracker {
             runCatching { gson.fromJson(file.readText(), ActiveTrack::class.java) }.getOrNull()?.let { t ->
                 // Recording stopped with the app: count the time up to the last save, then wait paused.
                 val moved = t.movedMs + (t.resumedAt?.let { (t.savedAt - it).coerceAtLeast(0) } ?: 0)
-                track = t.copy(movedMs = moved, resumedAt = null, points = t.points.orEmpty())
+                track = t.copy(movedMs = moved, resumedAt = null, autoPaused = false, points = t.points.orEmpty())
             }
         }
     }
@@ -83,41 +89,90 @@ object RunTracker {
     fun start(weId: String, setId: String) {
         if (track != null) return
         track = ActiveTrack(weId = weId, setId = setId, resumedAt = System.currentTimeMillis())
+        resetAutoPause()
         save(force = true)
         startService()
     }
 
+    /** Pauses by hand: GPS goes off until resumed. Also turns an auto-pause into a manual one. */
     fun pause() {
         val t = track ?: return
-        if (t.paused) return
+        if (t.paused && !t.autoPaused) return
         val now = System.currentTimeMillis()
-        track = t.copy(movedMs = t.movingMs(now), resumedAt = null)
+        track = t.copy(movedMs = t.movingMs(now), resumedAt = null, autoPaused = false)
         save(force = true)
         stopService()
     }
 
+    /** Resumes after a manual pause or an auto-pause. */
     fun resume() {
         val t = track ?: return
         if (!t.paused) return
-        // A new segment, so the way from where the pause started to where it ends isn't counted.
-        track = t.copy(resumedAt = System.currentTimeMillis(), seg = if (t.points.any { it.seg == t.seg }) t.seg + 1 else t.seg)
+        track = resumed(t, System.currentTimeMillis())
+        resetAutoPause()
         save(force = true)
         startService()
     }
 
-    /** A GPS fix from RunTrackingService. */
-    fun onLocation(lat: Double, lon: Double, accuracyM: Float?) {
+    /** Turns auto-pause on or off for this and later runs; off ends an auto-pause. */
+    fun setAutoPause(on: Boolean) {
+        Repo.updateSettings(Repo.settings.copy(autoPauseRuns = on))
         val t = track ?: return
-        if (t.paused) return
-        val p = GpsPoint(lat, lon, System.currentTimeMillis(), t.seg)
-        val prev = t.points.lastOrNull()
-        track = if (acceptPoint(prev, p, accuracyM)) {
-            val added = if (prev != null && prev.seg == p.seg) distanceKm(prev, p) else 0.0
-            t.copy(points = t.points + p, distanceKm = t.distanceKm + added, lastAccuracy = accuracyM)
-        } else {
-            t.copy(lastAccuracy = accuracyM)
+        if (!on && t.autoPaused) {
+            track = resumed(t, System.currentTimeMillis())
+            save(force = true)
         }
-        save(force = false)
+        resetAutoPause()
+    }
+
+    /** [t] running again from [now], in a new segment so the way covered while paused isn't counted. */
+    private fun resumed(t: ActiveTrack, now: Long): ActiveTrack =
+        t.copy(resumedAt = now, autoPaused = false, seg = if (t.points.any { it.seg == t.seg }) t.seg + 1 else t.seg)
+
+    private fun resetAutoPause() {
+        autoState = AutoPauseState()
+        lastRaw = null
+    }
+
+    /**
+     * A GPS fix from RunTrackingService, with the speed the GPS measured ([speedMs], null if it didn't). Returns
+     * true when it paused or resumed the run, so the notification can follow.
+     */
+    fun onLocation(lat: Double, lon: Double, accuracyM: Float?, speedMs: Float? = null): Boolean {
+        val t = track ?: return false
+        if (t.paused && !t.autoPaused) return false
+        val now = System.currentTimeMillis()
+        val raw = GpsPoint(lat, lon, now, t.seg)
+        val speed = speedMs?.toDouble() ?: lastRaw?.let { r ->
+            val s = (now - r.time) / 1000.0
+            if (s > 0) distanceKm(r, raw) * 1000 / s else null
+        }
+        lastRaw = raw
+        var cur = t.copy(lastAccuracy = accuracyM)
+        // Only good fixes decide about pausing: a weak signal can look like standing still or like a sprint.
+        val good = accuracyM == null || accuracyM <= MAX_ACCURACY_M
+        if (good && speed != null && Repo.settings.autoPauseRuns) {
+            val step = autoPauseStep(autoState, cur.autoPaused, speed, now)
+            autoState = step.state
+            val from = step.pauseFrom
+            if (from != null) {
+                cur = cur.copy(movedMs = cur.movingMs(from), resumedAt = null, autoPaused = true)
+            } else if (step.resume) {
+                cur = resumed(cur, now)
+            }
+        }
+        if (!cur.paused) {
+            val p = GpsPoint(lat, lon, now, cur.seg)
+            val prev = cur.points.lastOrNull()
+            if (acceptPoint(prev, p, accuracyM)) {
+                val added = if (prev != null && prev.seg == p.seg) distanceKm(prev, p) else 0.0
+                cur = cur.copy(points = cur.points + p, distanceKm = cur.distanceKm + added)
+            }
+        }
+        val changed = cur.paused != t.paused
+        track = cur
+        save(force = changed)
+        return changed
     }
 
     /**

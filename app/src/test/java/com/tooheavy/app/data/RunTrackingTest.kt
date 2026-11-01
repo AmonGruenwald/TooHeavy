@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** GPS run recording (1.14.0). */
+/** GPS run recording and auto-pause (1.14.0). */
 class RunTrackingTest {
     /** [n] + 1 points heading east along the equator, about 100 m and [stepS] seconds apart. */
     private fun line(n: Int, stepS: Int = 30, seg: Int = 0, startLon: Double = 0.0, startTime: Long = 0): List<GpsPoint> =
@@ -71,6 +71,36 @@ class RunTrackingTest {
     }
 
     @Test
+    fun autoPausePausesAfterStandingStillAndResumesWhenMoving() {
+        var st = AutoPauseState()
+        // Running: nothing happens.
+        var step = autoPauseStep(st, autoPaused = false, speedMs = 3.0, now = 0)
+        assertNull(step.pauseFrom)
+        assertFalse(step.resume)
+        // Stopping at a light at 10 s: not yet after 5 s...
+        step = autoPauseStep(step.state, false, 0.2, 10_000)
+        step = autoPauseStep(step.state, false, 0.3, 15_000)
+        assertNull(step.pauseFrom)
+        // ...paused after 6 s, from when the runner stopped.
+        step = autoPauseStep(step.state, false, 0.1, 16_000)
+        assertEquals(10_000L, step.pauseFrom)
+        // A slow moment that ends in time doesn't pause.
+        st = autoPauseStep(AutoPauseState(), false, 0.2, 0).state
+        st = autoPauseStep(st, false, 2.5, 3_000).state
+        assertNull(autoPauseStep(st, false, 0.2, 7_000).pauseFrom)
+        assertNull(autoPauseStep(autoPauseStep(st, false, 0.2, 7_000).state, false, 0.2, 12_000).pauseFrom)
+        // Auto-paused: one quick fix isn't enough (GPS jitter), two in a row resume.
+        step = autoPauseStep(AutoPauseState(), autoPaused = true, speedMs = 2.0, now = 20_000)
+        assertFalse(step.resume)
+        assertFalse(autoPauseStep(step.state, true, 0.3, 21_000).resume)
+        step = autoPauseStep(step.state, true, 2.0, 21_000)
+        assertTrue(step.resume)
+        // Walking speed between the two thresholds neither pauses nor resumes.
+        assertFalse(autoPauseStep(AutoPauseState(fastFixes = 1), true, 1.0, 0).resume)
+        assertNull(autoPauseStep(AutoPauseState(slowSince = 0), false, 1.0, 60_000).pauseFrom)
+    }
+
+    @Test
     fun paces() {
         assertEquals("5:00", paceText(300.0, "km"))
         assertEquals("8:03", paceText(300.0, "mi"))
@@ -101,7 +131,10 @@ class RunTrackingTest {
         // Short field names keep route files small.
         assertTrue(json.contains("\"a\":") && json.contains("\"o\":") && !json.contains("lat"))
         assertEquals(points, gson.fromJson<List<GpsPoint>>(json, object : TypeToken<List<GpsPoint>>() {}.type))
-        val track = ActiveTrack(weId = "w", setId = "s", points = points, distanceKm = 0.3, seg = 1, movedMs = 5, resumedAt = 7, lastAccuracy = 4f)
+        val track = ActiveTrack(
+            weId = "w", setId = "s", points = points, distanceKm = 0.3, seg = 1, movedMs = 5, resumedAt = 7, lastAccuracy = 4f,
+            autoPaused = true,
+        )
         assertEquals(track, gson.fromJson(gson.toJson(track), ActiveTrack::class.java))
         val set = SetEntry(distanceKm = 5.0, seconds = 1500, routeId = "r")
         assertEquals(set, gson.fromJson(gson.toJson(set), SetEntry::class.java))
