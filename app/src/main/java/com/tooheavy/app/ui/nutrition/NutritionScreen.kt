@@ -31,10 +31,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MoreVert
@@ -63,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.tooheavy.app.data.DayMark
 import com.tooheavy.app.data.Extras
 import com.tooheavy.app.data.FoodEntry
 import com.tooheavy.app.data.NutritionRepo
@@ -140,6 +144,7 @@ fun NutritionScreen(nav: NavController) {
                     goalCarbs = goals.carbs,
                     goalFat = goals.fat,
                     extras = NutritionRepo.extras(date),
+                    mark = NutritionRepo.dayMark(date),
                 )
             }
             item(key = "timeline") {
@@ -202,6 +207,8 @@ private fun SummaryCard(
     goalCarbs: Int,
     goalFat: Int,
     extras: Extras,
+    /** DayMark of the day, null for a normal day. */
+    mark: String?,
 ) {
     val remaining = goalKcal - consumed
     val over = remaining < 0
@@ -222,6 +229,7 @@ private fun SummaryCard(
                     )
                 }
             }
+            if (mark != null) DayMarkNote(mark)
             if (carried != 0) {
                 Text(
                     carryOverNote(goalKcal, baseKcal, carried),
@@ -247,6 +255,31 @@ private fun SummaryCard(
                 )
             }
         }
+    }
+}
+
+/** What a marked day counts as. */
+@Composable
+private fun DayMarkNote(mark: String) {
+    val untracked = mark == DayMark.UNTRACKED
+    Row(verticalAlignment = Alignment.Top) {
+        Icon(
+            if (untracked) Icons.Filled.DoNotDisturbOn else Icons.Filled.EventBusy,
+            contentDescription = null,
+            tint = Ember,
+            modifier = Modifier.padding(top = 1.dp).size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (untracked) {
+                "Not properly tracked: this day doesn't count for the carry-over, the coach or your averages."
+            } else {
+                "Left empty on purpose: this day counts as 0 kcal eaten" +
+                    (if (NutritionRepo.carryOver) ", so its goal carries over to the next days." else ".")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -337,7 +370,12 @@ private fun TimelineCard(nav: NavController, date: String) {
     val items = (NutritionRepo.entriesFor(date).map { TimelineItem.Eaten(it) } +
         NutritionRepo.waterFor(date).map { TimelineItem.Drank(it) }).sortedBy { it.time }
     val yesterday = shiftDate(date, -1)
-    val canCopy = items.none { it is TimelineItem.Eaten } && NutritionRepo.entriesFor(yesterday).isNotEmpty()
+    val noFood = items.none { it is TimelineItem.Eaten }
+    val canCopy = noFood && NutritionRepo.entriesFor(yesterday).isNotEmpty()
+    val mark = NutritionRepo.dayMark(date)
+    // Days after today can't be marked: they haven't happened yet.
+    val canMark = date <= today()
+    val canMarkEmpty = canMark && noFood && mark == null
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 4.dp)) {
@@ -346,11 +384,16 @@ private fun TimelineCard(nav: NavController, date: String) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Timeline", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                when (mark) {
+                    DayMark.UNTRACKED -> Pill("Not tracked", Ember)
+                    DayMark.EMPTY -> Pill("Left empty", Ember)
+                }
                 IconButton(onClick = { nav.navigate(Routes.foodSearch()) }) {
                     Icon(Icons.Filled.Add, contentDescription = "Add food", tint = AccentBright)
                 }
+                if (canMark) DayMarkMenu(date, mark, noFood)
             }
-            if (items.isEmpty() || canCopy) {
+            if (items.isEmpty() || canCopy || canMarkEmpty) {
                 Row(Modifier.padding(start = 8.dp, bottom = 4.dp)) {
                     TextButton(onClick = { nav.navigate(Routes.foodSearch()) }) {
                         Text("Add food", style = MaterialTheme.typography.labelLarge)
@@ -359,6 +402,15 @@ private fun TimelineCard(nav: NavController, date: String) {
                         TextButton(onClick = { NutritionRepo.copyDay(yesterday, date) }) {
                             Text(
                                 "Copy yesterday",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (canMarkEmpty) {
+                        TextButton(onClick = { NutritionRepo.setDayMark(date, DayMark.EMPTY) }) {
+                            Text(
+                                "Left empty",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -387,6 +439,49 @@ private fun TimelineCard(nav: NavController, date: String) {
                 )
             }
             if (items.isNotEmpty()) Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+/** Marks the day as not properly tracked or as left empty on purpose; picking the current mark clears it. */
+@Composable
+private fun DayMarkMenu(date: String, mark: String?, noFood: Boolean) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "Day options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            @Composable
+            fun Item(value: String, label: String, hint: String, enabled: Boolean = true) {
+                val selected = mark == value
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(label)
+                            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (selected) Icons.Filled.Check else if (value == DayMark.UNTRACKED) Icons.Filled.DoNotDisturbOn else Icons.Filled.EventBusy,
+                            contentDescription = null,
+                            tint = if (selected) AccentBright else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    enabled = enabled || selected,
+                    onClick = {
+                        open = false
+                        NutritionRepo.setDayMark(date, if (selected) null else value)
+                    },
+                )
+            }
+            Item(DayMark.UNTRACKED, "Not properly tracked", "Not used for the carry-over, the coach or averages")
+            Item(
+                DayMark.EMPTY, "Left empty on purpose",
+                if (noFood) "Counts as 0 kcal eaten" else "Only for days without food logged",
+                enabled = noFood,
+            )
         }
     }
 }
@@ -564,7 +659,8 @@ private fun WeekCard(date: String, goalKcal: Int) {
     val days = (6 downTo 0).map { shiftDate(date, -it) }
     val kcals = days.map { NutritionRepo.totals(it).kcal }
     val labels = days.map { weekdayInitial(it) }
-    val logged = kcals.filter { it > 0.0 }
+    // Average over the days that count: not the ones marked not properly tracked, but the ones left empty on purpose.
+    val logged = days.mapNotNull { NutritionRepo.countedKcalOn(it) }
     ChartCard(
         "Last 7 days",
         value = if (logged.isEmpty()) null else kcalText(logged.average()),

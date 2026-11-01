@@ -587,7 +587,7 @@ private fun IntakeCard(goal: Int) {
     val day = today()
     val days = (13 downTo 0).map { shiftDate(day, -it) }
     val kcals = days.map { NutritionRepo.totals(it).kcal }
-    val logged = kcals.filter { it > 0 }
+    val logged = days.mapNotNull { NutritionRepo.countedKcalOn(it) }
     ChartCard(
         "Intake · last 14 days",
         value = if (logged.isEmpty()) null else intText(logged.average().roundToInt()),
