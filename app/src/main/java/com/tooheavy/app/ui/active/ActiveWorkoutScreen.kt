@@ -86,7 +86,13 @@ import com.tooheavy.app.data.WorkoutExercise
 import com.tooheavy.app.data.completedSetCount
 import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatDuration
+import com.tooheavy.app.data.PlannedRun
+import com.tooheavy.app.data.distanceUnit
+import com.tooheavy.app.data.formatDistance
+import com.tooheavy.app.data.formatDistanceValue
 import com.tooheavy.app.data.formatSetTime
+import com.tooheavy.app.data.kmFrom
+import com.tooheavy.app.data.findRun
 import com.tooheavy.app.data.formatVolume
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.groupCredit
@@ -125,6 +131,8 @@ private const val PrevWeight = 1.15f
 private const val RirWeight = 0.62f
 /** The time field of a timed set spans the weight, reps and RIR columns, less the stopwatch button. */
 private const val TimeWeight = 1.62f
+/** Share of TimeWeight the distance takes on sets that log one. */
+private const val DistWeight = 0.78f
 
 // ---------- state update helpers ----------
 
@@ -517,6 +525,8 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
     val exercise = Repo.exercise(we.exerciseId)
     // Timed exercises (e.g. a general warm-up) log a duration per set instead of weight and reps.
     val timed = exercise?.isTimed == true
+    // Runs, rides and rows also log a distance, in km or miles to match the weight unit.
+    val distUnit = if (exercise?.tracksDistance == true) distanceUnit(unit) else null
     val previous = remember(we.exerciseId) { Repo.previousSets(we.exerciseId) }
     var menuOpen by remember { mutableStateOf(false) }
     var restDialog by remember { mutableStateOf(false) }
@@ -622,6 +632,12 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
             Spacer(Modifier.height(6.dp))
             MuscleTags(exercise)
 
+            val plannedRun = workout.plannedRunId?.let { Repo.runPlan?.findRun(it) }
+            if (plannedRun != null && timed) {
+                Spacer(Modifier.height(8.dp))
+                PlannedRunBox(plannedRun, distanceUnit(unit))
+            }
+
             we.target?.let { t ->
                 Spacer(Modifier.height(8.dp))
                 ProgramTargetBox(we, t, unit)
@@ -649,7 +665,12 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                 HeaderCell("SET", Modifier.width(SetColW))
                 HeaderCell("PREVIOUS", Modifier.weight(PrevWeight))
                 if (timed) {
-                    HeaderCell("TIME", Modifier.weight(TimeWeight))
+                    if (distUnit != null) {
+                        HeaderCell(distUnit.uppercase(), Modifier.weight(DistWeight))
+                        HeaderCell("TIME", Modifier.weight(TimeWeight - DistWeight))
+                    } else {
+                        HeaderCell("TIME", Modifier.weight(TimeWeight))
+                    }
                     Spacer(Modifier.width(CheckColW))
                 } else {
                     HeaderCell(unit.uppercase(), Modifier.weight(1f))
@@ -680,7 +701,10 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                         RestTimes.after(w, w.exercises.indexOfFirst { it.id == we.id }, entry.id)
                     }
                     if (timed) {
-                        TimedSetRow(weId = we.id, entry = entry, setNumber = number, previous = previousSet, restAfter = restAfter)
+                        TimedSetRow(
+                            weId = we.id, entry = entry, setNumber = number, previous = previousSet,
+                            distUnit = distUnit, restAfter = restAfter,
+                        )
                     } else {
                         SetRow(
                             weId = we.id,
@@ -751,6 +775,29 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
             },
             confirmButton = { TextButton(onClick = { restDialog = false }) { Text("Close") } },
         )
+    }
+}
+
+/** The run of the running plan this workout is for: what to do and its targets. */
+@Composable
+private fun PlannedRunBox(run: PlannedRun, distUnit: String) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                "Plan: ${run.name}",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = AccentBright,
+            )
+            val target = run.targetText(distUnit)
+            if (target.isNotEmpty()) {
+                Text("Target $target", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 
@@ -1043,8 +1090,9 @@ private fun SetRow(
 }
 
 /**
- * A set of a timed exercise: how long it took, typed as minutes ("5", "5:30") or measured with the stopwatch.
- * The stopwatch start is stored in the set, so it keeps running while the screen is left.
+ * A set of a timed exercise: how long it took, typed as minutes ("5", "5:30") or measured with the stopwatch,
+ * and for a distance exercise how far, in [distUnit]. The stopwatch start is stored in the set, so it keeps
+ * running while the screen is left.
  */
 @Composable
 private fun TimedSetRow(
@@ -1052,10 +1100,19 @@ private fun TimedSetRow(
     entry: SetEntry,
     setNumber: Int,
     previous: SetEntry?,
+    /** "km" or "mi" when the set logs a distance, null when it only logs time. */
+    distUnit: String?,
     restAfter: () -> Int,
 ) {
     val focus = LocalFocusManager.current
     var timeText by remember(entry.id) { mutableStateOf(timeFieldText(entry.seconds)) }
+    // Set when the stopwatch was stopped on this set, so starting it again carries on (a pause).
+    var resumable by remember(entry.id) { mutableStateOf(false) }
+    var distText by remember(entry.id) {
+        mutableStateOf(if (distUnit != null) entry.distanceKm?.let { formatDistanceValue(it, distUnit) }.orEmpty() else "")
+    }
+    fun parseDist(t: String): Double? =
+        if (distUnit == null) null else t.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { kmFrom(it, distUnit) }
     var typeMenu by remember { mutableStateOf(false) }
     val running = entry.timerStartedAt != null
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -1077,7 +1134,9 @@ private fun TimedSetRow(
         if (!entry.completed) {
             val secs = if (running) stopTimer() else parseSetTime(timeText) ?: previous?.seconds
             timeText = timeFieldText(secs)
-            updateSet(weId, entry.id) { it.copy(seconds = secs, timerStartedAt = null, completed = true) }
+            val km = if (distUnit == null) null else parseDist(distText) ?: previous?.distanceKm
+            if (distUnit != null) distText = km?.let { formatDistanceValue(it, distUnit) }.orEmpty()
+            updateSet(weId, entry.id) { it.copy(seconds = secs, distanceKm = km, timerStartedAt = null, completed = true) }
             val rest = restAfter()
             if (rest > 0) Repo.startRest(rest) else Repo.stopRest()
         } else {
@@ -1141,27 +1200,51 @@ private fun TimedSetRow(
                 .weight(PrevWeight)
                 .height(36.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .clickable(enabled = previous?.seconds != null && !running) {
-                    val secs = previous?.seconds ?: return@clickable
-                    timeText = timeFieldText(secs)
-                    updateSet(weId, entry.id) { it.copy(seconds = secs) }
+                .clickable(enabled = previous != null && (previous.seconds != null || previous.distanceKm != null) && !running) {
+                    val p = previous ?: return@clickable
+                    if (p.seconds != null) timeText = timeFieldText(p.seconds)
+                    resumable = false
+                    if (distUnit != null && p.distanceKm != null) distText = formatDistanceValue(p.distanceKm, distUnit)
+                    updateSet(weId, entry.id) {
+                        it.copy(seconds = p.seconds ?: it.seconds, distanceKm = if (distUnit != null) p.distanceKm ?: it.distanceKm else it.distanceKm)
+                    }
                 },
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                previous?.seconds?.let { formatSetTime(it) } ?: "-",
+                listOfNotNull(
+                    if (distUnit != null) previous?.distanceKm?.let { formatDistance(it, distUnit) } else null,
+                    previous?.seconds?.let { formatSetTime(it) },
+                ).joinToString(" · ").ifEmpty { "-" },
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
         }
+
+        // distance
+        if (distUnit != null) {
+            CompactField(
+                value = distText,
+                onValueChange = { raw ->
+                    val t = raw.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(6)
+                    distText = t
+                    updateSet(weId, entry.id) { it.copy(distanceKm = parseDist(t)) }
+                },
+                placeholder = previous?.distanceKm?.let { formatDistanceValue(it, distUnit) } ?: "-",
+                modifier = Modifier.weight(DistWeight),
+                keyboardType = KeyboardType.Decimal,
+            )
+        }
+        val timeWeight = if (distUnit != null) TimeWeight - DistWeight else TimeWeight
 
         // time: typed, or counting up while the stopwatch runs
         if (running) {
             Box(
                 Modifier
-                    .weight(TimeWeight)
+                    .weight(timeWeight)
                     .height(36.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Accent.copy(alpha = 0.18f)),
@@ -1180,10 +1263,11 @@ private fun TimedSetRow(
                 onValueChange = { raw ->
                     val t = raw.filter { c -> c.isDigit() || c == ':' }.take(8)
                     timeText = t
+                    resumable = false
                     updateSet(weId, entry.id) { it.copy(seconds = parseSetTime(t)) }
                 },
                 placeholder = previous?.seconds?.let { timeFieldText(it) } ?: "min",
-                modifier = Modifier.weight(TimeWeight),
+                modifier = Modifier.weight(timeWeight),
                 keyboardType = KeyboardType.Number,
             )
         }
@@ -1197,8 +1281,9 @@ private fun TimedSetRow(
                         val secs = stopTimer()
                         updateSet(weId, entry.id) { it.copy(seconds = secs, timerStartedAt = null) }
                     } else {
-                        // Starts from the time already entered, so a paused stopwatch carries on.
-                        val start = parseSetTime(timeText)
+                        // Counts from zero, or carries on after a pause; a typed or copied time isn't counted on.
+                        val start = if (resumable) parseSetTime(timeText) else null
+                        resumable = true
                         updateSet(weId, entry.id) {
                             it.copy(seconds = start, timerStartedAt = System.currentTimeMillis(), completed = false)
                         }

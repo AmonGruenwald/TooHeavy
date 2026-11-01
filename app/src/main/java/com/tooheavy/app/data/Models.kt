@@ -19,14 +19,17 @@ data class Exercise(
     val category: String? = null,
     /** Asset paths, e.g. "exercises/Barbell_Squat/0.webp". 0 = start position, 1 = end position. May be empty. */
     val images: List<String> = emptyList(),
-    /** What a set logs: Tracking.TIME for a duration only, null for weight and reps. */
+    /** What a set logs: Tracking.TIME for a duration, Tracking.DISTANCE for distance and time, null for weight and reps. */
     val tracking: String? = null,
 ) {
     /** Created by the user (stored in AppData.customExercises) rather than bundled. */
     val isCustom: Boolean get() = id.startsWith(CUSTOM_PREFIX)
 
-    /** Sets log a duration instead of weight and reps. */
-    val isTimed: Boolean get() = tracking == Tracking.TIME
+    /** Sets log a duration (and maybe a distance) instead of weight and reps. */
+    val isTimed: Boolean get() = tracking == Tracking.TIME || tracking == Tracking.DISTANCE
+
+    /** Sets log a distance and a time, e.g. a run. */
+    val tracksDistance: Boolean get() = tracking == Tracking.DISTANCE
 
     companion object {
         const val CUSTOM_PREFIX = "custom-"
@@ -38,6 +41,8 @@ data class Exercise(
 object Tracking {
     /** Only how long the set took, e.g. a general warm-up. */
     const val TIME = "time"
+    /** Distance and time, e.g. a run; pace comes from both. */
+    const val DISTANCE = "distance"
 }
 
 /** Exercise.category of warm-ups; they come first in a workout and don't need muscles. */
@@ -63,6 +68,8 @@ data class SetEntry(
     val halfReps: Int? = null,
     /** Duration of a set of a timed exercise (Exercise.isTimed). */
     val seconds: Int? = null,
+    /** Distance of a set of a distance exercise (Exercise.tracksDistance), always in km. */
+    val distanceKm: Double? = null,
     /** Epoch ms when the set's stopwatch was started, null while it isn't running. */
     val timerStartedAt: Long? = null,
 )
@@ -92,6 +99,8 @@ data class Workout(
     val routineId: String? = null,
     /** ProgramDay.id when started from the training program; finishing it updates the program. */
     val programDayId: String? = null,
+    /** PlannedRun.id when started from the running plan; finishing it ticks the run off. */
+    val plannedRunId: String? = null,
 )
 
 data class RoutineExercise(
@@ -103,6 +112,8 @@ data class RoutineExercise(
     val supersetId: String? = null,
     /** Duration per set, for timed exercises. */
     val seconds: Int? = null,
+    /** Distance per set in km, for distance exercises. */
+    val distanceKm: Double? = null,
 )
 
 data class Routine(
@@ -142,6 +153,8 @@ data class AppData(
     val program: Program? = null,
     /** Exercises the user created; ids start with Exercise.CUSTOM_PREFIX. */
     val customExercises: List<Exercise> = emptyList(),
+    /** The running plan being followed, null without one. */
+    val runPlan: RunPlan? = null,
 )
 
 // ---------- helpers ----------

@@ -172,6 +172,11 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = tracking == null, onClick = { tracking = null }, label = { Text("Weight & reps") })
                 FilterChip(selected = tracking == Tracking.TIME, onClick = { tracking = Tracking.TIME }, label = { Text("Time") })
+                FilterChip(
+                    selected = tracking == Tracking.DISTANCE,
+                    onClick = { tracking = Tracking.DISTANCE },
+                    label = { Text("Distance & time") },
+                )
             }
 
             OutlinedTextField(

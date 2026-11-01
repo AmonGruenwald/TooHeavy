@@ -62,7 +62,10 @@ import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.Routine
 import com.tooheavy.app.data.RoutineExercise
+import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.formatClock
+import com.tooheavy.app.data.formatDistanceValue
+import com.tooheavy.app.data.kmFrom
 import com.tooheavy.app.data.formatWeight
 import com.tooheavy.app.data.parseSetTime
 import com.tooheavy.app.data.titleCase
@@ -258,6 +261,8 @@ private fun RoutineExerciseCard(
     // Timed exercises (e.g. a general warm-up) get a time per set instead of reps and weight.
     val timed = ex?.isTimed == true
     var timeText by remember { mutableStateOf(re.seconds?.let { formatClock(it * 1000L) }.orEmpty()) }
+    val distUnit = distanceUnit(unit)
+    var distText by remember { mutableStateOf(re.distanceKm?.let { formatDistanceValue(it, distUnit) }.orEmpty()) }
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -344,6 +349,21 @@ private fun RoutineExerciseCard(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                if (ex?.tracksDistance == true) {
+                    OutlinedTextField(
+                        value = distText,
+                        onValueChange = { s ->
+                            if (s.length <= 6 && s.all { it.isDigit() || it == '.' } && s.count { it == '.' } <= 1) {
+                                distText = s
+                                updateExercise(index) { it.copy(distanceKm = s.toDoubleOrNull()?.takeIf { v -> v > 0 }?.let { v -> kmFrom(v, distUnit) }) }
+                            }
+                        },
+                        label = { Text("Distance ($distUnit)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 if (!timed) {
                     OutlinedTextField(
                         value = weightText,

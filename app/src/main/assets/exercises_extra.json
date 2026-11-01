@@ -16,6 +16,22 @@
     "images": []
   },
   {
+    "id": "Running",
+    "name": "Running",
+    "level": "beginner",
+    "primaryMuscles": [],
+    "secondaryMuscles": [],
+    "instructions": [
+      "Start with a few minutes of walking or very easy jogging to warm up.",
+      "Run tall with a slight forward lean, short quick steps and relaxed shoulders, landing under your hips rather than far in front.",
+      "Most runs should be easy enough to hold a conversation; save fast running for intervals and tempo runs.",
+      "Log the distance and the time; the pace is worked out from both. Use the stopwatch or copy them from your watch."
+    ],
+    "category": "cardio",
+    "tracking": "distance",
+    "images": []
+  },
+  {
     "id": "Bulgarian_Split_Squat",
     "name": "Bulgarian Split Squat",
     "force": "push",

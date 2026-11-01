@@ -100,6 +100,7 @@ import com.tooheavy.app.ui.profile.HevyImportScreen
 import com.tooheavy.app.ui.profile.ProfileScreen
 import com.tooheavy.app.ui.program.ProgramScreen
 import com.tooheavy.app.ui.program.ProgramSetupScreen
+import com.tooheavy.app.ui.running.RunPlanScreen
 import com.tooheavy.app.ui.workout.RoutineEditScreen
 import com.tooheavy.app.ui.workout.WorkoutTabScreen
 import kotlinx.coroutines.delay
@@ -123,6 +124,8 @@ object Routes {
     const val PROGRAM_SETUP = "program_setup"
     /** Workout history import from a Hevy CSV export. */
     const val IMPORT_HEVY = "import_hevy"
+    /** The running plan: create one from text, follow it week by week. */
+    const val RUN_PLAN = "run_plan"
 
     /** Exercise library detail page. */
     fun exercise(id: String) = "exercise/${Uri.encode(id)}"
@@ -252,6 +255,7 @@ fun AppRoot() {
                 composable(Routes.PROGRAM) { ProgramScreen(nav) }
                 composable(Routes.PROGRAM_SETUP) { ProgramSetupScreen(nav) }
                 composable(Routes.IMPORT_HEVY) { HevyImportScreen(nav) }
+                composable(Routes.RUN_PLAN) { RunPlanScreen(nav) }
                 composable("food_search/{mode}") { FoodSearchScreen(nav, it.arguments?.getString("mode") ?: Routes.MODE_LOG) }
                 composable(
                     "food_amount?food={food}&mode={mode}&entry={entry}",

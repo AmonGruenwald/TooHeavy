@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -63,6 +64,11 @@ import com.tooheavy.app.data.trainingWeeks
 import com.tooheavy.app.data.mesocycle
 import com.tooheavy.app.data.newId
 import com.tooheavy.app.data.nextDayIndex
+import com.tooheavy.app.data.distanceUnit
+import com.tooheavy.app.data.nextRun
+import com.tooheavy.app.data.today
+import com.tooheavy.app.data.weekIndexOn
+import com.tooheavy.app.ui.running.StartRunDialog
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.CardLabel
 import com.tooheavy.app.ui.common.ExerciseThumbnail
@@ -136,6 +142,7 @@ private fun addStarterRoutines() {
 fun WorkoutTabScreen(nav: NavController) {
     var pending by remember { mutableStateOf<PendingStart?>(null) }
     var toDelete by remember { mutableStateOf<Routine?>(null) }
+    var pendingRun by remember { mutableStateOf<String?>(null) }
 
     fun requestStart(routine: Routine?, programDay: Int? = null) {
         if (Repo.activeWorkout != null) {
@@ -172,6 +179,19 @@ fun WorkoutTabScreen(nav: NavController) {
                     onCreate = { nav.navigate(Routes.PROGRAM_SETUP) },
                     onOpen = { nav.navigate(Routes.PROGRAM) },
                     onStart = { requestStart(null, it) },
+                )
+            }
+            item(key = "run_plan") {
+                RunPlanCard(
+                    onOpen = { nav.navigate(Routes.RUN_PLAN) },
+                    onStart = { runId ->
+                        if (Repo.activeWorkout != null) {
+                            pendingRun = runId
+                        } else {
+                            Repo.startPlannedRun(runId)
+                            nav.navigate(Routes.ACTIVE)
+                        }
+                    },
                 )
             }
             item(key = "quick_header") {
@@ -262,6 +282,8 @@ fun WorkoutTabScreen(nav: NavController) {
         )
     }
 
+    pendingRun?.let { id -> StartRunDialog(nav, id) { pendingRun = null } }
+
     toDelete?.let { r ->
         AlertDialog(
             onDismissRequest = { toDelete = null },
@@ -340,6 +362,54 @@ private fun ProgramSummaryCard(onCreate: () -> Unit, onOpen: () -> Unit, onStart
                         Spacer(Modifier.width(6.dp))
                         Text("Start ${day.name}")
                     }
+                }
+            }
+        }
+    }
+}
+
+/** The running plan: what's next and a start button, or an invitation to add one. */
+@Composable
+private fun RunPlanCard(onOpen: () -> Unit, onStart: (String) -> Unit) {
+    val plan = Repo.runPlan
+    GlassCard(modifier = Modifier.fillMaxWidth(), onClick = onOpen) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBubble(Icons.AutoMirrored.Filled.DirectionsRun, size = 36.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(plan?.name ?: "Running plan", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val week = plan?.weekIndexOn(today())
+                    Text(
+                        when {
+                            plan == null -> "Add your own plan of weeks and runs"
+                            week == null || week < 0 -> "Starts soon · ${plan.weeks.size} weeks"
+                            week >= plan.weeks.size -> "Finished"
+                            else -> "Week ${week + 1} of ${plan.weeks.size}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = onOpen) { Text(if (plan == null) "Add" else "View", color = AccentBright) }
+            }
+            val next = plan?.nextRun(today())
+            if (next != null) {
+                val run = next.second
+                Text("Next: ${run.name}", style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val target = run.targetText(distanceUnit(Repo.settings.unit))
+                if (target.isNotEmpty()) {
+                    Text(target, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Button(
+                    onClick = { onStart(run.id) },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Surface3, contentColor = MaterialTheme.colorScheme.onSurface),
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = AccentBright, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Start run", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
