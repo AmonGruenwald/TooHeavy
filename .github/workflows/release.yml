@@ -1,5 +1,7 @@
 # Builds a signed APK and publishes it as a GitHub release whenever a version tag is pushed:
 #   git tag v1.2.0 && git push origin v1.2.0
+# Publishing a release on the website with a new vX.Y.Z tag works too: creating the tag starts this
+# workflow, and the APK is attached to that release.
 # Installed apps check the latest release on start and offer to install it (see data/Updater.kt).
 #
 # Required repository secrets (the same key must sign every release, or phones refuse the update):
@@ -52,4 +54,8 @@ jobs:
         run: |
           apk="TooHeavy-$GITHUB_REF_NAME.apk"
           cp app/build/outputs/apk/release/app-release.apk "$apk"
-          gh release create "$GITHUB_REF_NAME" "$apk" --title "TooHeavy $GITHUB_REF_NAME" --generate-notes
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$apk" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$apk" --title "TooHeavy $GITHUB_REF_NAME" --generate-notes
+          fi
