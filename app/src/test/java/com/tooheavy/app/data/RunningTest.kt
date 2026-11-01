@@ -49,52 +49,28 @@ class RunningTest {
     }
 
     @Test
-    fun aLineBecomesARunWithTargets() {
-        assertEquals(5.0, parsePlannedRun("Easy run 5 km")!!.distanceKm!!, 1e-9)
-        assertEquals(10.0, parsePlannedRun("- Long run 10k")!!.distanceKm!!, 1e-9)
-        assertEquals(4.83, parsePlannedRun("Easy 3 miles")!!.distanceKm!!, 1e-9)
-        assertEquals("Long run 10k", parsePlannedRun("- Long run 10k")!!.name)
-        val tempo = parsePlannedRun("Tempo 20 min")!!
-        assertEquals(1200, tempo.seconds)
-        assertNull(tempo.distanceKm)
-        assertEquals(3600, parsePlannedRun("Easy 1 h")!!.seconds)
-        // Intervals and paces aren't the run's length.
-        val intervals = parsePlannedRun("Run 1 min, walk 2 min × 8")!!
-        assertNull(intervals.seconds)
-        assertNull(intervals.distanceKm)
-        assertNull(parsePlannedRun("Run 1 min, walk 90 s × 8")!!.seconds)
-        assertNull(parsePlannedRun("8x 3 min hills")!!.seconds)
-        assertEquals(1800, parsePlannedRun("Max 30 min easy")!!.seconds)
-        val paced = parsePlannedRun("8 km at 5:30 min/km")!!
-        assertEquals(8.0, paced.distanceKm!!, 1e-9)
-        assertNull(paced.seconds)
-        // Rest days aren't runs.
-        assertNull(parsePlannedRun("Rest"))
-        assertNull(parsePlannedRun("Rest day"))
-        assertNull(parsePlannedRun("   "))
-    }
-
-    @Test
-    fun planTextBecomesWeeks() {
-        val weeks = parseRunPlan(
-            """
-            Week 1
-            Easy run 3 km
-            Rest
-            Run 1 min, walk 90 s × 8
-
-            Long run 5 km
-            Week 2: Easy run 4 km; Tempo 20 min; Long run 6 km
-            """.trimIndent(),
-        )
-        assertEquals(2, weeks.size)
-        assertEquals(listOf("Easy run 3 km", "Run 1 min, walk 90 s × 8", "Long run 5 km"), weeks[0].runs.map { it.name })
-        assertEquals(listOf("Easy run 4 km", "Tempo 20 min", "Long run 6 km"), weeks[1].runs.map { it.name })
-
-        // Without "Week" lines, blank lines separate the weeks.
-        val blocks = parseRunPlan("3 km easy\n4 km easy\n\n\n4 km easy\n5 km long")
-        assertEquals(listOf(2, 2), blocks.map { it.runs.size })
-        assertTrue(parseRunPlan("").isEmpty())
+    fun buildingAPlan() {
+        val plan = RunPlan(startDate = "2026-11-02", weeks = List(3) { RunWeek() })
+        val long = PlannedRun(id = "long", name = RunType.label(RunType.LONG), type = RunType.LONG, day = 7, distanceKm = 12.0)
+        val easy = PlannedRun(id = "easy", name = RunType.label(RunType.EASY), type = RunType.EASY, day = 2, notes = "Conversational")
+        val anyDay = PlannedRun(id = "any", name = RunType.label(RunType.TEMPO), type = RunType.TEMPO)
+        // Added runs go into their week in weekday order; runs on any day come last.
+        var p = plan.saveRun(0, long).saveRun(0, anyDay).saveRun(0, easy)
+        assertEquals(listOf("easy", "long", "any"), p.weeks[0].runs.map { it.id })
+        assertTrue(p.weeks[1].runs.isEmpty())
+        // Saving an existing run replaces it where it is, whatever week is passed.
+        p = p.saveRun(2, easy.copy(day = 1, notes = "Hills"))
+        assertEquals(listOf("easy", "long", "any"), p.weeks[0].runs.map { it.id })
+        assertEquals("Hills", p.findRun("easy")?.notes)
+        assertTrue(p.weeks[2].runs.isEmpty())
+        // Copying a week's runs gives the next week fresh, open copies.
+        p = p.updateRun("easy") { it.copy(doneWorkoutId = "w1") }.copyRunsToNextWeek(0)
+        assertEquals(listOf(RunType.EASY, RunType.LONG, RunType.TEMPO), p.weeks[1].runs.map { it.type })
+        assertTrue(p.weeks[1].runs.all { it.open && it.id !in setOf("easy", "long", "any") })
+        assertEquals(p, p.copyRunsToNextWeek(2))
+        assertEquals("Mon · Easy run", p.findRun("easy")?.title())
+        assertEquals("Tempo run", anyDay.title())
+        assertEquals("Run", RunType.label(null))
     }
 
     @Test
@@ -128,7 +104,16 @@ class RunningTest {
     fun plansAndRunsRoundTrip() {
         val gson = Gson()
         val data = AppData(
-            runPlan = RunPlan(name = "10K", startDate = "2026-11-02", weeks = listOf(RunWeek(runs = listOf(PlannedRun(name = "Easy 5 km", distanceKm = 5.0))))),
+            runPlan = RunPlan(
+                name = "10K",
+                startDate = "2026-11-02",
+                weeks = listOf(
+                    RunWeek(
+                        note = "Easy week",
+                        runs = listOf(PlannedRun(name = "Easy run", type = RunType.EASY, day = 2, distanceKm = 5.0, notes = "Flat route")),
+                    ),
+                ),
+            ),
             workouts = listOf(
                 Workout(
                     plannedRunId = "r1",

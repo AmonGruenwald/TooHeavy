@@ -66,6 +66,7 @@ import com.tooheavy.app.data.newId
 import com.tooheavy.app.data.nextDayIndex
 import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.nextRun
+import com.tooheavy.app.data.title
 import com.tooheavy.app.data.today
 import com.tooheavy.app.data.weekIndexOn
 import com.tooheavy.app.ui.running.StartRunDialog
@@ -396,7 +397,7 @@ private fun RunPlanCard(onOpen: () -> Unit, onStart: (String) -> Unit) {
             val next = plan?.nextRun(today())
             if (next != null) {
                 val run = next.second
-                Text("Next: ${run.name}", style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("Next: ${run.title()}", style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val target = run.targetText(distanceUnit(Repo.settings.unit))
                 if (target.isNotEmpty()) {
                     Text(target, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

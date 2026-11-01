@@ -4,7 +4,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 // Running: distance-tracked exercises (distance and time per set, pace from both) and a running plan of
-// weeks the user writes or pastes in. Everything here is pure, so it can be unit tested.
+// weeks the user builds run by run. Everything here is pure, so it can be unit tested.
 
 /** Id of the bundled outdoor run (exercises_extra.json); planned runs log with it unless they say otherwise. */
 const val RUNNING_EXERCISE_ID = "Running"
@@ -70,13 +70,49 @@ data class RunPlan(
 data class RunWeek(
     val id: String = newId(),
     val runs: List<PlannedRun> = emptyList(),
+    /** The user's note for the week, e.g. "Recovery week" or "Race on Sunday". */
+    val note: String = "",
 )
+
+/** Kinds of run in a plan; a run's name is its kind's label unless it came with its own. */
+object RunType {
+    const val EASY = "easy"
+    const val LONG = "long"
+    const val TEMPO = "tempo"
+    const val INTERVALS = "intervals"
+    const val RECOVERY = "recovery"
+    const val RACE = "race"
+    val all = listOf(EASY, LONG, TEMPO, INTERVALS, RECOVERY, RACE)
+    fun label(type: String?): String = when (type) {
+        EASY -> "Easy run"
+        LONG -> "Long run"
+        TEMPO -> "Tempo run"
+        INTERVALS -> "Intervals"
+        RECOVERY -> "Recovery run"
+        RACE -> "Race"
+        else -> "Run"
+    }
+}
+
+/** "Tue · Easy run", or just the name for a run on any day. */
+fun PlannedRun.title(): String = listOfNotNull(day?.let { weekdayShort(it) }, name).joinToString(" · ")
+
+/** "Mon" .. "Sun" for 1..7. */
+fun weekdayShort(day: Int): String = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").getOrElse(day - 1) { "" }
+
+/** [runs] with the ones on a weekday in weekday order; runs without a day keep their place after them. */
+fun sortRuns(runs: List<PlannedRun>): List<PlannedRun> = runs.sortedBy { it.day ?: 8 }
 
 /** One run of a plan, with optional targets. */
 data class PlannedRun(
     val id: String = newId(),
-    /** What to do, e.g. "Easy run 5 km" or "6 × 400 m at 5K pace". */
+    /** What to do: the RunType label, e.g. "Easy run". */
     val name: String = "Run",
+    /** RunType of the run, null for runs made before there were types. */
+    val type: String? = null,
+    /** Weekday 1 (Monday) to 7 (Sunday) the run is planned for, null for any day of the week. */
+    val day: Int? = null,
+    /** The user's note, e.g. "6 × 400 m at 5K pace, 90 s jog between". */
     val notes: String = "",
     val distanceKm: Double? = null,
     val seconds: Int? = null,
@@ -116,70 +152,32 @@ fun RunPlan.findRun(runId: String): PlannedRun? = weeks.firstNotNullOfOrNull { w
 fun RunPlan.updateRun(runId: String, transform: (PlannedRun) -> PlannedRun): RunPlan =
     copy(weeks = weeks.map { w -> w.copy(runs = w.runs.map { if (it.id == runId) transform(it) else it }) })
 
+/**
+ * [this] with [run] saved: replacing the run with its id wherever it is, or added to week [weekIndex]. The
+ * runs of a week stay in weekday order.
+ */
+fun RunPlan.saveRun(weekIndex: Int, run: PlannedRun): RunPlan {
+    val exists = weeks.any { w -> w.runs.any { it.id == run.id } }
+    return copy(weeks = weeks.mapIndexed { i, w ->
+        val runs = when {
+            exists -> w.runs.map { if (it.id == run.id) run else it }
+            i == weekIndex -> w.runs + run
+            else -> w.runs
+        }
+        w.copy(runs = sortRuns(runs))
+    })
+}
+
+/** [this] with the runs of week [weekIndex] copied, not done, into the week after it (if there is one). */
+fun RunPlan.copyRunsToNextWeek(weekIndex: Int): RunPlan {
+    val from = weeks.getOrNull(weekIndex) ?: return this
+    if (weekIndex + 1 >= weeks.size) return this
+    val copies = from.runs.map { it.copy(id = newId(), doneWorkoutId = null, skipped = false) }
+    return copy(weeks = weeks.mapIndexed { i, w -> if (i == weekIndex + 1) w.copy(runs = sortRuns(w.runs + copies)) else w })
+}
+
 /** Runs done and runs in the plan. */
 fun RunPlan.progress(): Pair<Int, Int> = weeks.sumOf { w -> w.runs.count { it.done } } to weeks.sumOf { it.runs.size }
 
 /** Monday of the week containing [date]. */
 fun mondayOf(date: String): String = shiftDate(date, -((dayOfWeek(date) + 5) % 7))
-
-// ---------- plan text ----------
-
-private val weekHeader = Regex("""^(?:week|wk|woche)\s*(\d+)\b\s*[:.)\-–—]*\s*(.*)$""", RegexOption.IGNORE_CASE)
-private val bullet = Regex("""^(?:[-*•·]+|\d+[.)])\s*""")
-private val restLine = Regex("""^(?:rest\b.*|off|day off|cross[- ]?train(?:ing)?\b.*)$""", RegexOption.IGNORE_CASE)
-private val kmPattern = Regex("""(\d+(?:[.,]\d+)?)\s*(km|k|kilometers?|kilometres?|mi|miles?)\b""", RegexOption.IGNORE_CASE)
-// Not "5:30 min/km": a pace isn't a duration.
-private val minPattern = Regex("""(\d+(?:[.,]\d+)?)\s*(h|hrs?|hours?|min|mins|minutes?)\b(?!\s*/)""", RegexOption.IGNORE_CASE)
-private val repeatPattern = Regex("""(?:^|[\s\d])[x×]\s*\d|\brepeats?\b|\breps?\b""", RegexOption.IGNORE_CASE)
-
-/**
- * Runs from a line of a plan: the line is the run's name, the longest distance in it ("5 km", "10k", "3 miles")
- * its target distance, and a single duration ("30 min", "1 h") its target time. Intervals ("8 × 1 min") get no
- * target time, since no one number is the run's length. Rest days give null.
- */
-fun parsePlannedRun(line: String): PlannedRun? {
-    val text = line.trim().replace(bullet, "").trim()
-    if (text.isEmpty() || restLine.matches(text)) return null
-    fun num(s: String) = s.replace(',', '.').toDoubleOrNull()
-    val km = kmPattern.findAll(text).mapNotNull { m ->
-        val v = num(m.groupValues[1]) ?: return@mapNotNull null
-        if (m.groupValues[2].lowercase(Locale.US).startsWith("mi")) v * KM_PER_MILE else v
-    }.maxOrNull()
-    val times = minPattern.findAll(text).mapNotNull { m ->
-        val v = num(m.groupValues[1]) ?: return@mapNotNull null
-        (if (m.groupValues[2].lowercase(Locale.US).startsWith("h")) v * 3600 else v * 60).roundToInt()
-    }.toList()
-    val seconds = times.singleOrNull()?.takeIf { !repeatPattern.containsMatchIn(text) }
-    return PlannedRun(name = text, distanceKm = km?.let { Math.round(it * 100) / 100.0 }, seconds = seconds)
-}
-
-/**
- * Weeks from a plan written as text, e.g.
- * ```
- * Week 1
- * Easy run 3 km
- * Run 1 min, walk 90 s × 8
- * Week 2: 4 km easy; 5 km long run
- * ```
- * "Week N" lines start a week (runs may follow on the same line, separated by ";"); every other line is a run,
- * and rest days are skipped. Without any "Week" line, blank lines separate the weeks.
- */
-fun parseRunPlan(text: String): List<RunWeek> {
-    val lines = text.lines().map { it.trim() }
-    val hasHeaders = lines.any { weekHeader.matches(it) }
-    val weeks = ArrayList<MutableList<PlannedRun>>()
-    var current: MutableList<PlannedRun>? = null
-    fun newWeek() = ArrayList<PlannedRun>().also { weeks.add(it); current = it }
-    for (line in lines) {
-        val header = weekHeader.matchEntire(line)
-        when {
-            header != null -> {
-                val week = newWeek()
-                header.groupValues[2].split(';').mapNotNullTo(week) { parsePlannedRun(it) }
-            }
-            line.isEmpty() -> if (!hasHeaders) current = null
-            else -> (current ?: newWeek()).let { week -> parsePlannedRun(line)?.let { week.add(it) } }
-        }
-    }
-    return weeks.map { RunWeek(runs = it) }
-}
