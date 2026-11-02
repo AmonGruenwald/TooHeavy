@@ -64,6 +64,7 @@ import com.tooheavy.app.data.trainingWeeks
 import com.tooheavy.app.data.mesocycle
 import com.tooheavy.app.data.newId
 import com.tooheavy.app.data.nextDayIndex
+import com.tooheavy.app.data.RUNNING_EXERCISE_ID
 import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.nextRun
 import com.tooheavy.app.data.title
@@ -90,7 +91,15 @@ import com.tooheavy.app.ui.theme.Warmup
 import com.tooheavy.app.ui.theme.brandHorizontal
 
 /** A start waiting on the "workout in progress" dialog: a routine, a program day, or an empty workout. */
-private class PendingStart(val routine: Routine?, val programDay: Int? = null)
+/** A start waiting on what to do with the workout in progress; [run] is a run's (exercise id, name). */
+private class PendingStart(val routine: Routine?, val programDay: Int? = null, val run: Pair<String, String>? = null)
+
+/** What "Start a run" offers: label, the distance exercise it logs with, and the workout's name. */
+private val runKinds = listOf(
+    Triple("Run", RUNNING_EXERCISE_ID, "Run"),
+    Triple("Walk or hike", "Trail_Running_Walking", "Walk"),
+    Triple("Bike ride", "Bicycling", "Ride"),
+)
 
 private fun findExerciseByName(name: String): Exercise? {
     val all = Repo.exercises
@@ -144,6 +153,16 @@ fun WorkoutTabScreen(nav: NavController) {
     var pending by remember { mutableStateOf<PendingStart?>(null) }
     var toDelete by remember { mutableStateOf<Routine?>(null) }
     var pendingRun by remember { mutableStateOf<String?>(null) }
+    var runChoice by remember { mutableStateOf(false) }
+
+    fun requestRun(exerciseId: String, name: String) {
+        if (Repo.activeWorkout != null) {
+            pending = PendingStart(null, run = exerciseId to name)
+        } else {
+            Repo.startRun(exerciseId, name)
+            nav.navigate(Routes.ACTIVE)
+        }
+    }
 
     fun requestStart(routine: Routine?, programDay: Int? = null) {
         if (Repo.activeWorkout != null) {
@@ -199,14 +218,20 @@ fun WorkoutTabScreen(nav: NavController) {
                 SectionTitle("Quick start", Modifier.padding(top = 4.dp))
             }
             item(key = "quick_button") {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    QuickTile(
-                        "Empty workout", "Log as you go", Icons.Filled.Bolt, BrandColors[1],
-                        Modifier.weight(1f),
-                    ) { requestStart(null) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        QuickTile(
+                            "Empty workout", "Log as you go", Icons.Filled.Bolt, BrandColors[1],
+                            Modifier.weight(1f),
+                        ) { requestStart(null) }
+                        QuickTile(
+                            "Start a run", "GPS, map and pace", Icons.AutoMirrored.Filled.DirectionsRun, AccentBright,
+                            Modifier.weight(1f),
+                        ) { runChoice = true }
+                    }
                     QuickTile(
                         "Exercise library", "${Repo.exercises.size} exercises", Icons.AutoMirrored.Filled.MenuBook, AccentBright,
-                        Modifier.weight(1f),
+                        Modifier.fillMaxWidth(),
                     ) { nav.navigateTab(Routes.EXERCISES) }
                 }
             }
@@ -274,7 +299,11 @@ fun WorkoutTabScreen(nav: NavController) {
                     TextButton(onClick = {
                         pending = null
                         Repo.discardWorkout()
-                        if (p.programDay != null) Repo.startProgramWorkout(p.programDay) else Repo.startWorkout(p.routine)
+                        when {
+                            p.run != null -> Repo.startRun(p.run.first, p.run.second)
+                            p.programDay != null -> Repo.startProgramWorkout(p.programDay)
+                            else -> Repo.startWorkout(p.routine)
+                        }
                         nav.navigate(Routes.ACTIVE)
                     }) { Text("Discard & start new", color = Danger) }
                     TextButton(onClick = { pending = null }) { Text("Cancel") }
@@ -284,6 +313,34 @@ fun WorkoutTabScreen(nav: NavController) {
     }
 
     pendingRun?.let { id -> StartRunDialog(nav, id) { pendingRun = null } }
+
+    if (runChoice) {
+        AlertDialog(
+            onDismissRequest = { runChoice = false },
+            title = { Text("Start a run") },
+            text = {
+                Column {
+                    Text(
+                        "Records your route with GPS: distance, time, pace and a map. It isn't part of your running plan.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    runKinds.forEach { (label, exerciseId, name) ->
+                        TextButton(
+                            onClick = {
+                                runChoice = false
+                                requestRun(exerciseId, name)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(label, modifier = Modifier.fillMaxWidth()) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { runChoice = false }) { Text("Cancel") } },
+        )
+    }
 
     toDelete?.let { r ->
         AlertDialog(

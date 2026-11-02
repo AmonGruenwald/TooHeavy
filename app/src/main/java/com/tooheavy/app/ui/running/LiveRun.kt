@@ -91,7 +91,7 @@ private fun gpsOn(context: Context): Boolean =
  * notification) the first time, checks location is switched on, then calls [onStart].
  */
 @Composable
-fun RecordRunButton(onStart: () -> Unit) {
+fun RecordRunButton(autoStart: Boolean = false, onAutoStartHandled: () -> Unit = {}, onStart: () -> Unit) {
     val context = LocalContext.current
     var problem by remember { mutableStateOf<String?>(null) }
     var batteryDialog by remember { mutableStateOf(false) }
@@ -110,25 +110,33 @@ fun RecordRunButton(onStart: () -> Unit) {
             }
         }
     }
+    fun tryStart() {
+        when {
+            !hasPreciseLocation(context) -> {
+                val perms = buildList {
+                    add(Manifest.permission.ACCESS_FINE_LOCATION)
+                    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                launcher.launch(perms.toTypedArray())
+            }
+            !gpsOn(context) -> problem = "Location is switched off."
+            else -> {
+                problem = null
+                begin()
+            }
+        }
+    }
+    // "Start a run" opens the workout ready to go: recording starts as if the button had been tapped.
+    LaunchedEffect(autoStart) {
+        if (autoStart) {
+            onAutoStartHandled()
+            tryStart()
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedButton(
-            onClick = {
-                when {
-                    !hasPreciseLocation(context) -> {
-                        val perms = buildList {
-                            add(Manifest.permission.ACCESS_FINE_LOCATION)
-                            add(Manifest.permission.ACCESS_COARSE_LOCATION)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                        launcher.launch(perms.toTypedArray())
-                    }
-                    !gpsOn(context) -> problem = "Location is switched off."
-                    else -> {
-                        problem = null
-                        begin()
-                    }
-                }
-            },
+            onClick = { tryStart() },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
         ) {
