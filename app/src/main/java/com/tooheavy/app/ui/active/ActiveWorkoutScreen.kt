@@ -668,7 +668,7 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                     LiveRunPanel(track, distUnit)
                 } else if (track == null) {
                     Spacer(Modifier.height(8.dp))
-                    RecordRunButton {
+                    RecordRunButton(autoStart = Repo.recordOnOpen, onAutoStartHandled = { Repo.recordOnOpen = false }) {
                         val open = we.sets.firstOrNull { !it.completed }
                         val setId = open?.id ?: SetEntry().also { s -> updateExercise(we.id) { e -> e.copy(sets = e.sets + s) } }.id
                         RunTracker.start(we.id, setId)

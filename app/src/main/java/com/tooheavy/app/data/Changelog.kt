@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.16.0", "2026-11-02",
+            listOf(
+                "Start a run without a plan: Train → Start a run, then pick a run, a walk or hike, or a bike ride. The " +
+                    "workout opens and GPS recording starts right away.",
+            ),
+        ),
+        ChangelogEntry(
             "1.15.0", "2026-11-02",
             listOf(
                 "Habits: a new tab to track anything you want to do regularly. Every day, on chosen days or a number " +

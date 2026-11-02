@@ -233,6 +233,7 @@ object Repo {
     }
 
     fun discardWorkout() {
+        recordOnOpen = false
         RunTracker.discard()
         activeWorkout = null
         stopRest()
@@ -356,6 +357,23 @@ object Repo {
     fun updateRunPlan(transform: (RunPlan) -> RunPlan) {
         val p = runPlan ?: return
         saveRunPlan(transform(p))
+    }
+
+    /**
+     * Set by startRun: the workout screen starts GPS recording by itself once (asking for location first if
+     * needed), then clears it. Not saved.
+     */
+    var recordOnOpen by mutableStateOf(false)
+
+    /** A run outside the plan: a workout named [name] with [exerciseId] (a distance exercise) and one set. */
+    fun startRun(exerciseId: String = RUNNING_EXERCISE_ID, name: String = "Run") {
+        val id = exerciseId.takeIf { exercise(it) != null } ?: RUNNING_EXERCISE_ID
+        activeWorkout = Workout(
+            name = name,
+            exercises = listOf(WorkoutExercise(exerciseId = id, restSeconds = 0, sets = listOf(SetEntry()))),
+        )
+        recordOnOpen = true
+        save()
     }
 
     /** Starts a workout for a planned run: its exercise with one set, and the plan's notes on it. */
