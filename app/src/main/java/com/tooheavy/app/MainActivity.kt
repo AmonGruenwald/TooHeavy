@@ -10,6 +10,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import android.view.WindowManager
+import androidx.compose.runtime.LaunchedEffect
 import com.tooheavy.app.data.HabitReminders
 import com.tooheavy.app.data.HabitRepo
 import com.tooheavy.app.data.NutritionRepo
@@ -38,7 +40,25 @@ class MainActivity : ComponentActivity() {
         Updater.scheduleDailyCheck(applicationContext)
         WhatsNew.onAppStart(applicationContext)
         askForNotificationsOnce()
-        setContent { TooHeavyTheme { AppRoot() } }
+        setContent {
+            // While a run is recorded, waking the phone shows the run instead of the lock screen (unlocking is
+            // still needed to leave the app). Off again once the run is finished or discarded.
+            val overLockScreen = RunTracker.track != null && Repo.settings.runOverLockScreen
+            LaunchedEffect(overLockScreen) { showOverLockScreen(overLockScreen) }
+            TooHeavyTheme { AppRoot() }
+        }
+    }
+
+    /** Android 8.0 only has the window flag; 8.1 and later have setShowWhenLocked. */
+    @Suppress("DEPRECATION")
+    private fun showOverLockScreen(on: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(on)
+        } else if (on) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        }
     }
 
     override fun onStart() {

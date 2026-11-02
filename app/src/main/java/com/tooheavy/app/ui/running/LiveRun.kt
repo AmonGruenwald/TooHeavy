@@ -267,6 +267,21 @@ fun LiveRunPanel(track: ActiveTrack, unit: String) {
                     Text("Finish")
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Show on lock screen", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "Waking the phone shows this run without unlocking. The notification is always on the lock screen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = Repo.settings.runOverLockScreen,
+                    onCheckedChange = { Repo.updateSettings(Repo.settings.copy(runOverLockScreen = it)) },
+                )
+            }
             TextButton(onClick = { confirmDiscard = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 Text("Discard recording", color = Danger)
             }
