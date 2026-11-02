@@ -101,7 +101,8 @@ object RunTracker {
         val now = System.currentTimeMillis()
         track = t.copy(movedMs = t.movingMs(now), resumedAt = null, autoPaused = false)
         save(force = true)
-        stopService()
+        // The service stays for the notification (with Resume); it switches GPS off.
+        startService()
     }
 
     /** Resumes after a manual pause or an auto-pause. */
@@ -121,6 +122,7 @@ object RunTracker {
         if (!on && t.autoPaused) {
             track = resumed(t, System.currentTimeMillis())
             save(force = true)
+            startService()
         }
         resetAutoPause()
     }
@@ -225,6 +227,7 @@ object RunTracker {
         io.execute { runCatching { f.parentFile?.mkdirs(); f.writeText(json) } }
     }
 
+    /** Starts the service, or makes the running one follow the run's state (GPS on or off, notification). */
     private fun startService() {
         runCatching { ContextCompat.startForegroundService(appContext, Intent(appContext, RunTrackingService::class.java)) }
     }

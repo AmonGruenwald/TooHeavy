@@ -148,6 +148,8 @@ data class Settings(
     val autoPauseRuns: Boolean = true,
     /** The battery optimisation explanation was shown once before recording a run. */
     val batteryPromptShown: Boolean = false,
+    /** While a run is recorded, the app shows over the lock screen, so waking the phone shows the run. */
+    val runOverLockScreen: Boolean = true,
 )
 
 /** Everything persisted to filesDir/data.json. */

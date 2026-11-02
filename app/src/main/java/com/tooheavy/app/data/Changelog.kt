@@ -12,6 +12,15 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.17.0", "2026-11-02",
+            listOf(
+                "Runs on the lock screen: the recording notification shows distance, moving time, average and " +
+                    "current pace on the lock screen, with a Pause / Resume button. It stays while paused.",
+                "While a run is recorded, waking the phone shows the run itself without unlocking (you still unlock " +
+                    "to leave the app). Turn it off with \"Show on lock screen\" in the recording panel.",
+            ),
+        ),
+        ChangelogEntry(
             "1.16.0", "2026-11-02",
             listOf(
                 "Start a run without a plan: Train → Start a run, then pick a run, a walk or hike, or a bike ride. The " +
