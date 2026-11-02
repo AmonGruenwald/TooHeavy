@@ -271,7 +271,7 @@ fun LiveRunPanel(track: ActiveTrack, unit: String) {
                 Column(Modifier.weight(1f)) {
                     Text("Show on lock screen", style = MaterialTheme.typography.labelLarge)
                     Text(
-                        "Waking the phone shows this run without unlocking. The notification is always on the lock screen.",
+                        "Waking the phone shows the map and stats without unlocking. The notification is always on the lock screen.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
