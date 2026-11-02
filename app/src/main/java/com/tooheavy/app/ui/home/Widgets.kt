@@ -32,10 +32,13 @@ import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -51,7 +54,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.DashboardWidget
+import com.tooheavy.app.data.HabitRepo
 import com.tooheavy.app.data.NutritionRepo
+import com.tooheavy.app.data.countOn
+import com.tooheavy.app.data.doneOn
+import com.tooheavy.app.data.isDueOn
+import com.tooheavy.app.ui.habits.habitColor
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.completedSetCount
 import com.tooheavy.app.data.dayOfWeek
@@ -101,6 +109,8 @@ import com.tooheavy.app.ui.theme.BrandBrush
 import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Ember
 import com.tooheavy.app.ui.theme.Surface3
+import com.tooheavy.app.ui.theme.Hairline
+import com.tooheavy.app.ui.theme.OnAccent
 import com.tooheavy.app.ui.theme.TextMuted
 import com.tooheavy.app.ui.theme.TextSecondary
 import com.tooheavy.app.ui.theme.Warmup
@@ -132,6 +142,7 @@ object DashboardWidgets {
     const val LIFETIME = "lifetime"
     const val TRAINING_TIME = "training_time"
     const val HYDRATION = "hydration"
+    const val HABITS = "habits"
 
     val all = listOf(
         Def(UP_NEXT, "Up next", "Your next program day, routine or a quick start", Icons.Filled.Bolt),
@@ -152,6 +163,7 @@ object DashboardWidgets {
         Def(LIFETIME, "Lifetime stats", "Workouts, volume, sets and time, all-time", Icons.AutoMirrored.Filled.ShowChart),
         Def(TRAINING_TIME, "Training time", "Minutes trained per week", Icons.Filled.Timer),
         Def(HYDRATION, "Hydration", "Water today against your goal, with a quick +250 ml", Icons.Filled.WaterDrop),
+        Def(HABITS, "Habits today", "Today's habits to tick off and how many are done", Icons.Filled.TaskAlt),
     )
 
     fun def(id: String): Def? = all.firstOrNull { it.id == id }
@@ -196,6 +208,7 @@ fun WidgetBody(w: DashboardWidget, nav: NavController, modifier: Modifier = Modi
         DashboardWidgets.LIFETIME -> Lifetime(def, w.wide, m)
         DashboardWidgets.TRAINING_TIME -> TrainingTime(def, w.wide, m)
         DashboardWidgets.HYDRATION -> Hydration(def, w.wide, m) { nav.navigateTab(Routes.NUTRITION) }
+        DashboardWidgets.HABITS -> HabitsToday(def, w.wide, m) { nav.navigateTab(Routes.HABITS) }
     }
 }
 
@@ -403,6 +416,55 @@ private fun CaloriesToday(def: DashboardWidgets.Def, wide: Boolean, modifier: Mo
             }
         } else {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Ring(112.dp) }
+        }
+    }
+}
+
+/** Today's habits: how many are done, and (wide) the first few with a check to tap. */
+@Composable
+private fun HabitsToday(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val t = today()
+    val active = HabitRepo.active()
+    val due = active.filter { it.isDueOn(t) }
+    val done = due.count { it.doneOn(HabitRepo.log(it.id), t) }
+    WidgetCard(def, modifier, onClick = onClick) {
+        if (due.isEmpty()) {
+            Text(
+                if (active.isEmpty()) "No habits yet. Tap to add your first." else "Nothing due today.",
+                style = MaterialTheme.typography.bodySmall, color = TextMuted,
+            )
+        } else {
+            BigNumber("$done/${due.size}", "done", size = if (wide) 28 else 26)
+            if (wide) {
+                Spacer(Modifier.height(10.dp))
+                due.take(5).forEach { h ->
+                    val log = HabitRepo.log(h.id)
+                    val count = h.countOn(log, t)
+                    val isDone = count >= h.target
+                    val color = habitColor(h)
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(h.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (h.counted) {
+                            Text("$count/${h.target}", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Box(
+                            Modifier.size(28.dp).clip(CircleShape)
+                                .background(if (isDone) color else Color.Transparent)
+                                .border(2.dp, if (isDone || count > 0) color else Hairline, CircleShape)
+                                .clickable { HabitRepo.toggle(h.id, t) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (isDone) Icon(Icons.Filled.Check, contentDescription = "Done", tint = OnAccent, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+                if (due.size > 5) Text("+${due.size - 5} more", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+            } else {
+                Text("habits today", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                Spacer(Modifier.weight(1f))
+                Meter(done.toFloat() / due.size, Accent, height = 8.dp)
+            }
         }
     }
 }

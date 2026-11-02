@@ -10,6 +10,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import com.tooheavy.app.data.HabitReminders
+import com.tooheavy.app.data.HabitRepo
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.RunTracker
@@ -30,6 +32,8 @@ class MainActivity : ComponentActivity() {
         Repo.init(applicationContext)
         NutritionRepo.init(applicationContext)
         RunTracker.init(applicationContext)
+        HabitRepo.init(applicationContext)
+        HabitReminders.schedule(applicationContext)
         Updater.check(applicationContext)
         Updater.scheduleDailyCheck(applicationContext)
         WhatsNew.onAppStart(applicationContext)
