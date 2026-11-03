@@ -65,7 +65,7 @@ fun ExerciseListScreen(nav: NavController) {
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            ScreenHeader("Library", overline = "${Repo.exercises.size} exercises") {
+            ScreenHeader("Library", overline = "${Repo.exercises.size} exercises", onBack = { nav.popBackStack() }) {
                 IconButton(onClick = { nav.navigate(Routes.exerciseEdit("new")) }) {
                     Icon(Icons.Filled.Add, contentDescription = "Create exercise")
                 }

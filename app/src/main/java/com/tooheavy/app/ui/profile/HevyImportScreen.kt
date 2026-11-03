@@ -204,7 +204,7 @@ fun HevyImportScreen(nav: NavController) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                GradientButton(onClick = { nav.navigateTab(Routes.HISTORY) }, modifier = Modifier.fillMaxWidth()) {
+                GradientButton(onClick = { nav.navigate(Routes.HISTORY) }, modifier = Modifier.fillMaxWidth()) {
                     Text("View history")
                 }
             }

@@ -81,6 +81,7 @@ fun HistoryScreen(nav: NavController) {
             ScreenHeader(
                 "History",
                 overline = if (workouts.isEmpty()) "Your training log" else "${workouts.size} workouts logged",
+                onBack = { nav.popBackStack() },
             ) {
                 if (workouts.isNotEmpty()) {
                     IconButton(onClick = { nav.navigate(Routes.MUSCLES) }) {

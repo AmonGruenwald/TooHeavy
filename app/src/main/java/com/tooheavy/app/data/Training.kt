@@ -215,8 +215,10 @@ class OrderItem<T>(
  * Orders a session the way the research on exercise order suggests (Simão 2012, Nunes 2021):
  * - Warm-ups first, then explosive work, the most demanding compound lifts, other compounds, isolation work, and
  *   core and calves last, so no muscle a big lift relies on is tired out by isolation work beforehand.
- * - Within each tier, focus muscle groups first and reduced ones last: what comes first is done fresh and
- *   gains the most strength.
+ * - Never the same main muscle group twice in a row while the tier has something else: the second exercise would
+ *   start pre-fatigued (a dumbbell press straight after the bench press).
+ * - Within that, focus muscle groups first and reduced ones last: what comes first is done fresh and gains the
+ *   most strength.
  * - Consecutive exercises alternate muscle groups where possible (push and pull, upper and lower), so a muscle
  *   recovers while another works and the next lift doesn't start pre-fatigued. The exercise two back counts
  *   too, at half weight, so work for the same muscle is spread out.
@@ -233,23 +235,28 @@ fun <T> orderSession(items: List<OrderItem<T>>): List<T> {
     val out = ArrayList<T>()
     var previous: List<OrderItem<T>> = emptyList()
     var beforeThat: List<OrderItem<T>> = emptyList()
+    fun List<OrderItem<T>>.main() = flatMap { it.main }.toSet()
+    fun List<OrderItem<T>>.all() = flatMap { it.groups }.toSet()
     units.groupBy { u -> u.minOf { it.tier } }.toSortedMap().values.forEach { tier ->
-        for (part in tier.groupBy { u -> u.minOf { it.priority } }.toSortedMap().values) {
-            val left = part.toMutableList()
-            while (left.isNotEmpty()) {
-                // The unit whose main muscle groups overlap least with the last one's, then with the one before
-                // it; any other shared group breaks ties, then the earliest wins.
-                fun List<OrderItem<T>>.main() = flatMap { it.main }.toSet()
-                fun List<OrderItem<T>>.all() = flatMap { it.groups }.toSet()
-                val next = left.minBy { u ->
-                    4 * u.main().intersect(previous.main()).size + 2 * u.main().intersect(beforeThat.main()).size +
-                        u.all().intersect(previous.all()).size
-                }
-                left.remove(next)
-                out += next.map { it.item }
-                beforeThat = previous
-                previous = next
-            }
+        val left = tier.toMutableList()
+        while (left.isNotEmpty()) {
+            // Never the same main muscle group as the last unit while the tier has anything else; among the
+            // rest, focus groups first and reduced ones last; then the least overlap with the last unit and the
+            // one before it, any other shared group breaking ties; then the earliest.
+            val next = left.minWith(
+                compareBy<List<OrderItem<T>>>(
+                    { u -> if (u.main().intersect(previous.main()).isEmpty()) 0 else 1 },
+                    { u -> u.minOf { it.priority } },
+                    { u ->
+                        4 * u.main().intersect(previous.main()).size + 2 * u.main().intersect(beforeThat.main()).size +
+                            u.all().intersect(previous.all()).size
+                    },
+                ),
+            )
+            left.remove(next)
+            out += next.map { it.item }
+            beforeThat = previous
+            previous = next
         }
     }
     return out

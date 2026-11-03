@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -229,10 +230,17 @@ fun WorkoutTabScreen(nav: NavController) {
                             Modifier.weight(1f),
                         ) { runChoice = true }
                     }
-                    QuickTile(
-                        "Exercise library", "${Repo.exercises.size} exercises", Icons.AutoMirrored.Filled.MenuBook, AccentBright,
-                        Modifier.fillMaxWidth(),
-                    ) { nav.navigateTab(Routes.EXERCISES) }
+                    // History and the library live here rather than in tabs of their own.
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        QuickTile(
+                            "History", "${Repo.workouts.size} workouts", Icons.Filled.History, AccentBright,
+                            Modifier.weight(1f),
+                        ) { nav.navigate(Routes.HISTORY) }
+                        QuickTile(
+                            "Exercise library", "${Repo.exercises.size} exercises", Icons.AutoMirrored.Filled.MenuBook, AccentBright,
+                            Modifier.weight(1f),
+                        ) { nav.navigate(Routes.EXERCISES) }
+                    }
                 }
             }
             item(key = "routines_header") {
