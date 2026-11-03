@@ -8,7 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -355,17 +359,27 @@ private fun DayCard(
             val letters = supersetLetters(day.exercises.map { it.supersetId })
             day.exercises.forEachIndexed { i, pe ->
                 if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                letters[i]?.let { letter ->
-                    if (letters.getOrNull(i - 1) != letter) {
-                        Text(
-                            "Superset $letter · one rest per round",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Warmup,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
+                val letter = letters[i]
+                if (letter != null && letters.getOrNull(i - 1) != letter) {
+                    val size = letters.count { it == letter }
+                    Text(
+                        "Superset $letter · these $size back to back, one rest per round",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Warmup,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
-                ExerciseRow(program, pe, unit, onOpenExercise, onSwap, onEdit)
+                // A bar along the exercises of a superset shows where it starts and ends.
+                Row(Modifier.height(IntrinsicSize.Min)) {
+                    if (letter != null) {
+                        Box(
+                            Modifier.width(3.dp).fillMaxHeight().padding(vertical = 6.dp)
+                                .clip(RoundedCornerShape(2.dp)).background(Warmup),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Box(Modifier.weight(1f)) { ExerciseRow(program, pe, unit, onOpenExercise, onSwap, onEdit) }
+                }
             }
         }
         if (isNext) {

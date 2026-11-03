@@ -17,6 +17,8 @@ object Changelog {
                 "Save your program as routines: \"Save as routines\" in the program's menu saves every day, or use " +
                     "the menu on a single day. Sets, reps, weights, rests and supersets are copied as they are now; " +
                     "saving again updates the same routines instead of adding new ones.",
+                "The program shows clearly which exercises form a superset: a bar runs along them, and the label says " +
+                    "how many go back to back. Exercises after it are done on their own.",
             ),
         ),
         ChangelogEntry(
