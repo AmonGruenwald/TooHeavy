@@ -433,6 +433,26 @@ class TrainingTest {
     }
 
     @Test
+    fun programDaysSaveAsRoutines() {
+        val p = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 45)
+        val day = p.days.first()
+        val r = day.toRoutine(p.name)
+        assertEquals(day.name, r.name)
+        assertEquals(day.routineId(), r.id)
+        assertEquals(day.exercises.map { it.exerciseId }, r.exercises.map { it.exerciseId })
+        assertEquals(day.exercises.map { it.sets }, r.exercises.map { it.sets })
+        assertEquals(day.exercises.map { it.targetReps }, r.exercises.map { it.reps })
+        assertEquals(day.exercises.map { it.weight }, r.exercises.map { it.weight })
+        assertEquals(day.exercises.map { it.restSeconds }, r.exercises.map { it.restSeconds })
+        // Supersets carry over, so the routine runs them the same way.
+        assertEquals(day.exercises.map { it.supersetId }, r.exercises.map { it.supersetId })
+        assertTrue(r.notes.contains(p.name))
+        // Saving the same day again gives the same routine id, so it replaces rather than duplicates.
+        assertEquals(r.id, day.toRoutine(p.name).id)
+        assertTrue(p.days.map { it.routineId() }.toSet().size == p.days.size)
+    }
+
+    @Test
     fun manyFocusGroups() {
         val focus = listOf(MuscleGroup.CHEST, MuscleGroup.SHOULDERS, MuscleGroup.BICEPS, MuscleGroup.GLUTES)
         val plain = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup)

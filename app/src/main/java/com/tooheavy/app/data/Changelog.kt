@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.20.0", "2026-11-03",
+            listOf(
+                "Save your program as routines: \"Save as routines\" in the program's menu saves every day, or use " +
+                    "the menu on a single day. Sets, reps, weights, rests and supersets are copied as they are now; " +
+                    "saving again updates the same routines instead of adding new ones.",
+            ),
+        ),
+        ChangelogEntry(
             "1.19.0", "2026-11-03",
             listOf(
                 "Programs: supersets in short sessions now pair opposing muscles: biceps with triceps, chest flys " +

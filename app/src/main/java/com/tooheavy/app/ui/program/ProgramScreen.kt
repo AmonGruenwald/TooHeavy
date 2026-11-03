@@ -1,5 +1,7 @@
 package com.tooheavy.app.ui.program
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,6 +120,14 @@ fun ProgramScreen(nav: NavController) {
     var pending by remember { mutableStateOf<PendingProgramStart?>(null) }
     var swapFor by remember { mutableStateOf<ProgramExercise?>(null) }
     var editFor by remember { mutableStateOf<ProgramExercise?>(null) }
+    val context = LocalContext.current
+
+    /** Saves days as routines and says so; saving again updates the same routines. */
+    fun saveAsRoutines(days: List<ProgramDay>) {
+        val n = Repo.saveDaysAsRoutines(days)
+        val text = if (n == 1) "Saved \"${days.first().name}\" as a routine" else "Saved $n days as routines"
+        Toast.makeText(context, "$text (Train → Routines)", Toast.LENGTH_SHORT).show()
+    }
 
     fun start(dayIndex: Int) {
         if (Repo.activeWorkout != null) {
@@ -144,6 +154,13 @@ fun ProgramScreen(nav: NavController) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "More options")
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Save as routines") },
+                                onClick = {
+                                    menuOpen = false
+                                    saveAsRoutines(program.days)
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text("New program") },
                                 onClick = {
@@ -180,6 +197,7 @@ fun ProgramScreen(nav: NavController) {
                     onOpenExercise = { nav.navigate(Routes.exercise(it.exerciseId)) },
                     onSwap = { swapFor = it },
                     onEdit = { editFor = it },
+                    onSaveAsRoutine = { saveAsRoutines(listOf(day)) },
                 )
             }
             item(key = "how") { HowItWorksCard() }
@@ -311,11 +329,27 @@ private fun DayCard(
     onOpenExercise: (ProgramExercise) -> Unit,
     onSwap: (ProgramExercise) -> Unit,
     onEdit: (ProgramExercise) -> Unit,
+    onSaveAsRoutine: () -> Unit,
 ) {
+    var dayMenu by remember { mutableStateOf(false) }
     ProgramCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(day.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             if (isNext) Pill("Up next", BrandColors[1])
+            Box {
+                IconButton(onClick = { dayMenu = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "${day.name} options")
+                }
+                DropdownMenu(expanded = dayMenu, onDismissRequest = { dayMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Save as routine") },
+                        onClick = {
+                            dayMenu = false
+                            onSaveAsRoutine()
+                        },
+                    )
+                }
+            }
         }
         Column {
             val letters = supersetLetters(day.exercises.map { it.supersetId })

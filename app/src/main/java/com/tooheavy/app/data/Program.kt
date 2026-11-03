@@ -295,6 +295,30 @@ fun Program.buildWorkout(dayIndex: Int, unit: String, exercise: (String) -> Exer
     )
 }
 
+/** Id of the routine a program day is saved as; saving the day again replaces that routine. */
+fun ProgramDay.routineId(): String = "program-$id"
+
+/**
+ * The day as a routine: its exercises in order with their sets, target reps, weights, rests and supersets, as they
+ * are now. The routine is a copy: it doesn't follow the program's progression afterwards.
+ */
+fun ProgramDay.toRoutine(programName: String): Routine = Routine(
+    id = routineId(),
+    name = name,
+    exercises = exercises.map { pe ->
+        RoutineExercise(
+            exerciseId = pe.exerciseId,
+            sets = pe.sets,
+            reps = pe.targetReps,
+            weight = pe.weight,
+            restSeconds = pe.restSeconds,
+            supersetId = pe.supersetId,
+        )
+    },
+    notes = "Saved from the program \"$programName\". " +
+        exercises.joinToString(", ") { "${it.repMin}-${it.repMax} reps" }.let { "Rep ranges in order: $it." },
+)
+
 fun Program.replaceExercise(updated: ProgramExercise): Program =
     copy(days = days.map { d -> d.copy(exercises = d.exercises.map { if (it.id == updated.id) updated else it }) })
 

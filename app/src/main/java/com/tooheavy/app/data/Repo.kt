@@ -289,6 +289,18 @@ object Repo {
         save()
     }
 
+    /** Saves program days as routines (replacing the ones saved from the same days before); returns how many. */
+    fun saveDaysAsRoutines(days: List<ProgramDay>): Int {
+        val name = program?.name.orEmpty()
+        days.forEach { d ->
+            val r = d.toRoutine(name)
+            val i = routines.indexOfFirst { it.id == r.id }
+            if (i >= 0) routines[i] = r else routines.add(r)
+        }
+        save()
+        return days.size
+    }
+
     fun deleteRoutine(id: String) {
         routines.removeAll { it.id == id }
         save()
