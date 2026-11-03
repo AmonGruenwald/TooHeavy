@@ -1,12 +1,18 @@
 package com.tooheavy.app.ui.program
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -118,6 +124,14 @@ fun ProgramScreen(nav: NavController) {
     var pending by remember { mutableStateOf<PendingProgramStart?>(null) }
     var swapFor by remember { mutableStateOf<ProgramExercise?>(null) }
     var editFor by remember { mutableStateOf<ProgramExercise?>(null) }
+    val context = LocalContext.current
+
+    /** Saves days as routines and says so; saving again updates the same routines. */
+    fun saveAsRoutines(days: List<ProgramDay>) {
+        val n = Repo.saveDaysAsRoutines(days)
+        val text = if (n == 1) "Saved \"${days.first().name}\" as a routine" else "Saved $n days as routines"
+        Toast.makeText(context, "$text (Train → Routines)", Toast.LENGTH_SHORT).show()
+    }
 
     fun start(dayIndex: Int) {
         if (Repo.activeWorkout != null) {
@@ -144,6 +158,13 @@ fun ProgramScreen(nav: NavController) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "More options")
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Save as routines") },
+                                onClick = {
+                                    menuOpen = false
+                                    saveAsRoutines(program.days)
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text("New program") },
                                 onClick = {
@@ -180,6 +201,7 @@ fun ProgramScreen(nav: NavController) {
                     onOpenExercise = { nav.navigate(Routes.exercise(it.exerciseId)) },
                     onSwap = { swapFor = it },
                     onEdit = { editFor = it },
+                    onSaveAsRoutine = { saveAsRoutines(listOf(day)) },
                 )
             }
             item(key = "how") { HowItWorksCard() }
@@ -311,27 +333,53 @@ private fun DayCard(
     onOpenExercise: (ProgramExercise) -> Unit,
     onSwap: (ProgramExercise) -> Unit,
     onEdit: (ProgramExercise) -> Unit,
+    onSaveAsRoutine: () -> Unit,
 ) {
+    var dayMenu by remember { mutableStateOf(false) }
     ProgramCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(day.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             if (isNext) Pill("Up next", BrandColors[1])
+            Box {
+                IconButton(onClick = { dayMenu = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "${day.name} options")
+                }
+                DropdownMenu(expanded = dayMenu, onDismissRequest = { dayMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Save as routine") },
+                        onClick = {
+                            dayMenu = false
+                            onSaveAsRoutine()
+                        },
+                    )
+                }
+            }
         }
         Column {
             val letters = supersetLetters(day.exercises.map { it.supersetId })
             day.exercises.forEachIndexed { i, pe ->
                 if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                letters[i]?.let { letter ->
-                    if (letters.getOrNull(i - 1) != letter) {
-                        Text(
-                            "Superset $letter · one rest per round",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Warmup,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
+                val letter = letters[i]
+                if (letter != null && letters.getOrNull(i - 1) != letter) {
+                    val size = letters.count { it == letter }
+                    Text(
+                        "Superset $letter · these $size back to back, one rest per round",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Warmup,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
-                ExerciseRow(program, pe, unit, onOpenExercise, onSwap, onEdit)
+                // A bar along the exercises of a superset shows where it starts and ends.
+                Row(Modifier.height(IntrinsicSize.Min)) {
+                    if (letter != null) {
+                        Box(
+                            Modifier.width(3.dp).fillMaxHeight().padding(vertical = 6.dp)
+                                .clip(RoundedCornerShape(2.dp)).background(Warmup),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Box(Modifier.weight(1f)) { ExerciseRow(program, pe, unit, onOpenExercise, onSwap, onEdit) }
+                }
             }
         }
         if (isNext) {
