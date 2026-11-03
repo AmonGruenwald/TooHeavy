@@ -229,13 +229,20 @@ val Program.mesocycle: Int get() = mesoIndex + 1
 val Program.mesoWeek: Int get() = weekIndex + 1
 val Program.isDeload: Boolean get() = weekIndex >= trainingWeeks
 
-/** Each day's exercises in the order [orderSession] suggests; programs from before 1.8.0 get it on load. */
+/**
+ * Each day's exercises in the order [orderSession] suggests, and for short sessions paired into supersets the way
+ * [pairSupersets] does; programs from older versions get both on load, keeping their exercises, sets and weights.
+ */
 fun Program.ordered(): Program = copy(days = days.map { d ->
-    d.copy(exercises = orderSession(d.exercises.map { pe ->
+    fun order(list: List<ProgramExercise>) = orderSession(list.map { pe ->
         val g = patternGroup(pe.pattern)
         val priority = if (g in focus) 0 else if (g in reduce) 2 else 1
         OrderItem(pe, programTier(pe), patternGroups[pe.pattern].orEmpty().toSet(), priority, pe.supersetId, setOfNotNull(g))
-    }))
+    })
+    // Days paired before 1.19.0 (random superset ids, or none) are paired again once; after that the ids start
+    // with "ss-" and the pairs are kept.
+    val repair = minutes in 1..SHORT_SESSION && d.exercises.none { it.supersetId?.startsWith("ss-") == true }
+    d.copy(exercises = if (repair) order(pairSupersets(order(d.exercises.map { it.copy(supersetId = null) }))) else order(d.exercises))
 })
 
 /** Programs saved before 1.7.0 counted mesocycles from the start; this moves them to a stored block start. */
@@ -912,25 +919,64 @@ private const val SHORT_SESSION = 45
  */
 private fun compoundFloor(minutes: Int) = if (minutes in 1..SHORT_SESSION) 3 else MIN_SETS
 
+/** Movement patterns that work opposing muscles: while one works, the other rests (antagonist paired sets). */
+private val antagonistPatterns: Map<String, Set<String>> = mapOf(
+    Pattern.HORIZONTAL_PUSH to setOf(Pattern.HORIZONTAL_PULL, Pattern.VERTICAL_PULL),
+    Pattern.VERTICAL_PUSH to setOf(Pattern.VERTICAL_PULL, Pattern.HORIZONTAL_PULL),
+    Pattern.HORIZONTAL_PULL to setOf(Pattern.HORIZONTAL_PUSH, Pattern.VERTICAL_PUSH),
+    Pattern.VERTICAL_PULL to setOf(Pattern.VERTICAL_PUSH, Pattern.HORIZONTAL_PUSH),
+    Pattern.CHEST_FLY to setOf(Pattern.REAR_DELTS),
+    Pattern.REAR_DELTS to setOf(Pattern.CHEST_FLY),
+    Pattern.BICEPS to setOf(Pattern.TRICEPS),
+    Pattern.TRICEPS to setOf(Pattern.BICEPS),
+    Pattern.LEG_EXTENSION to setOf(Pattern.LEG_CURL),
+    Pattern.LEG_CURL to setOf(Pattern.LEG_EXTENSION),
+)
+
+/** Compound patterns that may share a superset: upper-body pushes and pulls. Squats, hinges and lunges stand alone. */
+private val pairableCompounds = setOf(Pattern.HORIZONTAL_PUSH, Pattern.VERTICAL_PUSH, Pattern.HORIZONTAL_PULL, Pattern.VERTICAL_PULL)
+
+/** Whether [a] and [b] work opposing muscles. */
+private fun antagonists(a: ProgramExercise, b: ProgramExercise) = b.pattern in antagonistPatterns[a.pattern].orEmpty()
+
+/** Whether [a] and [b] share no muscle group at all, e.g. arms and core. */
+private fun nonCompeting(a: ProgramExercise, b: ProgramExercise) =
+    patternGroup(a.pattern) != patternGroup(b.pattern) &&
+        patternGroups[a.pattern].orEmpty().none { it in patternGroups[b.pattern].orEmpty() }
+
 /**
- * Pairs isolation exercises for different muscle groups into supersets, so one rest covers both, as
- * time-efficient training suggests (Iversen 2021). Compound lifts keep their full rests.
+ * Pairs exercises of a short session into supersets, so one rest covers both (time-efficient training, Iversen
+ * 2021). Antagonists first, which keeps the performance on both (Robbins 2010, Paz 2017): pushes with pulls among
+ * the secondary compound lifts, and biceps with triceps, chest flys with rear delts and leg extensions with leg
+ * curls among the isolation exercises. Isolation exercises left over pair with one that shares no muscles (arms
+ * with core, say), never two for the same group. Main lifts and lower-body compounds keep their full rests.
+ * Partners follow each other in the result; their superset id comes from the first one's id, so pairing is stable.
  */
-private fun pairIsolation(list: List<ProgramExercise>): List<ProgramExercise> {
-    val rest = list.filter { it.role == Role.ACCESSORY }.toMutableList()
+private fun pairSupersets(list: List<ProgramExercise>): List<ProgramExercise> {
+    val compounds = list.filter { it.role == Role.SECONDARY && it.pattern in pairableCompounds }.toMutableList()
+    val isolation = list.filter { it.role == Role.ACCESSORY }.toMutableList()
     val paired = ArrayList<ProgramExercise>()
-    while (rest.isNotEmpty()) {
-        val a = rest.removeAt(0)
-        val j = rest.indexOfFirst { patternGroup(it.pattern) != patternGroup(a.pattern) }
-        if (j < 0) {
-            paired.add(a)
-            continue
+    fun pairUp(pool: MutableList<ProgramExercise>, fits: (ProgramExercise, ProgramExercise) -> Boolean) {
+        var i = 0
+        while (i < pool.size) {
+            val a = pool[i]
+            val j = (i + 1 until pool.size).firstOrNull { fits(a, pool[it]) }
+            if (j == null) {
+                i++
+                continue
+            }
+            val id = "ss-${a.id}"
+            paired.add(a.copy(supersetId = id))
+            paired.add(pool[j].copy(supersetId = id))
+            pool.removeAt(j)
+            pool.removeAt(i)
         }
-        val id = newId()
-        paired.add(a.copy(supersetId = id))
-        paired.add(rest.removeAt(j).copy(supersetId = id))
     }
-    return list.filter { it.role != Role.ACCESSORY } + paired
+    pairUp(compounds, ::antagonists)
+    pairUp(isolation, ::antagonists)
+    pairUp(isolation, ::nonCompeting)
+    val ids = paired.map { it.id }.toSet()
+    return list.filter { it.id !in ids } + paired
 }
 
 /** Weekly sets that maintain a muscle group: about a third of the usual volume. */
@@ -1132,15 +1178,15 @@ private fun newProgramExercise(
  * [best1RM] gives an estimated one-rep max from the user's history, used for starting weights.
  *
  * [split] picks the day rotation (Split.AUTO chooses from the days per week). Groups in [focus] get an
- * extra exercise on each day that trains them, come first after the main lifts, and aim for about four
- * more weekly sets. Groups in [reduce] are kept at maintenance volume: their slots are dropped and they get
+ * extra exercise on each day that trains them (a different movement from the day's other exercises for the group
+ * where there is one), come early within each tier, and aim for about four more weekly sets. Groups in [reduce] are kept at maintenance volume: their slots are dropped and they get
  * one exercise in the rotation, coupled onto another day if need be, unless compound lifts for other
  * groups already cover them. Days with little else left disappear, and thin days are filled up.
  *
  * With [minutes] set, sessions are fitted to that time: fewer sets, and, if that isn't enough, fewer exercises
  * from the best-covered groups, never the main lifts. Sessions of 45 minutes or less are run the
- * time-efficient way: shorter rests, isolation exercises paired into supersets, and isolation exercises
- * dropped before compound lifts go below 3 sets.
+ * time-efficient way: shorter rests, antagonists paired into supersets (see [pairSupersets]), and isolation
+ * exercises dropped before compound lifts go below 3 sets.
  */
 fun generateProgram(
     goal: String,
@@ -1199,10 +1245,14 @@ fun generateProgram(
             if (list.size >= min(4, max)) break
             make(plan, list, groupSlots[g].orEmpty())?.let(list::add)
         }
-        // Focus groups the day trains get an extra exercise, those with the least work on the day first.
+        // Focus groups the day trains get an extra exercise, those with the least work on the day first. It's a
+        // different movement from what the day already has where there is one (a fly next to a bench press, not a
+        // second press), so the group is trained from another angle rather than twice the same way.
         for (g in prioritised.filter { it in groups }.sortedBy { g -> list.count { patternGroup(it.pattern) == g } }) {
             if (list.size >= max + 2) break
-            make(plan, list, groupSlots[g].orEmpty())?.let(list::add)
+            val slots = groupSlots[g].orEmpty()
+            val fresh = slots.filter { s -> list.none { it.pattern == s.pattern } }
+            make(plan, list, fresh + slots)?.let(list::add)
         }
         if (list.isEmpty()) null else plan to list
     }
@@ -1211,7 +1261,7 @@ fun generateProgram(
     // Days that ran out of isolation work to drop, whose compounds may go down to 2 sets.
     val lowered = HashSet<String>()
     fun days() = built.map { (plan, list) ->
-        ProgramDay(name = plan.name, exercises = order(list).let { if (short) order(pairIsolation(it)) else it })
+        ProgramDay(name = plan.name, exercises = order(list).let { if (short) order(pairSupersets(it)) else it })
     }
     // Reduced groups not already covered by other lifts get one exercise, on a day that normally trains them
     // if there is one, else on the day with the fewest exercises.

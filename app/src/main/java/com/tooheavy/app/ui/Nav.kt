@@ -213,8 +213,6 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private val tabs = listOf(
     Tab(Routes.HOME, "Home", Icons.Filled.SpaceDashboard),
     Tab(Routes.WORKOUT, "Train", Icons.Filled.FitnessCenter),
-    Tab(Routes.HISTORY, "History", Icons.Filled.History),
-    Tab(Routes.EXERCISES, "Library", Icons.AutoMirrored.Filled.MenuBook),
     Tab(Routes.NUTRITION, "Food", Icons.Filled.Restaurant),
     Tab(Routes.HABITS, "Habits", Icons.Filled.TaskAlt),
 )

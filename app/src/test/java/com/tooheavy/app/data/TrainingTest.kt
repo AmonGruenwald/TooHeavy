@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -348,11 +349,17 @@ class TrainingTest {
                 if (level == Experience.INTERMEDIATE && n in 3..5 && isolation.isNotEmpty() && d.exercises.size > 3) {
                     assertTrue(label, d.exercises.filter { it.role == Role.PRIMARY }.all { it.sets >= 3 })
                 }
-                // Isolation exercises come in pairs for different muscle groups; compounds stand alone.
-                assertTrue(label, d.exercises.filter { it.role != Role.ACCESSORY }.all { it.supersetId == null })
-                isolation.groupBy { it.supersetId }.filterKeys { it != null }.values.forEach { pair ->
+                // Main lifts stand alone; supersets are pairs for different muscle groups: isolation with isolation,
+                // or an upper-body push with a pull among the other compounds.
+                assertTrue(label, d.exercises.filter { it.role == Role.PRIMARY }.all { it.supersetId == null })
+                d.exercises.groupBy { it.supersetId }.filterKeys { it != null }.values.forEach { pair ->
                     assertEquals(label, 2, pair.size)
                     assertTrue(label, patternGroup(pair[0].pattern) != patternGroup(pair[1].pattern))
+                    assertEquals(label, pair[0].role, pair[1].role)
+                    if (pair[0].role == Role.SECONDARY) {
+                        val patterns = pair.map { it.pattern }.toSet()
+                        assertTrue(label, patterns.any { it in pushes } && patterns.any { it in pulls })
+                    }
                 }
             }
         }
@@ -371,6 +378,58 @@ class TrainingTest {
         // Longer sessions don't pair anything.
         val long = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 60)
         assertTrue(long.days.flatMap { it.exercises }.all { it.supersetId == null })
+    }
+
+    private val pushes = setOf(Pattern.HORIZONTAL_PUSH, Pattern.VERTICAL_PUSH)
+    private val pulls = setOf(Pattern.HORIZONTAL_PULL, Pattern.VERTICAL_PULL)
+
+    @Test
+    fun sameMuscleNeverTwiceInARowWhileThereIsAnotherChoice() {
+        fun item(id: String, tier: Int, main: String, priority: Int) = OrderItem(id, tier, setOf(main), priority)
+        // Chest is a focus, quads reduced: the dumbbell press still waits until something else came in between.
+        val ordered = orderSession(
+            listOf(
+                item("bench", 1, MuscleGroup.CHEST, 0),
+                item("dbBench", 2, MuscleGroup.CHEST, 0),
+                item("row", 2, MuscleGroup.BACK, 1),
+                item("squat", 2, MuscleGroup.QUADS, 2),
+            ),
+        )
+        assertEquals(listOf("bench", "row", "dbBench", "squat"), ordered)
+        // With nothing else left, the same group follows.
+        assertEquals(listOf("a", "b"), orderSession(listOf(item("a", 2, MuscleGroup.CHEST, 1), item("b", 2, MuscleGroup.CHEST, 1))))
+    }
+
+    @Test
+    fun focusAddsADifferentMovementAndSupersetsPairAntagonists() {
+        // The program from the question: full body, 3 days, 45 minutes, focus abs, chest and biceps, quads reduced.
+        val p = generateProgram(
+            TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 3, Equipment.GYM, "kg", lookup, split = Split.FULL_BODY,
+            focus = listOf(MuscleGroup.ABS, MuscleGroup.CHEST, MuscleGroup.BICEPS), reduce = listOf(MuscleGroup.QUADS), minutes = 45,
+        )
+        val a = p.days.first()
+        // The chest focus adds a fly next to the bench press, not a second press.
+        assertEquals(a.name, 1, a.exercises.count { it.pattern == Pattern.HORIZONTAL_PUSH })
+        assertTrue(a.name, a.exercises.any { it.pattern == Pattern.CHEST_FLY })
+        for (d in p.days) {
+            // No two presses (or pulls) of the same kind back to back.
+            d.exercises.zipWithNext().forEach { (x, y) ->
+                assertFalse(d.name, x.pattern == y.pattern && x.pattern in pushes + pulls)
+            }
+        }
+        // Biceps and triceps on the same short day go together.
+        val ul = generateProgram(TrainingGoal.HYPERTROPHY, Experience.INTERMEDIATE, 4, Equipment.GYM, "kg", lookup, minutes = 45)
+        for (d in ul.days) {
+            val curl = d.exercises.firstOrNull { it.pattern == Pattern.BICEPS } ?: continue
+            val pushdown = d.exercises.firstOrNull { it.pattern == Pattern.TRICEPS } ?: continue
+            assertNotNull(d.name, curl.supersetId)
+            assertEquals(d.name, curl.supersetId, pushdown.supersetId)
+        }
+        // Re-pairing on load gives the same supersets.
+        assertEquals(
+            ul.days.map { d -> d.exercises.map { it.id to it.supersetId } },
+            ul.ordered().days.map { d -> d.exercises.map { it.id to it.supersetId } },
+        )
     }
 
     @Test

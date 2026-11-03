@@ -32,6 +32,24 @@ class RunningTest {
     }
 
     @Test
+    fun weeklyDistance() {
+        val byId = library.associateBy { it.id }
+        val now = timeOn("2026-11-04", 12, 0)
+        fun run(date: String, km: Double, done: Boolean = true) = Workout(
+            startTime = timeOn(date, 8, 0),
+            exercises = listOf(
+                WorkoutExercise(exerciseId = RUNNING_EXERCISE_ID, sets = listOf(SetEntry(distanceKm = km, seconds = 1500, completed = done))),
+                // Weight-and-reps work doesn't count.
+                WorkoutExercise(exerciseId = "Barbell_Squat", sets = listOf(SetEntry(weight = 100.0, reps = 5, completed = true))),
+            ),
+        )
+        val workouts = listOf(run("2026-11-03", 5.0), run("2026-11-02", 3.0), run("2026-11-02", 9.0, done = false), run("2026-10-28", 10.0))
+        assertEquals(8.0, workouts[0].runDistanceKm(byId::get) + workouts[1].runDistanceKm(byId::get), 1e-9)
+        assertEquals(listOf(10.0, 8.0), weeklyDistanceKm(workouts, 2, byId::get, now))
+        assertEquals(2, runsThisWeek(workouts, byId::get, now).size)
+    }
+
+    @Test
     fun distancesAndPaces() {
         assertEquals("5 km", formatDistance(5.0, "km"))
         assertEquals("10 km", formatDistance(10.0, "km"))

@@ -64,6 +64,21 @@ fun SetEntry.cardioText(unit: String): String? {
         .joinToString(" · ")
 }
 
+// ---------- running stats ----------
+
+/** Completed distance in km of the distance-tracked exercises (runs, walks, rides...) in [w]. */
+fun Workout.runDistanceKm(exercise: (String) -> Exercise?): Double =
+    exercises.filter { exercise(it.exerciseId)?.tracksDistance == true }
+        .sumOf { we -> we.sets.filter { it.completed }.sumOf { it.distanceKm ?: 0.0 } }
+
+/** Distance per Monday-to-Sunday week for the last [weeks] weeks, oldest first, ending with this week. */
+fun weeklyDistanceKm(workouts: List<Workout>, weeks: Int, exercise: (String) -> Exercise?, now: Long = System.currentTimeMillis()): List<Double> =
+    weeklyBuckets(workouts, weeks, now).map { b -> b.workouts.sumOf { it.runDistanceKm(exercise) } }
+
+/** Workouts with any distance this week (runs, walks, rides...). */
+fun runsThisWeek(workouts: List<Workout>, exercise: (String) -> Exercise?, now: Long = System.currentTimeMillis()): List<Workout> =
+    weeklyBuckets(workouts, 1, now).single().workouts.filter { it.runDistanceKm(exercise) > 0 }
+
 // ---------- running plan ----------
 
 /** A running plan the user follows week by week. Week 1 starts on [startDate] (a Monday, "yyyy-MM-dd"). */

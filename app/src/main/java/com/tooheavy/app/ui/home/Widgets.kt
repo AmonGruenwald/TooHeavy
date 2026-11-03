@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccessibilityNew
@@ -55,6 +56,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.DashboardWidget
 import com.tooheavy.app.data.HabitRepo
+import com.tooheavy.app.data.distanceUnit
+import com.tooheavy.app.data.formatDistanceValue
+import com.tooheavy.app.data.kmIn
+import com.tooheavy.app.data.nextRun
+import com.tooheavy.app.data.runsThisWeek
+import com.tooheavy.app.data.title
+import com.tooheavy.app.data.weeklyDistanceKm
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.countOn
 import com.tooheavy.app.data.doneOn
@@ -143,6 +151,7 @@ object DashboardWidgets {
     const val TRAINING_TIME = "training_time"
     const val HYDRATION = "hydration"
     const val HABITS = "habits"
+    const val RUNNING = "running"
 
     val all = listOf(
         Def(UP_NEXT, "Up next", "Your next program day, routine or a quick start", Icons.Filled.Bolt),
@@ -164,6 +173,7 @@ object DashboardWidgets {
         Def(TRAINING_TIME, "Training time", "Minutes trained per week", Icons.Filled.Timer),
         Def(HYDRATION, "Hydration", "Water today against your goal, with a quick +250 ml", Icons.Filled.WaterDrop),
         Def(HABITS, "Habits today", "Today's habits to tick off and how many are done", Icons.Filled.TaskAlt),
+        Def(RUNNING, "Running", "Distance this week, distance per week and your next planned run", Icons.AutoMirrored.Filled.DirectionsRun),
     )
 
     fun def(id: String): Def? = all.firstOrNull { it.id == id }
@@ -174,6 +184,7 @@ object DashboardWidgets {
         DashboardWidget(CALORIES, wide = false),
         DashboardWidget(WEEKLY_VOLUME, wide = true),
         DashboardWidget(CONSISTENCY, wide = true),
+        DashboardWidget(RUNNING, wide = true),
         DashboardWidget(MACROS, wide = false),
         DashboardWidget(EXPENDITURE, wide = false),
         DashboardWidget(BODY_WEIGHT, wide = true),
@@ -209,6 +220,7 @@ fun WidgetBody(w: DashboardWidget, nav: NavController, modifier: Modifier = Modi
         DashboardWidgets.TRAINING_TIME -> TrainingTime(def, w.wide, m)
         DashboardWidgets.HYDRATION -> Hydration(def, w.wide, m) { nav.navigateTab(Routes.NUTRITION) }
         DashboardWidgets.HABITS -> HabitsToday(def, w.wide, m) { nav.navigateTab(Routes.HABITS) }
+        DashboardWidgets.RUNNING -> Running(def, w.wide, m, nav)
     }
 }
 
@@ -416,6 +428,57 @@ private fun CaloriesToday(def: DashboardWidgets.Def, wide: Boolean, modifier: Mo
             }
         } else {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Ring(112.dp) }
+        }
+    }
+}
+
+/**
+ * Running: distance this week (runs, walks and rides with a distance), how many, distance per week for the last
+ * eight weeks and the next run of the plan. "Start" starts a run; tapping the widget opens the running plan
+ * (or Train, without one).
+ */
+@Composable
+private fun Running(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier, nav: NavController) {
+    val unit = distanceUnit(Repo.settings.unit)
+    val workouts = Repo.workouts.toList()
+    val weekly = weeklyDistanceKm(workouts, 8, Repo::exercise)
+    val labels = weeklyBuckets(workouts, 8).map { it.label }
+    val runs = runsThisWeek(workouts, Repo::exercise).size
+    val plan = Repo.runPlan
+    val next = plan?.nextRun(today())
+    WidgetCard(
+        def, modifier,
+        onClick = { if (plan != null) nav.navigate(Routes.RUN_PLAN) else nav.navigateTab(Routes.WORKOUT) },
+        trailing = {
+            Pill("Start", AccentBright, Modifier.clip(CircleShape).clickable {
+                if (Repo.activeWorkout == null) Repo.startRun()
+                nav.navigate(Routes.ACTIVE)
+            })
+        },
+    ) {
+        BigNumber(formatDistanceValue(weekly.lastOrNull() ?: 0.0, unit), unit, size = if (wide) 28 else 26)
+        Text(
+            "this week · $runs ${if (runs == 1) "run" else "runs"}",
+            style = MaterialTheme.typography.bodySmall, color = TextMuted,
+        )
+        if (wide) {
+            if (next != null) {
+                val target = next.second.targetText(unit)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Next: ${next.second.title()}${if (target.isEmpty()) "" else " · $target"}",
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            BarChart(
+                weekly.map { kmIn(it, unit) }, labels, height = 110.dp,
+                valueFormat = { String.format(Locale.US, "%.1f", it) },
+                tooltipLabels = labels.map { "Week of $it" },
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+            if (weekly.any { it > 0 }) Sparkline(weekly, Modifier.fillMaxWidth().height(46.dp))
         }
     }
 }

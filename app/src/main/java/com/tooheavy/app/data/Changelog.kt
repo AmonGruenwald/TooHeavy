@@ -12,6 +12,21 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.19.0", "2026-11-03",
+            listOf(
+                "Programs: supersets in short sessions now pair opposing muscles: biceps with triceps, chest flys " +
+                    "with rear delts, leg extensions with leg curls, and an upper-body push with a pull among the " +
+                    "secondary lifts. Main lifts keep their full rest. Your program is paired again the new way.",
+                "Programs never put the same muscle group twice in a row while there's something else to do, so a " +
+                    "second chest press no longer follows the bench press straight away.",
+                "A focus muscle's extra exercise is a different movement from the day's others (a fly next to the " +
+                    "bench press, not a second press). Create the program again to get this for your days.",
+                "History and the exercise library moved into Train; the tabs are now Home, Train, Food and Habits.",
+                "A Running widget for Home: distance this week, distance per week, the next planned run and a Start " +
+                    "button.",
+            ),
+        ),
+        ChangelogEntry(
             "1.18.0", "2026-11-02",
             listOf(
                 "A focused lock-screen view during runs: waking a locked phone shows just the map with your route, " +
