@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -580,27 +581,35 @@ private fun TimelineRow(
     }
 }
 
+/** Water drunk on [date]; [goalMl] of 0 means no daily goal: just the amount, no target or meter. */
 @Composable
 private fun WaterCard(date: String, goalMl: Int) {
     val total = NutritionRepo.waterTotal(date)
     var custom by remember { mutableStateOf(false) }
+    var goalDialog by remember { mutableStateOf(false) }
+    val hasGoal = goalMl > 0
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CardLabel("Hydration", Modifier.weight(1f), icon = Icons.Filled.WaterDrop)
-                if (total >= goalMl && goalMl > 0) Pill("Goal reached", ChartColors.Water)
+                if (hasGoal && total >= goalMl) Pill("Goal reached", ChartColors.Water)
+                TextButton(onClick = { goalDialog = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Icon(Icons.Filled.Flag, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (hasGoal) "Goal" else "Set goal", style = MaterialTheme.typography.labelLarge)
+                }
             }
             Row(verticalAlignment = Alignment.Bottom) {
                 BigNumber(litres(total), "L", size = 30)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "of ${litres(goalMl)} L",
+                    if (hasGoal) "of ${litres(goalMl)} L" else "today",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 5.dp),
                 )
             }
-            Meter(if (goalMl > 0) total.toFloat() / goalMl else 0f, ChartColors.Water)
+            if (hasGoal) Meter(total.toFloat() / goalMl, ChartColors.Water)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf(250, 500).forEach { ml ->
                     OutlinedButton(
@@ -621,6 +630,7 @@ private fun WaterCard(date: String, goalMl: Int) {
             }
         }
     }
+    if (goalDialog) WaterGoalDialog(goalMl) { goalDialog = false }
     if (custom) {
         var text by remember { mutableStateOf("") }
         val ml = text.trim().toIntOrNull()
@@ -648,6 +658,52 @@ private fun WaterCard(date: String, goalMl: Int) {
             dismissButton = { TextButton(onClick = { custom = false }) { Text("Cancel") } },
         )
     }
+}
+
+/** Turns the daily water goal on or off and sets it, in litres. */
+@Composable
+private fun WaterGoalDialog(goalMl: Int, onDismiss: () -> Unit) {
+    var on by remember { mutableStateOf(goalMl > 0) }
+    var text by remember { mutableStateOf(litres(if (goalMl > 0) goalMl else 2500)) }
+    val ml = text.replace(',', '.').toDoubleOrNull()?.let { (it * 1000).roundToInt() }?.takeIf { it in 100..20_000 }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Water goal") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Daily goal", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            if (on) "Shows how far you are each day" else "Just log what you drink",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = on, onCheckedChange = { on = it })
+                }
+                if (on) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { v -> text = v.filter { it.isDigit() || it == '.' || it == ',' }.take(5) },
+                        label = { Text("Litres a day") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !on || ml != null,
+                onClick = {
+                    NutritionRepo.updateWaterGoal(if (on) ml ?: 0 else 0)
+                    onDismiss()
+                },
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /** 1250 -> "1.25", 2000 -> "2" */

@@ -194,7 +194,7 @@ data class NutritionGoals(
     val protein: Int = 150,
     val carbs: Int = 230,
     val fat: Int = 70,
-    /** Daily water goal in ml. */
+    /** Daily water goal in ml; 0 for no goal (it's optional). */
     val waterMl: Int = 2500,
 )
 

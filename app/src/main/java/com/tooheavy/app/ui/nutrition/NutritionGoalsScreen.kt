@@ -93,7 +93,8 @@ fun NutritionGoalsScreen(nav: NavController) {
     var proteinText by remember { mutableStateOf(savedGoals.protein.toString()) }
     var carbsText by remember { mutableStateOf(savedGoals.carbs.toString()) }
     var fatText by remember { mutableStateOf(savedGoals.fat.toString()) }
-    var waterText by remember { mutableStateOf(savedGoals.waterMl.toString()) }
+    // Empty when there is no water goal; it's optional.
+    var waterText by remember { mutableStateOf(savedGoals.waterMl.takeIf { it > 0 }?.toString().orEmpty()) }
 
     // Calculator fields
     var sex by remember { mutableStateOf(savedProfile.sex) }
@@ -167,7 +168,12 @@ fun NutritionGoalsScreen(nav: NavController) {
                     color = if (diff == null) MaterialTheme.colorScheme.onSurfaceVariant else if (close) Success else Warmup,
                 )
 
-                NumberField("Water", waterText, { waterText = it }, decimal = false, suffix = "ml", modifier = Modifier.fillMaxWidth())
+                NumberField("Water (optional)", waterText, { waterText = it }, decimal = false, suffix = "ml", modifier = Modifier.fillMaxWidth())
+                Text(
+                    "Leave water empty for no daily goal.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
                 Button(
                     onClick = {
@@ -175,7 +181,7 @@ fun NutritionGoalsScreen(nav: NavController) {
                         val pr = parseNum(proteinText)?.roundToInt()
                         val ca = parseNum(carbsText)?.roundToInt()
                         val fa = parseNum(fatText)?.roundToInt()
-                        val wa = parseNum(waterText)?.roundToInt()
+                        val wa = if (waterText.isBlank()) 0 else parseNum(waterText)?.roundToInt()
                         if (kcal == null || kcal <= 0 || pr == null || pr < 0 || ca == null || ca < 0 || fa == null || fa < 0 ||
                             wa == null || wa < 0
                         ) {

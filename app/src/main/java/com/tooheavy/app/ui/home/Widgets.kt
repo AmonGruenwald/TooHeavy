@@ -545,12 +545,15 @@ private fun Hydration(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifi
     ) {
         BigNumber(String.format(Locale.US, "%.2f", total / 1000.0).trimEnd('0').trimEnd('.'), "L", size = if (wide) 30 else 26)
         Text(
-            "of ${String.format(Locale.US, "%.1f", goal / 1000.0)} L today",
+            if (goal > 0) "of ${String.format(Locale.US, "%.1f", goal / 1000.0)} L today" else "today",
             style = MaterialTheme.typography.bodySmall, color = TextMuted,
         )
         Spacer(Modifier.weight(1f))
-        Spacer(Modifier.height(10.dp))
-        Meter(if (goal > 0) total.toFloat() / goal else 0f, ChartColors.Water, height = 8.dp)
+        // Without a daily goal there is nothing to fill up to.
+        if (goal > 0) {
+            Spacer(Modifier.height(10.dp))
+            Meter(total.toFloat() / goal, ChartColors.Water, height = 8.dp)
+        }
     }
 }
 
