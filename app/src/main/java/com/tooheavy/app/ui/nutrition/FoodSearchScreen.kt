@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -344,22 +346,26 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
     if (showQuickAdd) {
         SearchQuickAddDialog(
             onDismiss = { showQuickAdd = false },
-            onConfirm = { name, kcal, protein, carbs, fat ->
-                showQuickAdd = false
-                NutritionRepo.addEntry(
-                    FoodEntry(
-                        date = NutritionRepo.selectedDate,
-                        createdAt = timeOn(NutritionRepo.selectedDate),
-                        foodKey = null,
-                        name = name,
-                        amountLabel = "Quick add",
-                        kcal = kcal,
-                        protein = protein,
-                        carbs = carbs,
-                        fat = fat,
+            onConfirm = { form ->
+                val eaten = form.eaten
+                if (eaten != null) {
+                    showQuickAdd = false
+                    NutritionRepo.addEntry(
+                        FoodEntry(
+                            date = NutritionRepo.selectedDate,
+                            createdAt = timeOn(NutritionRepo.selectedDate),
+                            foodKey = null,
+                            name = form.name.trim().ifBlank { "Quick add" },
+                            grams = form.amountGrams ?: 0.0,
+                            amountLabel = form.amountLabel,
+                            kcal = eaten.kcal,
+                            protein = eaten.protein,
+                            carbs = eaten.carbs,
+                            fat = eaten.fat,
+                        )
                     )
-                )
-                nav.popBackStack()
+                    nav.popBackStack()
+                }
             },
         )
     }
@@ -494,82 +500,16 @@ private fun SearchFoodRow(
     }
 }
 
+/** Quick add: calories and macros as eaten, or per 100 g with the amount eaten (see QuickAddFields). */
 @Composable
-private fun SearchQuickAddDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (name: String, kcal: Double, protein: Double, carbs: Double, fat: Double) -> Unit,
-) {
-    var name by remember { mutableStateOf("Quick add") }
-    var kcal by remember { mutableStateOf("") }
-    var protein by remember { mutableStateOf("") }
-    var carbs by remember { mutableStateOf("") }
-    var fat by remember { mutableStateOf("") }
-    val kcalValue = searchParseNumber(kcal)
-    val decimal = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-
+private fun SearchQuickAddDialog(onDismiss: () -> Unit, onConfirm: (QuickAddForm) -> Unit) {
+    val form = rememberQuickAddForm()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Quick add") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = kcal,
-                        onValueChange = { kcal = it },
-                        label = { Text("Calories") },
-                        singleLine = true,
-                        keyboardOptions = decimal,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = protein,
-                        onValueChange = { protein = it },
-                        label = { Text("Protein (g)") },
-                        singleLine = true,
-                        keyboardOptions = decimal,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = carbs,
-                        onValueChange = { carbs = it },
-                        label = { Text("Carbs (g)") },
-                        singleLine = true,
-                        keyboardOptions = decimal,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = fat,
-                        onValueChange = { fat = it },
-                        label = { Text("Fat (g)") },
-                        singleLine = true,
-                        keyboardOptions = decimal,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { QuickAddFields(form) } },
         confirmButton = {
-            TextButton(
-                enabled = kcalValue != null && kcalValue >= 0,
-                onClick = {
-                    onConfirm(
-                        name.trim().ifBlank { "Quick add" },
-                        kcalValue ?: 0.0,
-                        searchParseNumber(protein) ?: 0.0,
-                        searchParseNumber(carbs) ?: 0.0,
-                        searchParseNumber(fat) ?: 0.0,
-                    )
-                },
-            ) { Text("Add") }
+            TextButton(enabled = form.eaten != null, onClick = { onConfirm(form) }) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

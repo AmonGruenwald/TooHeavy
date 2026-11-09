@@ -420,31 +420,30 @@ private fun AmountEditor(nav: NavController, food: Food, mode: String, entry: Fo
     }
 }
 
-/** Editor for quick-add entries (or entries whose food no longer exists): raw kcal and macros. */
+/**
+ * Editor for quick-add entries (or entries whose food no longer exists): calories and macros as eaten, or per
+ * 100 g with the amount (see QuickAddFields). Entries with an amount open per 100 g, so the amount can change.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AmountRawEditor(nav: NavController, entry: FoodEntry) {
-    var name by remember { mutableStateOf(entry.name) }
-    var kcal by remember { mutableStateOf(amountNumText(entry.kcal)) }
-    var protein by remember { mutableStateOf(amountNumText(entry.protein)) }
-    var carbs by remember { mutableStateOf(amountNumText(entry.carbs)) }
-    var fat by remember { mutableStateOf(amountNumText(entry.fat)) }
+    val form = rememberQuickAddForm(entry)
     var time by remember { mutableLongStateOf(entry.createdAt) }
-
-    val kcalValue = amountParse(kcal)
-    val valid = kcalValue != null && kcalValue >= 0
-    val decimal = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+    val valid = form.eaten != null
 
     fun save() {
-        val k = kcalValue ?: return
+        val eaten = form.eaten ?: return
         NutritionRepo.updateEntry(
             entry.copy(
-                name = name.trim().ifBlank { entry.name.ifBlank { "Quick add" } },
+                name = form.name.trim().ifBlank { entry.name.ifBlank { "Quick add" } },
                 createdAt = time,
-                kcal = k,
-                protein = amountParse(protein) ?: 0.0,
-                carbs = amountParse(carbs) ?: 0.0,
-                fat = amountParse(fat) ?: 0.0,
+                grams = form.amountGrams ?: 0.0,
+                // A food's own label (e.g. "2 × 1 cup") stays unless the amount is now given in grams here.
+                amountLabel = if (form.amountGrams != null || entry.foodKey == null) form.amountLabel else entry.amountLabel,
+                kcal = eaten.kcal,
+                protein = eaten.protein,
+                carbs = eaten.carbs,
+                fat = eaten.fat,
             )
         )
         nav.popBackStack()
@@ -474,50 +473,7 @@ private fun AmountRawEditor(nav: NavController, entry: FoodEntry) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = kcal,
-                    onValueChange = { kcal = it },
-                    label = { Text("Calories") },
-                    singleLine = true,
-                    isError = !valid,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = protein,
-                    onValueChange = { protein = it },
-                    label = { Text("Protein (g)") },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = carbs,
-                    onValueChange = { carbs = it },
-                    label = { Text("Carbs (g)") },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = fat,
-                    onValueChange = { fat = it },
-                    label = { Text("Fat (g)") },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            QuickAddFields(form, spacing = 12)
 
             EatenAtField(entry.date, time) { time = it }
 

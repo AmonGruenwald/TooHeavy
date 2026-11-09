@@ -152,6 +152,17 @@ data class Macros(val kcal: Double = 0.0, val protein: Double = 0.0, val carbs: 
     operator fun plus(o: Macros) = Macros(kcal + o.kcal, protein + o.protein, carbs + o.carbs, fat + o.fat)
 }
 
+/**
+ * What a quick-add entry counts as eaten: the values as given, or, with [per100g], values per 100 g scaled to
+ * [grams]. Null when the calories are missing or negative, or per 100 g without a positive amount. Missing macros
+ * count as 0.
+ */
+fun quickAddMacros(kcal: Double?, fat: Double?, carbs: Double?, protein: Double?, per100g: Boolean, grams: Double?): Macros? {
+    if (kcal == null || kcal < 0) return null
+    val factor = if (per100g) (grams?.takeIf { it > 0 } ?: return null) / 100.0 else 1.0
+    return Macros(kcal * factor, (protein ?: 0.0) * factor, (carbs ?: 0.0) * factor, (fat ?: 0.0) * factor)
+}
+
 /** One logged food. Nutrition is a snapshot, so history survives deleting a custom food. */
 data class FoodEntry(
     val id: String = newId(),
