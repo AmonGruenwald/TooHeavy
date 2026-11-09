@@ -42,6 +42,14 @@
             android:name="com.journeyapps.barcodescanner.CaptureActivity"
             android:screenOrientation="fullSensor"
             tools:replace="screenOrientation" />
+        <!-- The scanner the app uses: ZXing's with tap to focus. -->
+        <activity
+            android:name=".ui.nutrition.FoodScanActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:stateNotNeeded="true"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:windowSoftInputMode="stateAlwaysHidden" />
         <!-- Shares downloaded update APKs (cacheDir/updates) with the system installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

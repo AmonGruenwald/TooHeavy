@@ -12,6 +12,10 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.22.1", "2026-11-09",
+            listOf("The barcode scanner focuses where you tap, like the camera app; a ring shows the spot."),
+        ),
+        ChangelogEntry(
             "1.22.0", "2026-11-09",
             listOf(
                 "Quick add asks for calories, fat, carbs and protein in that order.",
