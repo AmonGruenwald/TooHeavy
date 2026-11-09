@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.21.0", "2026-11-09",
+            listOf(
+                "The water goal is optional: tap Goal on the Hydration card to switch it off or change it (in litres). " +
+                    "Without a goal the card and the Home widget just show what you drank today.",
+            ),
+        ),
+        ChangelogEntry(
             "1.20.0", "2026-11-03",
             listOf(
                 "Save your program as routines: \"Save as routines\" in the program's menu saves every day, or use " +
