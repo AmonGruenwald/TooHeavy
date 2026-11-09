@@ -13,6 +13,23 @@ class NutritionFeaturesTest {
     private val milk = Food(customId = "m", name = "Milk", source = Food.SOURCE_CUSTOM, kcal = 64.0, protein = 3.4, carbs = 4.8, fat = 3.5, salt = 0.1)
 
     @Test
+    fun quickAddPer100gScalesToTheAmount() {
+        // As eaten: taken as given, missing macros are 0.
+        assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))
+        // Per 100 g: 150 g of a food with 200 kcal, 8 g fat, 20 g carbs and 10 g protein per 100 g.
+        val m = quickAddMacros(200.0, 8.0, 20.0, 10.0, per100g = true, grams = 150.0)!!
+        assertEquals(300.0, m.kcal, 1e-9)
+        assertEquals(12.0, m.fat, 1e-9)
+        assertEquals(30.0, m.carbs, 1e-9)
+        assertEquals(15.0, m.protein, 1e-9)
+        // Per 100 g needs an amount; calories are required and can't be negative.
+        assertNull(quickAddMacros(200.0, 8.0, 20.0, 10.0, per100g = true, grams = null))
+        assertNull(quickAddMacros(200.0, 8.0, 20.0, 10.0, per100g = true, grams = 0.0))
+        assertNull(quickAddMacros(null, 8.0, 20.0, 10.0, per100g = false, grams = null))
+        assertNull(quickAddMacros(-5.0, null, null, null, per100g = false, grams = null))
+    }
+
+    @Test
     fun recipeNutritionIsPer100gOfTheFinishedDish() {
         val recipe = Recipe(listOf(oats.toIngredient(100.0, "100 g"), milk.toIngredient(300.0, "300 g")), servings = 2.0)
         val food = recipeFood("Porridge", recipe)

@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.22.0", "2026-11-09",
+            listOf(
+                "Quick add asks for calories, fat, carbs and protein in that order.",
+                "Quick add per 100 g: switch to \"Per 100 g\", enter the values from the label and how much you ate, " +
+                    "and it works out the rest. The entry shows the amount, and editing it later lets you change the grams.",
+            ),
+        ),
+        ChangelogEntry(
             "1.21.0", "2026-11-09",
             listOf(
                 "The water goal is optional: tap Goal on the Hydration card to switch it off or change it (in litres). " +
