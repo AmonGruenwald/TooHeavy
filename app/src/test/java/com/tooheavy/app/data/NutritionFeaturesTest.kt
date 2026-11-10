@@ -27,6 +27,22 @@ class NutritionFeaturesTest {
     }
 
     @Test
+    fun entriesWithAGapBetweenThemAreSeparateMeals() {
+        val min = 60_000L
+        fun food(id: String, at: Long, kcal: Double) = FoodEntry(id = id, date = "2026-11-10", name = id, kcal = kcal, protein = 10.0, createdAt = at * min)
+        // Breakfast drawn out over 50 minutes (no gap over 30), then lunch hours later, then a snack.
+        val day = listOf(food("oats", 0, 300.0), food("milk", 20, 100.0), food("coffee", 50, 20.0), food("soup", 240, 400.0), food("bar", 271, 200.0))
+        val meals = splitIntoMeals(day, { it.createdAt })
+        assertEquals(listOf(listOf("oats", "milk", "coffee"), listOf("soup"), listOf("bar")), meals.map { m -> m.map { it.id } })
+        // Exactly the gap still counts as the same meal.
+        assertEquals(1, splitIntoMeals(listOf(food("a", 0, 1.0), food("b", 30, 1.0)), { it.createdAt }).size)
+        assertTrue(splitIntoMeals(emptyList<FoodEntry>(), { it.createdAt }).isEmpty())
+        val breakfast = mealTotals(meals[0])
+        assertEquals(420.0, breakfast.kcal, 1e-9)
+        assertEquals(30.0, breakfast.protein, 1e-9)
+    }
+
+    @Test
     fun quickAddPer100gScalesToTheAmount() {
         // As eaten: taken as given, missing macros are 0.
         assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))
