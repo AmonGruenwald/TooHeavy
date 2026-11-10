@@ -23,7 +23,6 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -91,6 +90,7 @@ import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.Meter
 import com.tooheavy.app.ui.common.ProgressRing
 import com.tooheavy.app.ui.common.ScreenHeader
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.common.StackedBarChart
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Accent
@@ -719,7 +719,7 @@ private fun WaterCard(date: String, goalMl: Int) {
             onDismissRequest = { custom = false },
             title = { Text("Add water") },
             text = {
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = text,
                     onValueChange = { v -> text = v.filter { it.isDigit() }.take(5) },
                     label = { Text("Amount (ml)") },
@@ -764,7 +764,7 @@ private fun WaterGoalDialog(goalMl: Int, onDismiss: () -> Unit) {
                     Switch(checked = on, onCheckedChange = { on = it })
                 }
                 if (on) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = text,
                         onValueChange = { v -> text = v.filter { it.isDigit() || it == '.' || it == ',' }.take(5) },
                         label = { Text("Litres a day") },

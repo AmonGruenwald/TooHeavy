@@ -39,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +69,7 @@ import com.tooheavy.app.data.timeOn
 import com.tooheavy.app.data.toIngredient
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -162,7 +162,7 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

@@ -32,7 +32,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +60,7 @@ import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.GradientButton
 import com.tooheavy.app.ui.common.Pill
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.navigateTab
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
@@ -326,7 +326,7 @@ private fun ExerciseChoiceDialog(hevyTitle: String, onDismiss: () -> Unit, onCho
         title = { Text(hevyTitle, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,

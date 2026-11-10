@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.24.0", "2026-11-10",
+            listOf(
+                "Tapping into a field that already has text, like a name, an amount or a set's weight and reps, " +
+                    "selects all of it, so you can type straight over it. Notes keep the cursor where you tap.",
+            ),
+        ),
+        ChangelogEntry(
             "1.23.0", "2026-11-10",
             listOf(
                 "Log foods again: \"Add again now\" in a food's menu adds it to today at the current time. Long-press " +

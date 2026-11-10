@@ -44,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -92,6 +91,7 @@ import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.GradientButton
 import com.tooheavy.app.ui.common.Meter
 import com.tooheavy.app.ui.common.Pill
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.AccentBright
 import com.tooheavy.app.ui.theme.Danger
@@ -232,7 +232,7 @@ private fun PlanSetup(modifier: Modifier) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedTextField(
+        SelectAllOutlinedTextField(
             value = name,
             onValueChange = { name = it },
             label = { Text("Name (e.g. Half marathon)") },
@@ -675,7 +675,7 @@ private fun RunEditDialog(run: PlannedRun, unit: String, weekIndex: Int, onDismi
                 }
                 FieldLabel("Target (optional)")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = dist,
                         onValueChange = { s -> if (s.length <= 6 && s.all { it.isDigit() || it == '.' } && s.count { it == '.' } <= 1) dist = s },
                         label = { Text("Distance ($unit)") },
@@ -683,7 +683,7 @@ private fun RunEditDialog(run: PlannedRun, unit: String, weekIndex: Int, onDismi
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = time,
                         onValueChange = { s -> if (s.length <= 8 && s.all { it.isDigit() || it == ':' }) time = s },
                         label = { Text("Time (min)") },
@@ -692,7 +692,7 @@ private fun RunEditDialog(run: PlannedRun, unit: String, weekIndex: Int, onDismi
                         modifier = Modifier.weight(1f),
                     )
                 }
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
                     label = { Text("Note (optional)") },
@@ -741,7 +741,7 @@ private fun NoteDialog(title: String, initial: String, onDismiss: () -> Unit, on
         onDismissRequest = onDismiss,
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         text = {
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 label = { Text("Note") },
@@ -774,7 +774,7 @@ private fun PlanSettingsDialog(plan: RunPlan, onDismiss: () -> Unit) {
         title = { Text("Name and start") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Name") },
