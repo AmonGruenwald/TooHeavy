@@ -76,10 +76,11 @@ import kotlinx.coroutines.withContext
 
 private fun searchParseNumber(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
 
-/** ZXing options for scanning EAN/UPC product barcodes. */
+/** ZXing options for scanning EAN/UPC product barcodes, on the scanner screen with tap to focus. */
 fun foodScanOptions(prompt: String = "Scan a food barcode"): ScanOptions = ScanOptions().apply {
     setDesiredBarcodeFormats(ScanOptions.PRODUCT_CODE_TYPES)
-    setPrompt(prompt)
+    setCaptureActivity(FoodScanActivity::class.java)
+    setPrompt("$prompt · tap to focus")
     setBeepEnabled(false)
     setOrientationLocked(false)
 }
