@@ -8,6 +8,7 @@ import android.os.Vibrator
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +46,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -114,6 +114,8 @@ import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.GradientButton
 import com.tooheavy.app.ui.common.MuscleOverview
 import com.tooheavy.app.ui.common.MuscleTags
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
+import com.tooheavy.app.ui.common.rememberSelectAllValue
 import com.tooheavy.app.ui.running.LiveRunPanel
 import com.tooheavy.app.ui.running.RecordRunButton
 import com.tooheavy.app.ui.theme.Accent
@@ -371,7 +373,7 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
             onDismissRequest = { showRename = false },
             title = { Text("Workout name") },
             text = {
-                OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
+                SelectAllOutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -658,6 +660,7 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                 placeholder = "Add notes here...",
                 modifier = Modifier.fillMaxWidth(),
                 center = false,
+                selectAllOnFocus = false,
             )
 
             // GPS recording for runs, rides and rows: one at a time, into the first set not done yet.
@@ -1358,6 +1361,7 @@ private fun CompactField(
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
     center: Boolean = true,
+    selectAllOnFocus: Boolean = true,
 ) {
     val align = if (center) TextAlign.Center else TextAlign.Start
     val style = TextStyle(
@@ -1368,9 +1372,13 @@ private fun CompactField(
     )
     val placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     val bg = MaterialTheme.colorScheme.surfaceContainerHighest
+    // Tapping in selects what's there, so a weight or rep count is typed over rather than added to.
+    val interactionSource = remember { MutableInteractionSource() }
+    val field = rememberSelectAllValue(value, onValueChange, interactionSource, selectAllOnFocus)
     BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
+        value = field.value,
+        onValueChange = field.onValueChange,
+        interactionSource = interactionSource,
         singleLine = true,
         textStyle = style,
         cursorBrush = SolidColor(Accent),

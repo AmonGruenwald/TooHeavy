@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,6 +20,7 @@ import com.tooheavy.app.data.FoodEntry
 import com.tooheavy.app.data.Macros
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.quickAddMacros
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.math.roundToInt
@@ -80,7 +80,7 @@ fun QuickAddFields(form: QuickAddForm, spacing: Int = 8) {
     val per = if (form.per100g) " /100 g" else ""
     @Composable
     fun Field(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier, isError: Boolean = false) {
-        OutlinedTextField(
+        SelectAllOutlinedTextField(
             value = value,
             onValueChange = { v -> onChange(v.filter { it.isDigit() || it == '.' || it == ',' }.take(7)) },
             label = { Text(label, maxLines = 1) },
@@ -91,7 +91,7 @@ fun QuickAddFields(form: QuickAddForm, spacing: Int = 8) {
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(spacing.dp)) {
-        OutlinedTextField(
+        SelectAllOutlinedTextField(
             value = form.name,
             onValueChange = { form.name = it },
             label = { Text("Name") },

@@ -26,7 +26,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -60,6 +59,7 @@ import com.tooheavy.app.data.tdee
 import com.tooheavy.app.data.today
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.common.TrendChart
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Success
@@ -427,7 +427,7 @@ internal fun NumberField(
     suffix: String,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedTextField(
+    SelectAllOutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },

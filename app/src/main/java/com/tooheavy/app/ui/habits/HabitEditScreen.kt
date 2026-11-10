@@ -43,7 +43,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +69,7 @@ import com.tooheavy.app.data.HabitRepo
 import com.tooheavy.app.data.weekdayShort
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.OnAccent
 
@@ -147,7 +147,7 @@ fun HabitEditScreen(nav: NavController, id: String, prefillName: String? = null,
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = name,
                 onValueChange = { name = it; error = null },
                 label = { Text("Habit (e.g. Read, Meditate)") },
@@ -188,7 +188,7 @@ fun HabitEditScreen(nav: NavController, id: String, prefillName: String? = null,
                 }
             }
             if (target > 1) {
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = unit,
                     onValueChange = { unit = it.take(20) },
                     label = { Text("Counted in (optional, e.g. glasses, pages)") },

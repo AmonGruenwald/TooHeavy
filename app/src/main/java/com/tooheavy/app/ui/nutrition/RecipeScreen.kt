@@ -28,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,6 +54,7 @@ import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.CardLabel
 import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.theme.Danger
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -135,7 +135,7 @@ fun RecipeScreen(nav: NavController, key: String) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = draft.name,
                 onValueChange = { update(draft.copy(name = it)) },
                 label = { Text("Name") },
@@ -144,7 +144,7 @@ fun RecipeScreen(nav: NavController, key: String) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = servingsText,
                     onValueChange = { v ->
                         servingsText = v
@@ -156,7 +156,7 @@ fun RecipeScreen(nav: NavController, key: String) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = cookedText,
                     onValueChange = { v ->
                         cookedText = v
@@ -262,7 +262,7 @@ fun RecipeScreen(nav: NavController, key: String) {
                 onDismissRequest = { editing = null },
                 title = { Text(ing.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                 text = {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = gramsText,
                         onValueChange = { gramsText = it },
                         label = { Text("Amount (g)") },

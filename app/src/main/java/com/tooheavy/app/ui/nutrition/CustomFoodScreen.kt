@@ -28,7 +28,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +51,7 @@ import com.tooheavy.app.data.Portion
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.theme.Danger
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -282,7 +282,7 @@ private fun CustomFoodForm(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = name,
                 onValueChange = { name = it; error = null },
                 label = { Text("Name") },
@@ -291,7 +291,7 @@ private fun CustomFoodForm(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = brand,
                 onValueChange = { brand = it },
                 label = { Text("Brand (optional)") },
@@ -300,7 +300,7 @@ private fun CustomFoodForm(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = barcodeText,
                 onValueChange = { v ->
                     barcodeText = v.filter { it.isDigit() }
@@ -343,14 +343,14 @@ private fun CustomFoodForm(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CustomSectionLabel(if (perServing) "Serving" else "Serving (optional)")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = servingName,
                         onValueChange = { servingName = it },
                         label = { Text("Name, e.g. 1 bar") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = servingGrams,
                         onValueChange = { servingGrams = it; error = null },
                         label = { Text("Size (g)") },
@@ -364,7 +364,7 @@ private fun CustomFoodForm(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CustomSectionLabel(if (perServing) "Nutrition per serving" else "Nutrition per 100 g")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = kcal,
                         onValueChange = { kcal = it; error = null },
                         label = { Text("Calories (kcal)") },
@@ -372,7 +372,7 @@ private fun CustomFoodForm(
                         keyboardOptions = decimal,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = protein,
                         onValueChange = { protein = it; error = null },
                         label = { Text("Protein (g)") },
@@ -382,7 +382,7 @@ private fun CustomFoodForm(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = carbs,
                         onValueChange = { carbs = it; error = null },
                         label = { Text("Carbs (g)") },
@@ -390,7 +390,7 @@ private fun CustomFoodForm(
                         keyboardOptions = decimal,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = fat,
                         onValueChange = { fat = it; error = null },
                         label = { Text("Fat (g)") },
@@ -404,7 +404,7 @@ private fun CustomFoodForm(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CustomSectionLabel("Optional")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = fiber,
                         onValueChange = { fiber = it; error = null },
                         label = { Text("Fiber (g)") },
@@ -412,7 +412,7 @@ private fun CustomFoodForm(
                         keyboardOptions = decimal,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = sugar,
                         onValueChange = { sugar = it; error = null },
                         label = { Text("Sugar (g)") },
@@ -420,7 +420,7 @@ private fun CustomFoodForm(
                         keyboardOptions = decimal,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = salt,
                         onValueChange = { salt = it; error = null },
                         label = { Text("Salt (g)") },

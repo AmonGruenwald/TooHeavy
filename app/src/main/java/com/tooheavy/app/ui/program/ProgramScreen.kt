@@ -38,7 +38,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,6 +73,7 @@ import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.sessionsPerWeek
 import com.tooheavy.app.data.weeklyGroupSets
 import com.tooheavy.app.data.estimatedMinutes
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.common.formatSets
 import com.tooheavy.app.data.trainingWeeks
 import com.tooheavy.app.data.mesocycle
@@ -525,7 +525,7 @@ private fun EditTargetDialog(pe: ProgramExercise, unit: String, onSave: (Program
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                SelectAllOutlinedTextField(
                     value = weightText,
                     onValueChange = { weightText = it.take(7) },
                     label = { Text("Weight ($unit)") },
@@ -534,7 +534,7 @@ private fun EditTargetDialog(pe: ProgramExercise, unit: String, onSave: (Program
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = setsText,
                         onValueChange = { setsText = it.filter(Char::isDigit).take(2) },
                         label = { Text("Sets") },
@@ -542,7 +542,7 @@ private fun EditTargetDialog(pe: ProgramExercise, unit: String, onSave: (Program
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = repsText,
                         onValueChange = { repsText = it.filter(Char::isDigit).take(3) },
                         label = { Text("Reps") },

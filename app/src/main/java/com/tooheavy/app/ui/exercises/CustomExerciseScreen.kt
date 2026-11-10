@@ -24,7 +24,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +44,7 @@ import com.tooheavy.app.data.Repo
 import com.tooheavy.app.data.Tracking
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.common.AppTopBar
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.theme.Danger
 
 /** Categories offered for custom exercises (the library's own categories, plus warm-ups). */
@@ -116,7 +116,7 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = name,
                 onValueChange = { name = it; error = null },
                 label = { Text("Name") },
@@ -179,7 +179,7 @@ fun CustomExerciseScreen(nav: NavController, id: String) {
                 )
             }
 
-            OutlinedTextField(
+            SelectAllOutlinedTextField(
                 value = instructions,
                 onValueChange = { instructions = it },
                 label = { Text("Instructions (optional, one step per line)") },

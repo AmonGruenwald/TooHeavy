@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -73,6 +72,7 @@ import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Warmup
 
@@ -182,7 +182,7 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item(key = "name") {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = draft.name,
                         onValueChange = { v -> updateDraft { it.copy(name = v) } },
                         label = { Text("Routine name") },
@@ -191,7 +191,7 @@ fun RoutineEditScreen(nav: NavController, routineId: String) {
                     )
                 }
                 item(key = "notes") {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = draft.notes,
                         onValueChange = { v -> updateDraft { it.copy(notes = v) } },
                         label = { Text("Notes") },
@@ -318,7 +318,7 @@ private fun RoutineExerciseCard(
                     modifier = Modifier.weight(1f),
                 )
                 if (timed) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = timeText,
                         onValueChange = { s ->
                             if (s.length <= 8 && s.all { it.isDigit() || it == ':' }) {
@@ -332,7 +332,7 @@ private fun RoutineExerciseCard(
                         modifier = Modifier.weight(1f),
                     )
                 } else {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = repsText,
                         onValueChange = { s ->
                             if (s.length <= 3 && s.all { it.isDigit() }) {
@@ -350,7 +350,7 @@ private fun RoutineExerciseCard(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                 if (ex?.tracksDistance == true) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = distText,
                         onValueChange = { s ->
                             if (s.length <= 6 && s.all { it.isDigit() || it == '.' } && s.count { it == '.' } <= 1) {
@@ -365,7 +365,7 @@ private fun RoutineExerciseCard(
                     )
                 }
                 if (!timed) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = weightText,
                         onValueChange = { s ->
                             if (s.length <= 7 && s.all { it.isDigit() || it == '.' } && s.count { it == '.' } <= 1) {

@@ -36,7 +36,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,6 +62,7 @@ import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
 import com.tooheavy.app.data.timeOn
 import com.tooheavy.app.data.toIngredient
+import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
 import java.util.Calendar
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
@@ -305,7 +305,7 @@ private fun AmountEditor(nav: NavController, food: Food, mode: String, entry: Fo
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AmountSectionLabel("Amount")
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    SelectAllOutlinedTextField(
                         value = qtyText,
                         onValueChange = { qtyText = it },
                         label = { Text(if (unit == null) "Grams" else "Quantity") },
