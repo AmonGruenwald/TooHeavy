@@ -13,6 +13,20 @@ class NutritionFeaturesTest {
     private val milk = Food(customId = "m", name = "Milk", source = Food.SOURCE_CUSTOM, kcal = 64.0, protein = 3.4, carbs = 4.8, fat = 3.5, salt = 0.1)
 
     @Test
+    fun foodsLoggedAgainAreCopiedToNowInTheirOrder() {
+        val breakfast = FoodEntry(id = "a", date = "2026-11-08", name = "Oats", grams = 80.0, amountLabel = "80 g", kcal = 300.0, createdAt = 2_000)
+        val coffee = FoodEntry(id = "b", date = "2026-11-08", name = "Coffee", kcal = 20.0, createdAt = 1_000)
+        val copies = copiesAt(listOf(breakfast, coffee), "2026-11-10", 5_000_000)
+        // In the order they were eaten, a millisecond apart, today, with new ids and the same food.
+        assertEquals(listOf("Coffee", "Oats"), copies.map { it.name })
+        assertEquals(listOf(5_000_000L, 5_000_001L), copies.map { it.createdAt })
+        assertTrue(copies.all { it.date == "2026-11-10" })
+        assertTrue(copies.none { it.id == "a" || it.id == "b" })
+        assertEquals(breakfast.copy(id = copies[1].id, date = "2026-11-10", createdAt = 5_000_001), copies[1])
+        assertTrue(copiesAt(emptyList(), "2026-11-10", 0).isEmpty())
+    }
+
+    @Test
     fun quickAddPer100gScalesToTheAmount() {
         // As eaten: taken as given, missing macros are 0.
         assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))

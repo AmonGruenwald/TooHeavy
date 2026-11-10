@@ -12,8 +12,12 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
-            "1.22.1", "2026-11-09",
-            listOf("The barcode scanner focuses where you tap, like the camera app; a ring shows the spot."),
+            "1.23.0", "2026-11-10",
+            listOf(
+                "Log foods again: \"Add again now\" in a food's menu adds it to today at the current time. Long-press " +
+                    "a food to pick several (on any day) and add them all again at once.",
+                "The barcode scanner focuses where you tap, like the camera app; a ring shows the spot.",
+            ),
         ),
         ChangelogEntry(
             "1.22.0", "2026-11-09",

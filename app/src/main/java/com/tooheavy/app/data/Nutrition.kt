@@ -163,6 +163,13 @@ fun quickAddMacros(kcal: Double?, fat: Double?, carbs: Double?, protein: Double?
     return Macros(kcal * factor, (protein ?: 0.0) * factor, (carbs ?: 0.0) * factor, (fat ?: 0.0) * factor)
 }
 
+/**
+ * [entries] logged again: copies with new ids, dated [day] at [now], in the order they were eaten (a millisecond
+ * apart, so the timeline keeps that order). Amounts and nutrition stay as they were.
+ */
+fun copiesAt(entries: List<FoodEntry>, day: String, now: Long): List<FoodEntry> =
+    entries.sortedBy { it.createdAt }.mapIndexed { i, e -> e.copy(id = newId(), date = day, createdAt = now + i) }
+
 /** One logged food. Nutrition is a snapshot, so history survives deleting a custom food. */
 data class FoodEntry(
     val id: String = newId(),
@@ -543,6 +550,17 @@ object NutritionRepo {
     fun deleteEntry(id: String) {
         entries.removeAll { it.id == id }
         save()
+    }
+
+    /** Logs the entries [ids] again, today at the current time; returns how many were added. */
+    fun logAgainNow(ids: Collection<String>): Int {
+        val day = today()
+        val copies = copiesAt(entries.filter { it.id in ids }, day, System.currentTimeMillis())
+        if (copies.isEmpty()) return 0
+        entries.addAll(copies)
+        clearEmptyMark(day)
+        save()
+        return copies.size
     }
 
     /** Copies every entry of [fromDate] to [toDate], keeping the times of day. */

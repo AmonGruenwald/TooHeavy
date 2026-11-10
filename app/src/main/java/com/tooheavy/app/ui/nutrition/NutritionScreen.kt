@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
@@ -65,6 +67,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.DayMark
@@ -89,6 +93,8 @@ import com.tooheavy.app.ui.common.ProgressRing
 import com.tooheavy.app.ui.common.ScreenHeader
 import com.tooheavy.app.ui.common.StackedBarChart
 import com.tooheavy.app.ui.theme.AccentBright
+import com.tooheavy.app.ui.theme.Accent
+import com.tooheavy.app.ui.theme.OnAccent
 import com.tooheavy.app.ui.theme.ChartColors
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Ember
@@ -377,10 +383,49 @@ private fun TimelineCard(nav: NavController, date: String) {
     // Days after today can't be marked: they haven't happened yet.
     val canMark = date <= today()
     val canMarkEmpty = canMark && noFood && mark == null
+    // Foods picked to log again (long-press one to start); cleared when the day changes.
+    var selected by remember(date) { mutableStateOf(emptySet<String>()) }
+    val context = LocalContext.current
+
+    /** Logs [ids] again today at the current time and says so. */
+    fun logAgain(ids: Set<String>) {
+        val n = NutritionRepo.logAgainNow(ids)
+        selected = emptySet()
+        if (n > 0) {
+            val what = if (n == 1) "1 food" else "$n foods"
+            Toast.makeText(context, "Added $what to today at ${clockTime(System.currentTimeMillis())}", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 4.dp)) {
-            Row(
+            if (selected.isNotEmpty()) {
+                // Selecting foods: how many, and log them again now.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { selected = emptySet() }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
+                    }
+                    Text(
+                        "${selected.size} selected",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { logAgain(selected) }) {
+                        Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Add again now")
+                    }
+                }
+                Text(
+                    "Tap foods to add or remove them.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+                )
+            } else Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -394,7 +439,7 @@ private fun TimelineCard(nav: NavController, date: String) {
                 }
                 if (canMark) DayMarkMenu(date, mark, noFood)
             }
-            if (items.isEmpty() || canCopy || canMarkEmpty) {
+            if (selected.isEmpty() && (items.isEmpty() || canCopy || canMarkEmpty)) {
                 Row(Modifier.padding(start = 8.dp, bottom = 4.dp)) {
                     TextButton(onClick = { nav.navigate(Routes.foodSearch()) }) {
                         Text("Add food", style = MaterialTheme.typography.labelLarge)
@@ -428,6 +473,10 @@ private fun TimelineCard(nav: NavController, date: String) {
                     timeLabel = if (showTime) clockTime(item.time) else null,
                     first = i == 0,
                     last = i == items.lastIndex,
+                    selected = item.id in selected,
+                    selecting = selected.isNotEmpty(),
+                    onToggle = { selected = if (item.id in selected) selected - item.id else selected + item.id },
+                    onLogAgain = { logAgain(setOf(item.id)) },
                     onClick = {
                         if (item is TimelineItem.Eaten) nav.navigate(Routes.editFoodEntry(item.entry.id))
                     },
@@ -494,6 +543,11 @@ private fun TimelineRow(
     timeLabel: String?,
     first: Boolean,
     last: Boolean,
+    /** Picked to log again; [selecting] while any food is. */
+    selected: Boolean,
+    selecting: Boolean,
+    onToggle: () -> Unit,
+    onLogAgain: () -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -504,7 +558,12 @@ private fun TimelineRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+            .background(if (selected) Accent.copy(alpha = 0.16f) else Color.Transparent)
+            // Long-press a food to start picking foods to log again; while picking, a tap adds or removes one.
+            .combinedClickable(
+                onClick = { if (selecting) { if (entry != null) onToggle() } else onClick() },
+                onLongClick = { if (entry != null) onToggle() else menuOpen = true },
+            )
             .padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -520,12 +579,18 @@ private fun TimelineRow(
                 Box(Modifier.weight(1f).width(1.dp).background(if (first) Color.Transparent else Hairline))
                 Box(Modifier.weight(1f).width(1.dp).background(if (last) Color.Transparent else Hairline))
             }
-            Box(
-                Modifier
-                    .size(if (timeLabel != null) 9.dp else 6.dp)
-                    .clip(CircleShape)
-                    .background(if (water != null) ChartColors.Water else AccentBright),
-            )
+            if (selected) {
+                Box(Modifier.size(16.dp).clip(CircleShape).background(AccentBright), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Check, contentDescription = "Selected", tint = OnAccent, modifier = Modifier.size(12.dp))
+                }
+            } else {
+                Box(
+                    Modifier
+                        .size(if (timeLabel != null) 9.dp else 6.dp)
+                        .clip(CircleShape)
+                        .background(if (water != null) ChartColors.Water else AccentBright),
+                )
+            }
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f).padding(vertical = 7.dp)) {
@@ -565,6 +630,22 @@ private fun TimelineRow(
                         onClick = {
                             menuOpen = false
                             onClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Add again now") },
+                        leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onLogAgain()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Select") },
+                        leadingIcon = { Icon(Icons.Filled.Check, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onToggle()
                         },
                     )
                 }
