@@ -163,6 +163,28 @@ fun quickAddMacros(kcal: Double?, fat: Double?, carbs: Double?, protein: Double?
     return Macros(kcal * factor, (protein ?: 0.0) * factor, (carbs ?: 0.0) * factor, (fat ?: 0.0) * factor)
 }
 
+/** Diary entries this close to the one before them belong to the same meal; a longer gap starts a new one. */
+const val MEAL_GAP_MS = 30 * 60_000L
+
+/**
+ * [items], in time order, split into meals: runs in which each item comes at most [gap] after the one before it.
+ * One list per meal, in order; empty for no items.
+ */
+fun <T> splitIntoMeals(items: List<T>, time: (T) -> Long, gap: Long = MEAL_GAP_MS): List<List<T>> {
+    val meals = mutableListOf<MutableList<T>>()
+    var last: Long? = null
+    for (item in items) {
+        val t = time(item)
+        if (last == null || t - last > gap) meals.add(mutableListOf())
+        meals.last().add(item)
+        last = t
+    }
+    return meals
+}
+
+/** What [entries] add up to, e.g. a meal. */
+fun mealTotals(entries: List<FoodEntry>): Macros = entries.fold(Macros()) { acc, e -> acc + e.macros }
+
 /**
  * [entries] logged again: copies with new ids, dated [day] at [now], in the order they were eaten (a millisecond
  * apart, so the timeline keeps that order). Amounts and nutrition stay as they were.

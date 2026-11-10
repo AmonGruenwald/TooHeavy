@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.25.0", "2026-11-10",
+            listOf(
+                "Meal totals in the food timeline: foods eaten without a gap of more than 30 minutes between them " +
+                    "make a meal, and a meal of several foods gets a line on top with its time, calories and macros. " +
+                    "Long-press that line to pick the whole meal, e.g. to add it again.",
+            ),
+        ),
+        ChangelogEntry(
             "1.24.0", "2026-11-10",
             listOf(
                 "Tapping into a field that already has text, like a name, an amount or a set's weight and reps, " +

@@ -78,7 +78,9 @@ import com.tooheavy.app.data.WaterEntry
 import com.tooheavy.app.data.clockTime
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
+import com.tooheavy.app.data.mealTotals
 import com.tooheavy.app.data.shiftDate
+import com.tooheavy.app.data.splitIntoMeals
 import com.tooheavy.app.data.today
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.BarChart
@@ -369,9 +371,6 @@ private sealed interface TimelineItem {
     }
 }
 
-/** Entries closer together than this share one time label, like a meal. */
-private const val TIMELINE_GROUP_MS = 30 * 60_000L
-
 @Composable
 private fun TimelineCard(nav: NavController, date: String) {
     val items = (NutritionRepo.entriesFor(date).map { TimelineItem.Eaten(it) } +
@@ -420,7 +419,7 @@ private fun TimelineCard(nav: NavController, date: String) {
                     }
                 }
                 Text(
-                    "Tap foods to add or remove them.",
+                    "Tap foods, or a meal's total, to add or remove them.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
@@ -464,29 +463,45 @@ private fun TimelineCard(nav: NavController, date: String) {
                     }
                 }
             }
-            var lastShown: Long? = null
-            items.forEachIndexed { i, item ->
-                val showTime = lastShown.let { it == null || item.time - it > TIMELINE_GROUP_MS }
-                if (showTime) lastShown = item.time
-                TimelineRow(
-                    item = item,
-                    timeLabel = if (showTime) clockTime(item.time) else null,
-                    first = i == 0,
-                    last = i == items.lastIndex,
-                    selected = item.id in selected,
-                    selecting = selected.isNotEmpty(),
-                    onToggle = { selected = if (item.id in selected) selected - item.id else selected + item.id },
-                    onLogAgain = { logAgain(setOf(item.id)) },
-                    onClick = {
-                        if (item is TimelineItem.Eaten) nav.navigate(Routes.editFoodEntry(item.entry.id))
-                    },
-                    onDelete = {
-                        when (item) {
-                            is TimelineItem.Eaten -> NutritionRepo.deleteEntry(item.id)
-                            is TimelineItem.Drank -> NutritionRepo.deleteWater(item.id)
-                        }
-                    },
-                )
+            // Meals: entries with no long gap between them. A meal of several foods gets a line with its total,
+            // which carries the meal's time.
+            val meals = splitIntoMeals(items, { it.time })
+            meals.forEachIndexed { m, meal ->
+                val foods = meal.mapNotNull { (it as? TimelineItem.Eaten)?.entry }
+                val withTotal = foods.size >= 2
+                if (withTotal) {
+                    val ids = foods.map { it.id }.toSet()
+                    MealTotalRow(
+                        time = meal.first().time,
+                        foods = foods,
+                        first = m == 0,
+                        selected = selected.containsAll(ids),
+                        selecting = selected.isNotEmpty(),
+                        // Picks the whole meal, or drops it when it is all picked already.
+                        onToggle = { selected = if (selected.containsAll(ids)) selected - ids else selected + ids },
+                    )
+                }
+                meal.forEachIndexed { i, item ->
+                    TimelineRow(
+                        item = item,
+                        timeLabel = if (i == 0 && !withTotal) clockTime(item.time) else null,
+                        first = m == 0 && i == 0 && !withTotal,
+                        last = m == meals.lastIndex && i == meal.lastIndex,
+                        selected = item.id in selected,
+                        selecting = selected.isNotEmpty(),
+                        onToggle = { selected = if (item.id in selected) selected - item.id else selected + item.id },
+                        onLogAgain = { logAgain(setOf(item.id)) },
+                        onClick = {
+                            if (item is TimelineItem.Eaten) nav.navigate(Routes.editFoodEntry(item.entry.id))
+                        },
+                        onDelete = {
+                            when (item) {
+                                is TimelineItem.Eaten -> NutritionRepo.deleteEntry(item.id)
+                                is TimelineItem.Drank -> NutritionRepo.deleteWater(item.id)
+                            }
+                        },
+                    )
+                }
             }
             if (items.isNotEmpty()) Spacer(Modifier.height(6.dp))
         }
@@ -533,6 +548,79 @@ private fun DayMarkMenu(date: String, mark: String?, noFood: Boolean) {
                 enabled = noFood,
             )
         }
+    }
+}
+
+/**
+ * The line above a meal of several foods: its time and what it adds up to. Long-press it (or tap it while picking
+ * foods) to pick the whole meal, e.g. to log it again.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MealTotalRow(
+    time: Long,
+    foods: List<FoodEntry>,
+    first: Boolean,
+    /** All the meal's foods are picked; [selecting] while any food is. */
+    selected: Boolean,
+    selecting: Boolean,
+    onToggle: () -> Unit,
+) {
+    val total = mealTotals(foods)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(if (selected) Accent.copy(alpha = 0.16f) else Color.Transparent)
+            .combinedClickable(onClick = { if (selecting) onToggle() }, onLongClick = onToggle)
+            .padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            clockTime(time),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(44.dp),
+        )
+        // Rail, as on the food rows, with the meal's dot.
+        Box(Modifier.width(16.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            Column(Modifier.fillMaxHeight()) {
+                Box(Modifier.weight(1f).width(1.dp).background(if (first) Color.Transparent else Hairline))
+                Box(Modifier.weight(1f).width(1.dp).background(Hairline))
+            }
+            if (selected) {
+                Box(Modifier.size(16.dp).clip(CircleShape).background(AccentBright), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Check, contentDescription = "Selected", tint = OnAccent, modifier = Modifier.size(12.dp))
+                }
+            } else {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(AccentBright))
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f).padding(vertical = 7.dp)) {
+            Text(
+                "Meal · ${foods.size} foods",
+                style = MaterialTheme.typography.labelLarge,
+                color = AccentBright,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "P ${formatNutrient(total.protein)} · C ${formatNutrient(total.carbs)} · F ${formatNutrient(total.fat)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "${total.kcal.roundToInt()}",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = AccentBright,
+        )
+        // Where the food rows have their menu button, so the calories line up.
+        Spacer(Modifier.width(40.dp))
     }
 }
 
