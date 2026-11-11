@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.MuscleGroup
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.Updater
 import com.tooheavy.app.data.RestTimes
 import com.tooheavy.app.data.RunTracker
 import com.tooheavy.app.data.SetEntry
@@ -488,8 +489,9 @@ private fun RestTimerBar() {
             now = System.currentTimeMillis()
             val end = Repo.restEndsAt ?: break
             if (end - now <= 0) {
-                Repo.stopRest()
-                if (now - end < 3000) vibrateBriefly(context)
+                Repo.restRanOut()
+                // Out of the app a notification says so instead (RestAlarm).
+                if (now - end < 3000 && Updater.appVisible) vibrateBriefly(context)
                 break
             }
             delay(250)

@@ -54,7 +54,11 @@ object Repo {
     var restTotalSeconds by mutableStateOf(0)
         private set
 
+    /** For the rest alarm. */
+    private var appContext: Context? = null
+
     fun init(context: Context) {
+        if (appContext == null) appContext = context.applicationContext
         if (::file.isInitialized) return
         // exercises.json is free-exercise-db; exercises_extra.json adds common exercises it lacks.
         bundled = listOf("exercises.json", "exercises_extra.json").flatMap { name ->
@@ -414,19 +418,31 @@ object Repo {
 
     // ---------- rest timer ----------
 
+    // A rest also sets an alarm, so its end is notified while you're out of the app (RestAlarm).
+
     fun startRest(seconds: Int) {
         if (seconds <= 0) return
         restTotalSeconds = seconds
-        restEndsAt = System.currentTimeMillis() + seconds * 1000L
+        val end = System.currentTimeMillis() + seconds * 1000L
+        restEndsAt = end
+        appContext?.let { RestAlarm.schedule(it, end) }
     }
 
     fun adjustRest(deltaSeconds: Int) {
-        val end = restEndsAt ?: return
-        restEndsAt = end + deltaSeconds * 1000L
+        val end = (restEndsAt ?: return) + deltaSeconds * 1000L
+        restEndsAt = end
         restTotalSeconds = (restTotalSeconds + deltaSeconds).coerceAtLeast(1)
+        appContext?.let { RestAlarm.schedule(it, end) }
     }
 
+    /** Skips the rest (or ends it with the workout): no rest-over notification. */
     fun stopRest() {
+        restEndsAt = null
+        appContext?.let { RestAlarm.cancel(it) }
+    }
+
+    /** The rest ran out: the bar goes away; the alarm still tells you if you're out of the app. */
+    fun restRanOut() {
         restEndsAt = null
     }
 }

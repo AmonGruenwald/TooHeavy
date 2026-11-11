@@ -30,6 +30,7 @@ import com.tooheavy.app.data.HabitReminders
 import com.tooheavy.app.data.HabitRepo
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.RestAlarm
 import com.tooheavy.app.data.RunTracker
 import com.tooheavy.app.data.Updater
 import com.tooheavy.app.data.WhatsNew
@@ -132,6 +133,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         Updater.appVisible = true
+        // Back in the app: the rest bar shows the rest, no need for its notification.
+        RestAlarm.cancelNotification(this)
     }
 
     override fun onStop() {
