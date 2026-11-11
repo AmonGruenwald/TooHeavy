@@ -163,6 +163,12 @@ fun quickAddMacros(kcal: Double?, fat: Double?, carbs: Double?, protein: Double?
     return Macros(kcal * factor, (protein ?: 0.0) * factor, (carbs ?: 0.0) * factor, (fat ?: 0.0) * factor)
 }
 
+/** [foods] with the ones logged most often in [entries] first; foods logged equally often keep their order. */
+fun sortedByUse(foods: List<Food>, entries: List<FoodEntry>): List<Food> {
+    val counts = entries.groupingBy { it.foodKey }.eachCount()
+    return foods.sortedByDescending { counts[it.key] ?: 0 }
+}
+
 /** Diary entries this close to the one before them belong to the same meal; a longer gap starts a new one. */
 const val MEAL_GAP_MS = 30 * 60_000L
 

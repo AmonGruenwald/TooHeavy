@@ -65,6 +65,7 @@ import com.tooheavy.app.data.FoodEntry
 import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
+import com.tooheavy.app.data.sortedByUse
 import com.tooheavy.app.data.timeOn
 import com.tooheavy.app.data.toIngredient
 import com.tooheavy.app.ui.Routes
@@ -129,8 +130,12 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
 
     // A recipe can't contain itself.
     val editingKey = if (ingredientMode) NutritionRepo.recipeDraft?.key else null
-    val myFoods = NutritionRepo.customFoods.toList().filter { it.key != editingKey }
     val entryCount = NutritionRepo.entries.size
+    // Your foods, the ones you log most often first.
+    val myFoodsList = NutritionRepo.customFoods.toList()
+    val myFoods = remember(myFoodsList, entryCount, editingKey) {
+        sortedByUse(myFoodsList.filter { it.key != editingKey }, NutritionRepo.entries.toList())
+    }
     val recent = remember(entryCount, loaded, customCount) { NutritionRepo.recentFoods() }
 
     Scaffold(
