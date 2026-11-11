@@ -57,6 +57,29 @@ class NutritionFeaturesTest {
     }
 
     @Test
+    fun selectedFoodsMoveAndCopyTogether() {
+        val oats = FoodEntry(id = "a", date = "2026-11-10", name = "Oats", createdAt = timeOn("2026-11-10", 8, 30))
+        val milk = FoodEntry(id = "b", date = "2026-11-10", name = "Milk", createdAt = oats.createdAt + 1)
+        val coffee = FoodEntry(id = "c", date = "2026-11-10", name = "Coffee", createdAt = timeOn("2026-11-10", 9, 15))
+        // To another day: same times of day, order kept to the millisecond; copies get new ids.
+        val moved = entriesOnDay(listOf(oats, milk, coffee), "2026-11-12", copy = false)
+        assertEquals(listOf("a", "b", "c"), moved.map { it.id })
+        assertTrue(moved.all { it.date == "2026-11-12" })
+        assertEquals(listOf("08:30", "08:30", "09:15"), moved.map { clockTime(it.createdAt) })
+        assertEquals(1L, moved[1].createdAt - moved[0].createdAt)
+        assertEquals(daysBetween("2026-11-10", "2026-11-12").toLong() * 86_400_000L, moved[2].createdAt - coffee.createdAt)
+        val copied = entriesOnDay(listOf(oats), "2026-11-09", copy = true).single()
+        assertTrue(copied.id != "a")
+        assertEquals(oats.copy(id = copied.id, date = "2026-11-09", createdAt = copied.createdAt), copied)
+        // To another time: the earliest goes there, the others keep their distance.
+        val lunch = timeOn("2026-11-10", 12, 0)
+        val retimed = entriesStartingAt(listOf(coffee, oats, milk), lunch)
+        assertEquals(listOf("12:45", "12:00", "12:00"), retimed.map { clockTime(it.createdAt) })
+        assertEquals(lunch + 1, retimed[2].createdAt)
+        assertTrue(entriesStartingAt(emptyList(), lunch).isEmpty())
+    }
+
+    @Test
     fun quickAddPer100gScalesToTheAmount() {
         // As eaten: taken as given, missing macros are 0.
         assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))
