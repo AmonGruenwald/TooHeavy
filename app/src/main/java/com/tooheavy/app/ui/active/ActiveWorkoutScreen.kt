@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -109,6 +110,7 @@ import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.volume
 import com.tooheavy.app.ui.Routes
+import com.tooheavy.app.ui.navigateTab
 import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
@@ -275,6 +277,11 @@ private fun ActiveWorkoutContent(nav: NavController, workout: Workout) {
                     }
                 },
                 actions = {
+                    // Over to the Food tab, e.g. to log a shake between sets; the Train tab or the "Workout in
+                    // progress" bar brings you back.
+                    IconButton(onClick = { nav.navigateTab(Routes.NUTRITION) }) {
+                        Icon(Icons.Filled.Restaurant, contentDescription = "Food")
+                    }
                     GradientButton(
                         onClick = { showFinish = true },
                         contentPadding = PaddingValues(horizontal = 18.dp),
