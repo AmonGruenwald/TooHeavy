@@ -57,6 +57,26 @@ class NutritionFeaturesTest {
     }
 
     @Test
+    fun selectedFoodsMoveAndCopyTogether() {
+        val oats = FoodEntry(id = "a", date = "2026-11-10", name = "Oats", createdAt = timeOn("2026-11-10", 8, 30))
+        val milk = FoodEntry(id = "b", date = "2026-11-10", name = "Milk", createdAt = oats.createdAt + 1)
+        val coffee = FoodEntry(id = "c", date = "2026-11-10", name = "Coffee", createdAt = timeOn("2026-11-10", 9, 15))
+        // To another day and time: the earliest goes there, the others keep their distance (to the millisecond).
+        val lunch = timeOn("2026-11-12", 12, 0)
+        val moved = entriesAt(listOf(coffee, oats, milk), "2026-11-12", lunch, copy = false)
+        assertEquals(listOf("a", "b", "c"), moved.map { it.id })
+        assertTrue(moved.all { it.date == "2026-11-12" })
+        assertEquals(listOf("12:00", "12:00", "12:45"), moved.map { clockTime(it.createdAt) })
+        assertEquals(listOf(lunch, lunch + 1), moved.take(2).map { it.createdAt })
+        // Copies get new ids and keep everything else.
+        val copied = entriesAt(listOf(oats), "2026-11-10", timeOn("2026-11-10", 19, 0), copy = true).single()
+        assertTrue(copied.id != "a")
+        assertEquals("19:00", clockTime(copied.createdAt))
+        assertEquals(oats.copy(id = copied.id, createdAt = copied.createdAt), copied)
+        assertTrue(entriesAt(emptyList(), "2026-11-10", lunch, copy = true).isEmpty())
+    }
+
+    @Test
     fun quickAddPer100gScalesToTheAmount() {
         // As eaten: taken as given, missing macros are 0.
         assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))

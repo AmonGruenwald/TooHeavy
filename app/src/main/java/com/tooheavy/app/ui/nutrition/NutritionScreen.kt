@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -67,7 +66,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.tooheavy.app.data.DayMark
@@ -386,43 +384,15 @@ private fun TimelineCard(nav: NavController, date: String) {
     var selected by remember(date) { mutableStateOf(emptySet<String>()) }
     val context = LocalContext.current
 
-    /** Logs [ids] again today at the current time and says so. */
-    fun logAgain(ids: Set<String>) {
-        val n = NutritionRepo.logAgainNow(ids)
-        selected = emptySet()
-        if (n > 0) {
-            val what = if (n == 1) "1 food" else "$n foods"
-            Toast.makeText(context, "Added $what to today at ${clockTime(System.currentTimeMillis())}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 4.dp)) {
             if (selected.isNotEmpty()) {
-                // Selecting foods: how many, and log them again now.
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { selected = emptySet() }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
-                    }
-                    Text(
-                        "${selected.size} selected",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { logAgain(selected) }) {
-                        Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Add again now")
-                    }
-                }
-                Text(
-                    "Tap foods, or a meal's total, to add or remove them.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+                // Picking foods: what to do with them.
+                TimelineSelectionBar(
+                    date = date,
+                    selected = selected,
+                    allFoods = items.mapNotNull { (it as? TimelineItem.Eaten)?.id }.toSet(),
+                    onChange = { selected = it },
                 )
             } else Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
@@ -490,7 +460,7 @@ private fun TimelineCard(nav: NavController, date: String) {
                         selected = item.id in selected,
                         selecting = selected.isNotEmpty(),
                         onToggle = { selected = if (item.id in selected) selected - item.id else selected + item.id },
-                        onLogAgain = { logAgain(setOf(item.id)) },
+                        onLogAgain = { logAgainNow(context, setOf(item.id)) },
                         onClick = {
                             if (item is TimelineItem.Eaten) nav.navigate(Routes.editFoodEntry(item.entry.id))
                         },

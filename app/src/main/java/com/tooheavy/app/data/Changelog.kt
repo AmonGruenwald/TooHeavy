@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.27.0", "2026-11-11",
+            listOf(
+                "More you can do with picked foods (long-press a food in the timeline): copy or move them to any day " +
+                    "and time (a meal stays together), delete them, or pick all at once, as well as add them again now.",
+            ),
+        ),
+        ChangelogEntry(
             "1.26.0", "2026-11-11",
             listOf("\"My foods\" in the food search lists the foods you log most often first."),
         ),
