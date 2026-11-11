@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.28.0", "2026-11-11",
+            listOf(
+                "The rest timer notifies you when a rest is over while you're out of the app or the phone is locked, " +
+                    "with the next set (e.g. \"Next: Bench Press, set 3 of 4\"). In the app it vibrates as before.",
+            ),
+        ),
+        ChangelogEntry(
             "1.27.0", "2026-11-11",
             listOf(
                 "More you can do with picked foods (long-press a food in the timeline): copy or move them to any day " +

@@ -12,6 +12,10 @@
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The rest timer's alarm, so the end of a rest is notified on time: granted by default up to Android 12L,
+         and with USE_EXACT_ALARM (meant for timers) from Android 13. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Recording runs with GPS: precise location while recording, in a foreground service so it keeps going with
          the screen off. No background location: recording always starts from the app. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -80,6 +84,9 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".data.RestAlarmReceiver"
+            android:exported="false" />
         <receiver
             android:name=".data.UpdateReceiver"
             android:exported="false">
