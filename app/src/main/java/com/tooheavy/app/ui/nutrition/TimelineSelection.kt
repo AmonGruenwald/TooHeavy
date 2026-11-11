@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -45,6 +44,7 @@ import com.tooheavy.app.data.NutritionRepo
 import com.tooheavy.app.data.clockTime
 import com.tooheavy.app.data.friendlyDate
 import com.tooheavy.app.data.timeOn
+import com.tooheavy.app.data.today
 import com.tooheavy.app.ui.theme.Danger
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -66,11 +66,11 @@ private fun utcDayFormat() = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { t
 private fun utcMillisOf(date: String): Long? = runCatching { utcDayFormat().parse(date)?.time }.getOrNull()
 private fun dateOfUtcMillis(ms: Long): String = utcDayFormat().format(Date(ms))
 
-private enum class SelectionDialog { DELETE, TIME, COPY, MOVE }
+private enum class SelectionDialog { DELETE, COPY, MOVE }
 
 /**
  * The top of the timeline while foods of [date] are picked: how many, pick all or none, and what to do with
- * them: add them again now, change their time, copy or move them to another day, or delete them.
+ * them: add them again now, copy or move them to any day and time, or delete them.
  * [onChange] sets the picked foods; an empty set ends picking.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,9 +78,20 @@ private enum class SelectionDialog { DELETE, TIME, COPY, MOVE }
 fun TimelineSelectionBar(date: String, selected: Set<String>, allFoods: Set<String>, onChange: (Set<String>) -> Unit) {
     val context = LocalContext.current
     var dialog by remember { mutableStateOf<SelectionDialog?>(null) }
+    // Copying or moving: the day picked in the first step; then the time.
+    var toDay by remember { mutableStateOf<String?>(null) }
+    // The day last picked, so going back from the time keeps it.
+    var lastDay by remember { mutableStateOf<String?>(null) }
     val n = selected.size
 
+    fun close() {
+        dialog = null
+        toDay = null
+        lastDay = null
+    }
+
     fun done(message: String) {
+        close()
         onChange(emptySet())
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
@@ -121,9 +132,8 @@ fun TimelineSelectionBar(date: String, selected: Set<String>, allFoods: Set<Stri
                 logAgainNow(context, selected)
                 onChange(emptySet())
             }
-            Action("Change time", Icons.Filled.Schedule) { dialog = SelectionDialog.TIME }
-            Action("Copy to day", Icons.Filled.CalendarMonth) { dialog = SelectionDialog.COPY }
-            Action("Move to day", Icons.Filled.Event) { dialog = SelectionDialog.MOVE }
+            Action("Copy to\u2026", Icons.Filled.CalendarMonth) { dialog = SelectionDialog.COPY }
+            Action("Move to\u2026", Icons.Filled.Schedule) { dialog = SelectionDialog.MOVE }
             Action("Delete", Icons.Filled.Delete, danger = true) { dialog = SelectionDialog.DELETE }
         }
         Text(
@@ -134,27 +144,61 @@ fun TimelineSelectionBar(date: String, selected: Set<String>, allFoods: Set<Stri
         )
     }
 
-    when (dialog) {
-        SelectionDialog.DELETE -> AlertDialog(
-            onDismissRequest = { dialog = null },
+    val current = dialog
+    when {
+        current == SelectionDialog.DELETE -> AlertDialog(
+            onDismissRequest = ::close,
             title = { Text("Delete ${foods(n)}?") },
             text = { Text("They are removed from ${friendlyDate(date).lowercaseIfRelative()}.") },
             confirmButton = {
-                TextButton(onClick = {
-                    dialog = null
-                    val deleted = NutritionRepo.deleteEntries(selected)
-                    done("Deleted ${foods(deleted)}")
-                }) { Text("Delete", color = Danger) }
+                TextButton(onClick = { done("Deleted ${foods(NutritionRepo.deleteEntries(selected))}") }) {
+                    Text("Delete", color = Danger)
+                }
             },
-            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = ::close) { Text("Cancel") } },
         )
-        SelectionDialog.TIME -> {
+        current != null && toDay == null -> {
+            // Step 1: the day. Copies default to today, moves to the day they are on.
+            val copy = current == SelectionDialog.COPY
+            val state = rememberDatePickerState(initialSelectedDateMillis = utcMillisOf(lastDay ?: if (copy) today() else date))
+            DatePickerDialog(
+                onDismissRequest = ::close,
+                confirmButton = {
+                    TextButton(
+                        enabled = state.selectedDateMillis != null,
+                        onClick = {
+                            state.selectedDateMillis?.let {
+                                toDay = dateOfUtcMillis(it)
+                                lastDay = toDay
+                            }
+                        },
+                    ) { Text("Next") }
+                },
+                dismissButton = { TextButton(onClick = ::close) { Text("Cancel") } },
+            ) {
+                DatePicker(
+                    state = state,
+                    title = {
+                        Text(
+                            if (copy) "Copy ${foods(n)} to" else "Move ${foods(n)} to",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp),
+                        )
+                    },
+                )
+            }
+        }
+        current != null -> {
+            // Step 2: the time, starting at the time of the first one picked.
+            val copy = current == SelectionDialog.COPY
+            val day = toDay ?: date
             val first = NutritionRepo.entries.filter { it.id in selected }.minOfOrNull { it.createdAt } ?: System.currentTimeMillis()
             val c = Calendar.getInstance().apply { timeInMillis = first }
             val state = rememberTimePickerState(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), is24Hour = true)
+            val where = friendlyDate(day).lowercaseIfRelative()
             AlertDialog(
-                onDismissRequest = { dialog = null },
-                title = { Text("Eaten at") },
+                onDismissRequest = ::close,
+                title = { Text(if (copy) "Copy to $where at" else "Move to $where at") },
                 text = {
                     Column {
                         if (n > 1) {
@@ -170,50 +214,19 @@ fun TimelineSelectionBar(date: String, selected: Set<String>, allFoods: Set<Stri
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        dialog = null
-                        val moved = NutritionRepo.moveEntriesToTime(selected, timeOn(date, state.hour, state.minute))
-                        done("Moved ${foods(moved)} to ${String.format(Locale.US, "%02d:%02d", state.hour, state.minute)}")
-                    }) { Text("OK") }
+                        val start = timeOn(day, state.hour, state.minute)
+                        val at = "$where at ${clockTime(start)}"
+                        if (copy) {
+                            done("Copied ${foods(NutritionRepo.copyEntriesTo(selected, day, start))} to $at")
+                        } else {
+                            done("Moved ${foods(NutritionRepo.moveEntriesTo(selected, day, start))} to $at")
+                        }
+                    }) { Text(if (copy) "Copy" else "Move") }
                 },
-                dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+                // Back to the day.
+                dismissButton = { TextButton(onClick = { toDay = null }) { Text("Back") } },
             )
         }
-        SelectionDialog.COPY, SelectionDialog.MOVE -> {
-            val copy = dialog == SelectionDialog.COPY
-            val state = rememberDatePickerState(initialSelectedDateMillis = utcMillisOf(date))
-            DatePickerDialog(
-                onDismissRequest = { dialog = null },
-                confirmButton = {
-                    TextButton(
-                        enabled = state.selectedDateMillis != null,
-                        onClick = {
-                            state.selectedDateMillis?.let(::dateOfUtcMillis)?.let { day ->
-                                dialog = null
-                                val where = friendlyDate(day).lowercaseIfRelative()
-                                if (copy) {
-                                    done("Copied ${foods(NutritionRepo.copyEntriesTo(selected, day))} to $where")
-                                } else if (day != date) {
-                                    done("Moved ${foods(NutritionRepo.moveEntriesTo(selected, day))} to $where")
-                                }
-                            }
-                        },
-                    ) { Text(if (copy) "Copy" else "Move") }
-                },
-                dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
-            ) {
-                DatePicker(
-                    state = state,
-                    title = {
-                        Text(
-                            if (copy) "Copy ${foods(n)} to" else "Move ${foods(n)} to",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp),
-                        )
-                    },
-                )
-            }
-        }
-        null -> {}
     }
 }
 

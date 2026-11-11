@@ -61,22 +61,19 @@ class NutritionFeaturesTest {
         val oats = FoodEntry(id = "a", date = "2026-11-10", name = "Oats", createdAt = timeOn("2026-11-10", 8, 30))
         val milk = FoodEntry(id = "b", date = "2026-11-10", name = "Milk", createdAt = oats.createdAt + 1)
         val coffee = FoodEntry(id = "c", date = "2026-11-10", name = "Coffee", createdAt = timeOn("2026-11-10", 9, 15))
-        // To another day: same times of day, order kept to the millisecond; copies get new ids.
-        val moved = entriesOnDay(listOf(oats, milk, coffee), "2026-11-12", copy = false)
+        // To another day and time: the earliest goes there, the others keep their distance (to the millisecond).
+        val lunch = timeOn("2026-11-12", 12, 0)
+        val moved = entriesAt(listOf(coffee, oats, milk), "2026-11-12", lunch, copy = false)
         assertEquals(listOf("a", "b", "c"), moved.map { it.id })
         assertTrue(moved.all { it.date == "2026-11-12" })
-        assertEquals(listOf("08:30", "08:30", "09:15"), moved.map { clockTime(it.createdAt) })
-        assertEquals(1L, moved[1].createdAt - moved[0].createdAt)
-        assertEquals(daysBetween("2026-11-10", "2026-11-12").toLong() * 86_400_000L, moved[2].createdAt - coffee.createdAt)
-        val copied = entriesOnDay(listOf(oats), "2026-11-09", copy = true).single()
+        assertEquals(listOf("12:00", "12:00", "12:45"), moved.map { clockTime(it.createdAt) })
+        assertEquals(listOf(lunch, lunch + 1), moved.take(2).map { it.createdAt })
+        // Copies get new ids and keep everything else.
+        val copied = entriesAt(listOf(oats), "2026-11-10", timeOn("2026-11-10", 19, 0), copy = true).single()
         assertTrue(copied.id != "a")
-        assertEquals(oats.copy(id = copied.id, date = "2026-11-09", createdAt = copied.createdAt), copied)
-        // To another time: the earliest goes there, the others keep their distance.
-        val lunch = timeOn("2026-11-10", 12, 0)
-        val retimed = entriesStartingAt(listOf(coffee, oats, milk), lunch)
-        assertEquals(listOf("12:45", "12:00", "12:00"), retimed.map { clockTime(it.createdAt) })
-        assertEquals(lunch + 1, retimed[2].createdAt)
-        assertTrue(entriesStartingAt(emptyList(), lunch).isEmpty())
+        assertEquals("19:00", clockTime(copied.createdAt))
+        assertEquals(oats.copy(id = copied.id, createdAt = copied.createdAt), copied)
+        assertTrue(entriesAt(emptyList(), "2026-11-10", lunch, copy = true).isEmpty())
     }
 
     @Test

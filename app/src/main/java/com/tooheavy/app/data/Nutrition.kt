@@ -199,18 +199,14 @@ fun copiesAt(entries: List<FoodEntry>, day: String, now: Long): List<FoodEntry> 
     entries.sortedBy { it.createdAt }.mapIndexed { i, e -> e.copy(id = newId(), date = day, createdAt = now + i) }
 
 /**
- * [entries] put on [day] at the same times of day (to the millisecond, so entries logged together keep their
- * order); [copy] gives them new ids, for copies next to the originals.
+ * [entries] put on [day] with the earliest at [start] and the others keeping their distance to it (to the
+ * millisecond, so entries logged together keep their order); [copy] gives them new ids, for copies next to the
+ * originals.
  */
-fun entriesOnDay(entries: List<FoodEntry>, day: String, copy: Boolean): List<FoodEntry> = entries.map { e ->
-    val t = timeOn(day, e.createdAt).let { it - Math.floorMod(it, 1000L) } + Math.floorMod(e.createdAt, 1000L)
-    e.copy(id = if (copy) newId() else e.id, date = day, createdAt = t)
-}
-
-/** [entries] moved together so the earliest is at [start] and the rest keep their distance to it. */
-fun entriesStartingAt(entries: List<FoodEntry>, start: Long): List<FoodEntry> {
+fun entriesAt(entries: List<FoodEntry>, day: String, start: Long, copy: Boolean): List<FoodEntry> {
     val first = entries.minOfOrNull { it.createdAt } ?: return emptyList()
-    return entries.map { it.copy(createdAt = start + (it.createdAt - first)) }
+    return entries.sortedBy { it.createdAt }
+        .map { e -> e.copy(id = if (copy) newId() else e.id, date = day, createdAt = start + (e.createdAt - first)) }
 }
 
 /** One logged food. Nutrition is a snapshot, so history survives deleting a custom food. */
@@ -616,9 +612,9 @@ object NutritionRepo {
         return n
     }
 
-    /** Copies the entries [ids] to [day] at the same times; returns how many were added. */
-    fun copyEntriesTo(ids: Collection<String>, day: String): Int {
-        val copies = entriesOnDay(entries.filter { it.id in ids }.sortedBy { it.createdAt }, day, copy = true)
+    /** Copies the entries [ids] to [day], the earliest at [start] and the rest keeping their spacing; returns how many. */
+    fun copyEntriesTo(ids: Collection<String>, day: String, start: Long): Int {
+        val copies = entriesAt(entries.filter { it.id in ids }, day, start, copy = true)
         if (copies.isEmpty()) return 0
         entries.addAll(copies)
         clearEmptyMark(day)
@@ -626,13 +622,9 @@ object NutritionRepo {
         return copies.size
     }
 
-    /** Moves the entries [ids] to [day], keeping their times; returns how many were moved. */
-    fun moveEntriesTo(ids: Collection<String>, day: String): Int =
-        replaceEntries(entriesOnDay(entries.filter { it.id in ids }, day, copy = false))
-
-    /** Moves the entries [ids] in time so the earliest is at [start] and the rest keep their spacing. */
-    fun moveEntriesToTime(ids: Collection<String>, start: Long): Int =
-        replaceEntries(entriesStartingAt(entries.filter { it.id in ids }, start))
+    /** Moves the entries [ids] to [day], the earliest to [start] and the rest keeping their spacing; returns how many. */
+    fun moveEntriesTo(ids: Collection<String>, day: String, start: Long): Int =
+        replaceEntries(entriesAt(entries.filter { it.id in ids }, day, start, copy = false))
 
     private fun replaceEntries(changed: List<FoodEntry>): Int {
         if (changed.isEmpty()) return 0

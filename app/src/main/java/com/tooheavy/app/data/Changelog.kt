@@ -14,8 +14,8 @@ object Changelog {
         ChangelogEntry(
             "1.27.0", "2026-11-11",
             listOf(
-                "More you can do with picked foods (long-press a food in the timeline): change their time, copy or " +
-                    "move them to another day, delete them, or pick all at once, as well as add them again now.",
+                "More you can do with picked foods (long-press a food in the timeline): copy or move them to any day " +
+                    "and time (a meal stays together), delete them, or pick all at once, as well as add them again now.",
             ),
         ),
         ChangelogEntry(
