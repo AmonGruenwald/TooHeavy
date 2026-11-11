@@ -12,6 +12,10 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.26.0", "2026-11-11",
+            listOf("\"My foods\" in the food search lists the foods you log most often first."),
+        ),
+        ChangelogEntry(
             "1.25.0", "2026-11-10",
             listOf(
                 "Meal totals in the food timeline: foods eaten without a gap of more than 30 minutes between them " +

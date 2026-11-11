@@ -43,6 +43,20 @@ class NutritionFeaturesTest {
     }
 
     @Test
+    fun myFoodsMostLoggedFirst() {
+        val bar = Food(customId = "bar", name = "Bar", source = Food.SOURCE_CUSTOM)
+        val shake = Food(customId = "shake", name = "Shake", source = Food.SOURCE_CUSTOM)
+        val soup = Food(customId = "soup", name = "Soup", source = Food.SOURCE_CUSTOM)
+        val wrap = Food(customId = "wrap", name = "Wrap", source = Food.SOURCE_CUSTOM)
+        fun ate(food: Food) = FoodEntry(date = "2026-11-10", foodKey = food.key, name = food.name)
+        val entries = listOf(ate(shake), ate(soup), ate(shake), ate(soup), ate(shake), ate(wrap), FoodEntry(name = "Quick add"))
+        // Shake 3x, soup 2x, wrap 1x; bar never, so it stays last.
+        assertEquals(listOf("Shake", "Soup", "Wrap", "Bar"), sortedByUse(listOf(bar, wrap, soup, shake), entries).map { it.name })
+        // Equally often: the order they came in.
+        assertEquals(listOf("Wrap", "Bar"), sortedByUse(listOf(wrap, bar), emptyList()).map { it.name })
+    }
+
+    @Test
     fun quickAddPer100gScalesToTheAmount() {
         // As eaten: taken as given, missing macros are 0.
         assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))
