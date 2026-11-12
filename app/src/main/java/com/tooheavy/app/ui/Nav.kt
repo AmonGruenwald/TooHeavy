@@ -161,6 +161,9 @@ object Routes {
     fun picker(target: String) = "picker/$target"
     const val PICK_FOR_ACTIVE = "active"
     const val PICK_FOR_ROUTINE = "routine"
+    /** Exercise picker that swaps exercise [weId] of the active workout for the one picked. */
+    fun replaceExercise(weId: String) = picker("$PICK_TO_REPLACE$weId")
+    const val PICK_TO_REPLACE = "replace:"
 
     /** Food picking modes: log the food into NutritionRepo.selectedDate, or add it to NutritionRepo.recipeDraft. */
     const val MODE_LOG = "log"

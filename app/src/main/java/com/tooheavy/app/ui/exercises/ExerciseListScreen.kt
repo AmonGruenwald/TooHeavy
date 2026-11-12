@@ -52,6 +52,7 @@ import androidx.navigation.NavController
 import com.tooheavy.app.data.Exercise
 import com.tooheavy.app.data.ExerciseSearch
 import com.tooheavy.app.data.Repo
+import com.tooheavy.app.data.similarExercises
 import com.tooheavy.app.data.titleCase
 import com.tooheavy.app.ui.Routes
 import com.tooheavy.app.ui.common.AppTopBar
@@ -84,6 +85,10 @@ fun ExerciseListScreen(nav: NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExercisePickerScreen(nav: NavController, target: String) {
+    if (target.startsWith(Routes.PICK_TO_REPLACE)) {
+        ReplaceExerciseScreen(nav, target.removePrefix(Routes.PICK_TO_REPLACE))
+        return
+    }
     var selected by rememberSaveable { mutableStateOf(ArrayList<String>()) }
     val n = selected.size
 
@@ -141,12 +146,74 @@ fun ExercisePickerScreen(nav: NavController, target: String) {
 }
 
 /** Search + muscle/equipment filters + list. selectedIds == null means plain (non-selecting) mode. */
+/**
+ * Picks the exercise to swap exercise [weId] of the active workout for: similar ones first, then the whole
+ * library. Tapping one swaps it in; sets already done stay with the old exercise.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReplaceExerciseScreen(nav: NavController, weId: String) {
+    val we = Repo.activeWorkout?.exercises?.firstOrNull { it.id == weId }
+    val old = we?.let { Repo.exercise(it.exerciseId) }
+    val similar = remember(old) { old?.let { similarExercises(it, Repo.exercises, Repo.doneExerciseIds()) }.orEmpty() }
+    val anyDone = we?.sets?.any { it.completed } == true
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+            AppTopBar(
+                title = {
+                    Column {
+                        Text("Replace exercise")
+                        if (old != null) {
+                            Text(
+                                old.name,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            if (anyDone) {
+                Text(
+                    "The sets you've done stay with ${old?.name ?: "the old exercise"}; the new one gets the sets that are left.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            ExerciseBrowser(
+                selectedIds = null,
+                onRowClick = { ex ->
+                    if (we != null && ex.id != we.exerciseId) Repo.replaceInActive(weId, ex.id)
+                    nav.popBackStack()
+                },
+                onInfoClick = { nav.navigate(Routes.exercise(it.id)) },
+                suggested = similar,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ExerciseBrowser(
     selectedIds: List<String>?,
     onRowClick: (Exercise) -> Unit,
     onInfoClick: ((Exercise) -> Unit)?,
     modifier: Modifier = Modifier,
+    /** Shown first, under "Similar exercises", while nothing is searched or filtered. */
+    suggested: List<Exercise> = emptyList(),
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var muscle by rememberSaveable { mutableStateOf<String?>(null) }
@@ -237,6 +304,20 @@ private fun ExerciseBrowser(
                 Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
             ) {
+                val showSuggested = suggested.isNotEmpty() && query.isBlank() && m == null && e == null && !customOnly
+                if (showSuggested) {
+                    item(key = "header_similar") { BrowserSectionHeader("Similar exercises") }
+                    items(suggested, key = { "similar:${it.id}" }) { ex ->
+                        ExerciseListRow(
+                            ex = ex,
+                            selectable = false,
+                            selectedOrder = null,
+                            onClick = { onRowClick(ex) },
+                            onInfo = onInfoClick?.let { cb -> { cb(ex) } },
+                        )
+                    }
+                    item(key = "header_all") { BrowserSectionHeader("All exercises") }
+                }
                 items(filtered, key = { it.id }) { ex ->
                     val order = selectedIds?.indexOf(ex.id)?.takeIf { it >= 0 }
                     ExerciseListRow(
@@ -250,6 +331,16 @@ private fun ExerciseBrowser(
             }
         }
     }
+}
+
+@Composable
+private fun BrowserSectionHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
 }
 
 @Composable
