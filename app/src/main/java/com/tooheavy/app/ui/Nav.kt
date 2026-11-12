@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -247,7 +248,8 @@ fun AppRoot() {
             NavHost(
                 navController = nav,
                 startDestination = Routes.HOME,
-                modifier = Modifier.padding(pad).consumeWindowInsets(pad),
+                // imePadding: every screen ends above the keyboard, so what's under it can be scrolled to.
+                modifier = Modifier.padding(pad).consumeWindowInsets(pad).imePadding(),
                 enterTransition = { fadeIn(tween(220, delayMillis = 70)) + scaleIn(tween(260, delayMillis = 70), initialScale = 0.97f) },
                 exitTransition = { fadeOut(tween(120)) },
                 popEnterTransition = { fadeIn(tween(220, delayMillis = 70)) },

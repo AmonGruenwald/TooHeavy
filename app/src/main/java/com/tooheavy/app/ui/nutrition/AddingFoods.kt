@@ -2,10 +2,13 @@ package com.tooheavy.app.ui.nutrition
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,6 +72,7 @@ fun StartAddingFoods() {
  * The foods added in this search, at the bottom of it: how many and what they come to, each with its amount and
  * calories (tap to change it, ✕ to take it out again), and Done to go back to the diary.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddedFoodsPanel(onEdit: (String) -> Unit, onDone: () -> Unit) {
     val entries = AddingFoods.ids.mapNotNull { id -> NutritionRepo.entries.firstOrNull { it.id == id } }
@@ -105,7 +109,8 @@ fun AddedFoodsPanel(onEdit: (String) -> Unit, onDone: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Button(onClick = onDone) { Text("Done") }
             }
-            if (open) {
+            // While typing, only the summary line, to leave room for the search results.
+            if (open && !WindowInsets.isImeVisible) {
                 HorizontalDivider()
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
                     items(entries, key = { it.id }) { e ->
