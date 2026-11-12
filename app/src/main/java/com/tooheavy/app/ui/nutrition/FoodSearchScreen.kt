@@ -95,7 +95,9 @@ private fun searchQuickLog(context: Context, food: Food, mode: String) {
         NutritionRepo.addIngredient(food.toIngredient(grams, label))
         Toast.makeText(context, "Added to recipe", Toast.LENGTH_SHORT).show()
     } else {
-        NutritionRepo.addEntry(NutritionRepo.makeEntry(food, grams, label))
+        val entry = NutritionRepo.makeEntry(food, grams, label)
+        NutritionRepo.addEntry(entry)
+        AddingFoods.added(entry.id)
         Toast.makeText(context, "Added", Toast.LENGTH_SHORT).show()
     }
 }
@@ -107,6 +109,8 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
     val ingredientMode = mode == Routes.MODE_INGREDIENT
     var query by remember { mutableStateOf("") }
     var showQuickAdd by remember { mutableStateOf(false) }
+    // What's been added since the search opened shows at the bottom (not for recipe ingredients).
+    if (!ingredientMode) StartAddingFoods()
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.trim()?.takeIf { it.isNotEmpty() }?.let { nav.navigate(Routes.barcode(it, mode)) }
@@ -164,6 +168,14 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
                     }
                 },
             )
+        },
+        bottomBar = {
+            if (!ingredientMode) {
+                AddedFoodsPanel(
+                    onEdit = { nav.navigate(Routes.editFoodEntry(it)) },
+                    onDone = { nav.popBackStack() },
+                )
+            }
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
@@ -356,21 +368,21 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
                 val eaten = form.eaten
                 if (eaten != null) {
                     showQuickAdd = false
-                    NutritionRepo.addEntry(
-                        FoodEntry(
-                            date = NutritionRepo.selectedDate,
-                            createdAt = timeOn(NutritionRepo.selectedDate),
-                            foodKey = null,
-                            name = form.name.trim().ifBlank { "Quick add" },
-                            grams = form.amountGrams ?: 0.0,
-                            amountLabel = form.amountLabel,
-                            kcal = eaten.kcal,
-                            protein = eaten.protein,
-                            carbs = eaten.carbs,
-                            fat = eaten.fat,
-                        )
+                    val entry = FoodEntry(
+                        date = NutritionRepo.selectedDate,
+                        createdAt = timeOn(NutritionRepo.selectedDate),
+                        foodKey = null,
+                        name = form.name.trim().ifBlank { "Quick add" },
+                        grams = form.amountGrams ?: 0.0,
+                        amountLabel = form.amountLabel,
+                        kcal = eaten.kcal,
+                        protein = eaten.protein,
+                        carbs = eaten.carbs,
+                        fat = eaten.fat,
                     )
-                    nav.popBackStack()
+                    NutritionRepo.addEntry(entry)
+                    // Stays in the search, with the entry in the list of foods added.
+                    AddingFoods.added(entry.id)
                 }
             },
         )

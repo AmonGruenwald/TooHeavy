@@ -171,6 +171,7 @@ object Routes {
 
     /** Food search; [mode] is MODE_LOG or MODE_INGREDIENT. */
     fun foodSearch(mode: String = MODE_LOG) = "food_search/$mode"
+    const val FOOD_SEARCH_PATTERN = "food_search/{mode}"
 
     /** Amount picker for a food (Food.key) to log or, in MODE_INGREDIENT, to add to the recipe. */
     fun foodAmount(foodKey: String, mode: String = MODE_LOG) = "food_amount?food=${Uri.encode(foodKey)}&mode=$mode"
@@ -289,7 +290,7 @@ fun AppRoot() {
                         prefillTarget = it.arguments?.getString("target")?.toIntOrNull(),
                     )
                 }
-                composable("food_search/{mode}") { FoodSearchScreen(nav, it.arguments?.getString("mode") ?: Routes.MODE_LOG) }
+                composable(Routes.FOOD_SEARCH_PATTERN) { FoodSearchScreen(nav, it.arguments?.getString("mode") ?: Routes.MODE_LOG) }
                 composable(
                     "food_amount?food={food}&mode={mode}&entry={entry}",
                     arguments = listOf(

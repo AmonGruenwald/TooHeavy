@@ -238,8 +238,15 @@ private fun AmountEditor(nav: NavController, food: Food, mode: String, entry: Fo
             NutritionRepo.addIngredient(food.toIngredient(g, label))
             if (!nav.popBackStack(Routes.RECIPE_PATTERN, inclusive = false)) nav.popBackStack()
         } else if (entry == null) {
-            NutritionRepo.addEntry(NutritionRepo.makeEntry(food, g, label, date = date, time = time))
-            if (!nav.popBackStack(Routes.NUTRITION, inclusive = false)) nav.popBackStack()
+            val added = NutritionRepo.makeEntry(food, g, label, date = date, time = time)
+            NutritionRepo.addEntry(added)
+            AddingFoods.added(added.id)
+            // Back to the search, which lists what you've added, to add more; else to the diary.
+            if (!nav.popBackStack(Routes.FOOD_SEARCH_PATTERN, inclusive = false) &&
+                !nav.popBackStack(Routes.NUTRITION, inclusive = false)
+            ) {
+                nav.popBackStack()
+            }
         } else {
             NutritionRepo.updateEntry(NutritionRepo.makeEntry(food, g, label, date = entry.date, time = time, id = entry.id))
             nav.popBackStack()
