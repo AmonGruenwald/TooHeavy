@@ -365,3 +365,53 @@ fun <T> List<T>.unlink(index: Int, id: (T) -> String?, set: (T, String?) -> T): 
         }
     }.normalizeSupersets(id) { set(it, null) }
 }
+
+// ---------- swapping an exercise in a workout ----------
+
+/**
+ * [this] with exercise [weId] swapped for [exerciseId]. Sets already done stay with the old exercise, which keeps
+ * only those, and the new one comes right after it with the sets that were left; with nothing done yet the old
+ * exercise is replaced where it is. The new one gets empty sets of the same types (no warm-ups; at least one),
+ * [restSeconds], the old one's superset and the id [newWeId]; it is no longer the program's exercise.
+ */
+fun Workout.swapExercise(weId: String, exerciseId: String, restSeconds: Int, newWeId: String = newId()): Workout {
+    val i = exercises.indexOfFirst { it.id == weId }
+    if (i < 0) return this
+    val old = exercises[i]
+    val left = old.sets.filter { !it.completed && it.type != SetType.WARMUP }.map { SetEntry(type = it.type) }
+    val replacement = WorkoutExercise(
+        id = newWeId,
+        exerciseId = exerciseId,
+        sets = left.ifEmpty { listOf(SetEntry()) },
+        restSeconds = restSeconds,
+        supersetId = old.supersetId,
+    )
+    val done = old.sets.filter { it.completed }
+    val keep = if (done.isEmpty()) listOf(replacement) else listOf(old.copy(sets = done), replacement)
+    return copy(exercises = exercises.take(i) + keep + exercises.drop(i + 1))
+}
+
+/**
+ * Exercises to swap [old] for: the same main muscle (or, for exercises without one like a run or a warm-up, the
+ * same kind and tracking), ones you've done before first, then the same equipment and mechanic. At most [limit].
+ */
+fun similarExercises(old: Exercise, library: List<Exercise>, done: Set<String>, limit: Int = 15): List<Exercise> {
+    val muscle = old.primaryMuscles.firstOrNull()
+    val stretch = old.category == "stretching"
+    return library.asSequence()
+        .filter { it.id != old.id && (it.category == "stretching") == stretch }
+        .filter { e ->
+            if (muscle != null) e.primaryMuscles.firstOrNull() == muscle
+            else e.primaryMuscles.isEmpty() && e.category == old.category && e.tracking == old.tracking
+        }
+        .sortedWith(
+            compareBy<Exercise>(
+                { it.id !in done },
+                { it.equipment != old.equipment },
+                { it.mechanic != old.mechanic },
+                { it.name },
+            ),
+        )
+        .take(limit)
+        .toList()
+}

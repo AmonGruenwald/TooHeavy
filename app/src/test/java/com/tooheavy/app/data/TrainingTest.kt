@@ -568,4 +568,61 @@ class TrainingTest {
         assertEquals(15, m.mesoStart)
         assertEquals(0, m.weekIndex)
     }
+
+    @Test
+    fun replacingAnExerciseInAWorkout() {
+        val bench = WorkoutExercise(
+            id = "b", exerciseId = "Barbell_Bench_Press_-_Medium_Grip", restSeconds = 180, supersetId = "s",
+            programExerciseId = "pe", notes = "Elbows in",
+            sets = listOf(
+                SetEntry(type = SetType.WARMUP, weight = 40.0, reps = 8, completed = true),
+                SetEntry(weight = 80.0, reps = 5, completed = true),
+                SetEntry(weight = 80.0),
+                SetEntry(type = SetType.FAILURE),
+            ),
+        )
+        val row = WorkoutExercise(id = "r", exerciseId = "Bent_Over_Barbell_Row", supersetId = "s")
+        val w = Workout(exercises = listOf(bench, row))
+        // Sets done stay with the bench press; the dumbbell press follows with the sets that were left.
+        val swapped = w.swapExercise("b", "Dumbbell_Bench_Press", 120, newWeId = "d")
+        assertEquals(listOf("b", "d", "r"), swapped.exercises.map { it.id })
+        assertEquals(2, swapped.exercises[0].sets.size)
+        assertTrue(swapped.exercises[0].sets.all { it.completed })
+        val d = swapped.exercises[1]
+        assertEquals("Dumbbell_Bench_Press", d.exerciseId)
+        assertEquals(listOf(SetType.NORMAL, SetType.FAILURE), d.sets.map { it.type })
+        assertTrue(d.sets.none { it.completed || it.weight != null })
+        assertEquals(120, d.restSeconds)
+        assertEquals("s", d.supersetId)
+        assertEquals(null, d.programExerciseId)
+        assertEquals("", d.notes)
+        // Nothing done yet: replaced where it is, with as many working sets.
+        val fresh = Workout(exercises = listOf(row, bench.copy(sets = bench.sets.map { it.copy(completed = false) })))
+        val swappedFresh = fresh.swapExercise("b", "Push-Up", 60, newWeId = "p")
+        assertEquals(listOf("r", "p"), swappedFresh.exercises.map { it.id })
+        assertEquals(3, swappedFresh.exercises[1].sets.size)
+        // Every set done: the new one gets one set; an unknown id changes nothing.
+        val allDone = Workout(exercises = listOf(row.copy(sets = listOf(SetEntry(completed = true)))))
+        assertEquals(1, allDone.swapExercise("r", "Pull-Up", 90, "u").exercises[1].sets.size)
+        assertEquals(w, w.swapExercise("missing", "Push-Up", 60))
+    }
+
+    @Test
+    fun similarExercisesShareTheMainMuscle() {
+        val bench = Exercise(id = "bench", name = "Bench Press", equipment = "barbell", mechanic = "compound", primaryMuscles = listOf("chest"), category = "strength")
+        val db = Exercise(id = "db", name = "Dumbbell Press", equipment = "dumbbell", mechanic = "compound", primaryMuscles = listOf("chest"), category = "strength")
+        val incline = Exercise(id = "incline", name = "Incline Bench Press", equipment = "barbell", mechanic = "compound", primaryMuscles = listOf("chest"), category = "strength")
+        val fly = Exercise(id = "fly", name = "Cable Fly", equipment = "cable", mechanic = "isolation", primaryMuscles = listOf("chest"), category = "strength")
+        val stretch = Exercise(id = "stretch", name = "Chest Stretch", primaryMuscles = listOf("chest"), category = "stretching")
+        val squat = Exercise(id = "squat", name = "Squat", equipment = "barbell", primaryMuscles = listOf("quadriceps"), category = "strength")
+        val library = listOf(bench, db, incline, fly, stretch, squat)
+        // Done before first, then the same equipment and mechanic; no stretches, no other muscles, not itself.
+        assertEquals(listOf("fly", "incline", "db"), similarExercises(bench, library, done = setOf("fly")).map { it.id })
+        assertEquals(listOf("incline"), similarExercises(bench, library, emptySet(), limit = 1).map { it.id })
+        // Without a muscle: the same kind and tracking.
+        val run = Exercise(id = "run", name = "Running", category = "cardio", tracking = Tracking.DISTANCE)
+        val row = Exercise(id = "row", name = "Rowing", category = "cardio", tracking = Tracking.DISTANCE)
+        val warmup = Exercise(id = "warm", name = "General Warmup", category = "cardio", tracking = Tracking.TIME)
+        assertEquals(listOf("row"), similarExercises(run, listOf(run, row, warmup, squat), emptySet()).map { it.id })
+    }
 }

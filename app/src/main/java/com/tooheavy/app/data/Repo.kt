@@ -200,6 +200,15 @@ object Repo {
         withWarmups(w.copy(exercises = w.exercises + added), added.map { it.id }.toSet())
     }
 
+    /** Swaps exercise [weId] of the active workout for [exerciseId]; sets already done stay (see Workout.swapExercise). */
+    fun replaceInActive(weId: String, exerciseId: String) = updateActive { w ->
+        val newWeId = newId()
+        withWarmups(w.swapExercise(weId, exerciseId, restFor(exerciseId), newWeId), setOf(newWeId))
+    }
+
+    /** Ids of the exercises in your finished workouts. */
+    fun doneExerciseIds(): Set<String> = workouts.flatMapTo(HashSet()) { w -> w.exercises.map { it.exerciseId } }
+
     /** Empty sets for an exercise added to a workout: as many working sets as last time, else one. */
     private fun lastWorkingSets(exerciseId: String): List<SetEntry> =
         previousSets(exerciseId).filter { it.type != SetType.WARMUP }.map { SetEntry(type = it.type) }.ifEmpty { listOf(SetEntry()) }

@@ -585,6 +585,13 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
+                            text = { Text("Replace exercise") },
+                            onClick = {
+                                menuOpen = false
+                                nav.navigate(Routes.replaceExercise(we.id))
+                            },
+                        )
+                        DropdownMenuItem(
                             text = { Text("Move up") },
                             enabled = index > 0,
                             onClick = {
