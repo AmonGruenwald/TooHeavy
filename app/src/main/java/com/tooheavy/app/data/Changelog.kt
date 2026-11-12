@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.31.0", "2026-11-12",
+            listOf(
+                "Adding several foods: after adding one you're back in the search, which lists the foods you've added " +
+                    "so far with their calories and macros in total. Tap one to change it, ✕ to take it out again, " +
+                    "and Done to go back to the diary.",
+            ),
+        ),
+        ChangelogEntry(
             "1.30.0", "2026-11-12",
             listOf(
                 "Swap exercises during a workout: \"Replace exercise\" in an exercise's menu suggests similar " +
