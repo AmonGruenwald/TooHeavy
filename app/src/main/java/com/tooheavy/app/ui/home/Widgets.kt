@@ -535,7 +535,7 @@ private fun HabitsToday(def: DashboardWidgets.Def, wide: Boolean, modifier: Modi
 @Composable
 private fun Hydration(def: DashboardWidgets.Def, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val t = today()
-    val total = NutritionRepo.waterTotal(t)
+    val total = NutritionRepo.hydrationMl(t)
     val goal = NutritionRepo.goals.waterMl
     WidgetCard(
         def, modifier, onClick = onClick,

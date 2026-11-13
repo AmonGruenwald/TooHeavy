@@ -387,11 +387,14 @@ private fun AmountEditor(nav: NavController, food: Food, mode: String, entry: Fo
                         AmountMacroStat("Fat", m.fat, FatColor, pct(fk), Modifier.weight(1f))
                     }
                     val x = food.extrasFor(grams)
-                    if (x.fiber != null || x.sugar != null || x.salt != null) {
+                    val water = food.waterIn(grams)?.roundToInt()?.takeIf { it > 0 }
+                    if (x.fiber != null || x.sugar != null || x.salt != null || water != null) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             x.fiber?.let { AmountDetailRow("Fiber", "${formatNutrient(it)} g") }
                             x.sugar?.let { AmountDetailRow("Sugar", "${formatNutrient(it)} g") }
                             x.salt?.let { AmountDetailRow("Salt", "${formatNutrient(it)} g") }
+                            // Counts toward hydration when that's on (the water goal's settings).
+                            water?.let { AmountDetailRow("Water", "$it ml") }
                         }
                     }
                 }

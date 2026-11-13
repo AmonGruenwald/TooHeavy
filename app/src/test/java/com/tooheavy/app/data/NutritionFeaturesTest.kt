@@ -77,6 +77,30 @@ class NutritionFeaturesTest {
     }
 
     @Test
+    fun waterInFoodCountsTowardHydration() {
+        val milkWithWater = Food(fdcId = 1, name = "Milk", kcal = 61.0, water = 88.0)
+        assertEquals(176.0, milkWithWater.waterIn(200.0)!!, 1e-9)
+        assertNull(oats.waterIn(80.0))
+        // Logged: the entry keeps it; entries logged before, without it, take it from the food.
+        val logged = FoodEntry(foodKey = milkWithWater.key, grams = 200.0, water = 176.0)
+        val older = FoodEntry(foodKey = milkWithWater.key, grams = 100.0)
+        assertEquals(176.0, entryWaterMl(logged, null), 1e-9)
+        assertEquals(88.0, entryWaterMl(older, milkWithWater), 1e-9)
+        assertEquals(0.0, entryWaterMl(older, oats), 1e-9)
+        assertEquals(0.0, entryWaterMl(FoodEntry(name = "Quick add", kcal = 300.0), null), 1e-9)
+        // A recipe: its ingredients' water, less what cooking boils off; per 100 g of the dish.
+        val pasta = Food(fdcId = 2, name = "Pasta, dry", kcal = 371.0, water = 10.0).toIngredient(100.0, "100 g")
+        val water = Food(fdcId = 3, name = "Water", water = 100.0).toIngredient(300.0, "300 ml")
+        val recipe = Recipe(ingredients = listOf(pasta, water, Food(customId = "x", name = "Spice").toIngredient(5.0, "5 g")), cookedGrams = 250.0)
+        assertEquals(310.0 - 155.0, recipeWater(recipe)!!, 1e-9)
+        assertEquals(62.0, recipeFood("Pasta", recipe).water!!, 1e-9)
+        assertNull(recipeWater(Recipe(ingredients = listOf(Food(customId = "y").toIngredient(50.0, "50 g")))))
+        // Old data without water still reads.
+        assertNull(Gson().fromJson("{\"n\":\"Oats\"}", Food::class.java).water)
+        assertTrue(Gson().fromJson("{}", NutritionGoals::class.java).foodWater)
+    }
+
+    @Test
     fun quickAddPer100gScalesToTheAmount() {
         // As eaten: taken as given, missing macros are 0.
         assertEquals(Macros(250.0, 0.0, 30.0, 10.0), quickAddMacros(250.0, 10.0, 30.0, null, per100g = false, grams = null))

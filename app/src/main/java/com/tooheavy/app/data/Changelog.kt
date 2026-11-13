@@ -12,6 +12,15 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.32.0", "2026-11-13",
+            listOf(
+                "Water in food counts toward hydration: milk, soup, fruit and so on add what they contain, shown " +
+                    "as \"from food\" under the Hydration card. Works for the bundled foods (now with their water " +
+                    "content from USDA) and recipes made from them, also for foods logged before. Can be switched off " +
+                    "in the water goal's settings.",
+            ),
+        ),
+        ChangelogEntry(
             "1.31.2", "2026-11-13",
             listOf(
                 "Intake averages (the coach's last 14 days, the diary's last 7 days and the Home widgets) leave out " +

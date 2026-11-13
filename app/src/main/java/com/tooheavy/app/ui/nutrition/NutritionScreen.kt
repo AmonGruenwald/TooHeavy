@@ -720,10 +720,15 @@ private fun TimelineRow(
     }
 }
 
-/** Water drunk on [date]; [goalMl] of 0 means no daily goal: just the amount, no target or meter. */
+/**
+ * Hydration on [date]: what you drank, plus the water in food when that counts; [goalMl] of 0 means no daily goal:
+ * just the amount, no target or meter.
+ */
 @Composable
 private fun WaterCard(date: String, goalMl: Int) {
-    val total = NutritionRepo.waterTotal(date)
+    val drunk = NutritionRepo.waterTotal(date)
+    val fromFood = if (NutritionRepo.goals.foodWater) NutritionRepo.foodWaterMl(date) else 0
+    val total = drunk + fromFood
     var custom by remember { mutableStateOf(false) }
     var goalDialog by remember { mutableStateOf(false) }
     val hasGoal = goalMl > 0
@@ -749,6 +754,13 @@ private fun WaterCard(date: String, goalMl: Int) {
                 )
             }
             if (hasGoal) Meter(total.toFloat() / goalMl, ChartColors.Water)
+            if (fromFood > 0) {
+                Text(
+                    "${litres(drunk)} L drunk · ${litres(fromFood)} L from food",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf(250, 500).forEach { ml ->
                     OutlinedButton(
@@ -799,10 +811,11 @@ private fun WaterCard(date: String, goalMl: Int) {
     }
 }
 
-/** Turns the daily water goal on or off and sets it, in litres. */
+/** Turns the daily water goal on or off and sets it, in litres, and whether water in food counts. */
 @Composable
 private fun WaterGoalDialog(goalMl: Int, onDismiss: () -> Unit) {
     var on by remember { mutableStateOf(goalMl > 0) }
+    var foodWater by remember { mutableStateOf(NutritionRepo.goals.foodWater) }
     var text by remember { mutableStateOf(litres(if (goalMl > 0) goalMl else 2500)) }
     val ml = text.replace(',', '.').toDoubleOrNull()?.let { (it * 1000).roundToInt() }?.takeIf { it in 100..20_000 }
     AlertDialog(
@@ -830,6 +843,17 @@ private fun WaterGoalDialog(goalMl: Int, onDismiss: () -> Unit) {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     )
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Count water in food", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "E.g. milk, soup or fruit, for foods that list it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = foodWater, onCheckedChange = { foodWater = it })
+                }
             }
         },
         confirmButton = {
@@ -837,6 +861,7 @@ private fun WaterGoalDialog(goalMl: Int, onDismiss: () -> Unit) {
                 enabled = !on || ml != null,
                 onClick = {
                     NutritionRepo.updateWaterGoal(if (on) ml ?: 0 else 0)
+                    NutritionRepo.updateFoodWater(foodWater)
                     onDismiss()
                 },
             ) { Text("Save") }
