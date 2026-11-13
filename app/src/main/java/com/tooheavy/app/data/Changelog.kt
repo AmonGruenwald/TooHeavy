@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.31.2", "2026-11-13",
+            listOf(
+                "Intake averages (the coach's last 14 days, the diary's last 7 days and the Home widgets) leave out " +
+                    "today, which isn't over yet and pulled the average down. The coach's 14 days are now the 14 " +
+                    "before today.",
+            ),
+        ),
+        ChangelogEntry(
             "1.31.1", "2026-11-12",
             listOf(
                 "With the keyboard open, screens end above it, so you can scroll to the fields and buttons under it " +

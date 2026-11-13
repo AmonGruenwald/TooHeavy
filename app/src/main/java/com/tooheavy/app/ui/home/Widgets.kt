@@ -687,7 +687,8 @@ private fun CaloriesWeek(def: DashboardWidgets.Def, wide: Boolean, modifier: Mod
     val days = (6 downTo 0).map { shiftDate(t, -it) }
     val kcals = days.map { NutritionRepo.totals(it).kcal }
     val goal = NutritionRepo.goals.kcal.toDouble()
-    val logged = days.mapNotNull { NutritionRepo.countedKcalOn(it) }
+    // Today isn't over yet, so it stays out of the average (its bar still shows).
+    val logged = days.mapNotNull { NutritionRepo.finishedKcalOn(it, t) }
     val avg = if (logged.isEmpty()) 0.0 else logged.average()
     WidgetCard(def, modifier) {
         if (wide) {
@@ -707,7 +708,7 @@ private fun MacroSplit(def: DashboardWidgets.Def, wide: Boolean, modifier: Modif
     val days = (6 downTo 0).map { shiftDate(t, -it) }
     val totals = days.map { NutritionRepo.totals(it) }
     val stacks = totals.map { listOf(it.protein * 4, it.carbs * 4, it.fat * 9) }
-    val logged = days.indices.filter { NutritionRepo.countedKcalOn(days[it]) != null }.map { totals[it] }
+    val logged = days.indices.filter { NutritionRepo.finishedKcalOn(days[it], t) != null }.map { totals[it] }
     val protein = if (logged.isEmpty()) 0.0 else logged.map { it.protein }.average()
     val goalP = NutritionRepo.goals.protein
     WidgetCard(def, modifier) {

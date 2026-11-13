@@ -854,13 +854,17 @@ private fun WeekCard(date: String, goalKcal: Int) {
     val days = (6 downTo 0).map { shiftDate(date, -it) }
     val kcals = days.map { NutritionRepo.totals(it).kcal }
     val labels = days.map { weekdayInitial(it) }
-    // Average over the days that count: not the ones marked not properly tracked, but the ones left empty on purpose.
-    val logged = days.mapNotNull { NutritionRepo.countedKcalOn(it) }
+    // Average over the days that count: not the ones marked not properly tracked, but the ones left empty on purpose,
+    // and only days that are over (not today).
+    val now = today()
+    val logged = days.mapNotNull { NutritionRepo.finishedKcalOn(it, now) }
+    val finished = days.count { it < now }
     ChartCard(
         "Last 7 days",
         value = if (logged.isEmpty()) null else kcalText(logged.average()),
         unit = if (logged.isEmpty()) null else "kcal / day avg",
-        caption = "${logged.size} of 7 days logged · goal ${kcalText(goalKcal.toDouble())}",
+        caption = (if (finished < 7) "${logged.size} of $finished finished days logged" else "${logged.size} of 7 days logged") +
+            " · goal ${kcalText(goalKcal.toDouble())}",
         icon = Icons.Filled.LocalFireDepartment,
     ) {
         BarChart(
