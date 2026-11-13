@@ -585,14 +585,15 @@ internal fun CoachSummaryCard(onOpen: () -> Unit) {
 @Composable
 private fun IntakeCard(goal: Int) {
     val day = today()
-    val days = (13 downTo 0).map { shiftDate(day, -it) }
+    // The 14 days before today: today isn't over yet, so it would pull the average down.
+    val days = (14 downTo 1).map { shiftDate(day, -it) }
     val kcals = days.map { NutritionRepo.totals(it).kcal }
-    val logged = days.mapNotNull { NutritionRepo.countedKcalOn(it) }
+    val logged = days.mapNotNull { NutritionRepo.finishedKcalOn(it, day) }
     ChartCard(
         "Intake · last 14 days",
         value = if (logged.isEmpty()) null else intText(logged.average().roundToInt()),
         unit = if (logged.isEmpty()) null else "kcal / day avg",
-        caption = "Logged calories against your ${intText(goal)} kcal target",
+        caption = "Logged calories against your ${intText(goal)} kcal target · without today, which isn't over yet",
         icon = Icons.Filled.LocalFireDepartment,
     ) {
         BarChart(

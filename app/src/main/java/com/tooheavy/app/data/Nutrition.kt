@@ -657,6 +657,9 @@ object NutritionRepo {
         if (dayMarks[date] == DayMark.EMPTY) dayMarks.remove(date)
     }
 
+    /** For intake averages: as countedKcalOn, but null for today and later, which aren't over yet. */
+    fun finishedKcalOn(date: String, now: String = today()): Double? = if (date >= now) null else countedKcalOn(date)
+
     /** Intake of [date] if the day counts (see countedKcal), null if it doesn't. */
     fun countedKcalOn(date: String): Double? =
         when (dayMarks[date]) {
