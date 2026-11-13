@@ -49,6 +49,8 @@ data class Food(
     @SerializedName("b") val brand: String? = null,
     /** Set for recipes (source "recipe"): the ingredients the per-100 g values were computed from. */
     @SerializedName("rc") val recipe: Recipe? = null,
+    /** Water in g per 100 g (the bundled USDA foods and recipes made from them); null when unknown. */
+    @SerializedName("w") val water: Double? = null,
 ) {
     /** Stable key used in routes and FoodEntry.foodKey: "usda:<fdcId>" or "custom:<customId>" (custom and Open Food Facts foods). */
     val key: String get() = if (customId != null) "custom:$customId" else "usda:$fdcId"
@@ -62,6 +64,9 @@ data class Food(
         val f = grams / 100.0
         return Macros(kcal * f, protein * f, carbs * f, fat * f)
     }
+
+    /** Water in [grams] of this food, in g (about ml); null when the food doesn't say. */
+    fun waterIn(grams: Double): Double? = water?.times(grams / 100.0)
 
     /** Fiber, sugar and salt in [grams] of this food; null where the food doesn't say. */
     fun extrasFor(grams: Double): Extras {
@@ -100,6 +105,8 @@ data class RecipeIngredient(
     val fiber: Double? = null,
     val sugar: Double? = null,
     val salt: Double? = null,
+    /** Water in g; null when the food doesn't say. */
+    val water: Double? = null,
 ) {
     val macros: Macros get() = Macros(kcal, protein, carbs, fat)
     val extras: Extras get() = Extras(fiber, sugar, salt)
@@ -122,8 +129,23 @@ data class RecipeDraft(val key: String? = null, val name: String = "", val recip
 fun Food.toIngredient(grams: Double, amountLabel: String): RecipeIngredient {
     val m = macrosFor(grams)
     val x = extrasFor(grams)
-    return RecipeIngredient(key, name, grams, amountLabel, m.kcal, m.protein, m.carbs, m.fat, x.fiber, x.sugar, x.salt)
+    return RecipeIngredient(key, name, grams, amountLabel, m.kcal, m.protein, m.carbs, m.fat, x.fiber, x.sugar, x.salt, waterIn(grams))
 }
+
+/**
+ * Water in the whole of [recipe], in g: its ingredients' water, less what cooking takes off (the raw weight
+ * above the cooked weight goes as steam). Null when no ingredient says how much water it has.
+ */
+fun recipeWater(recipe: Recipe): Double? {
+    val known = recipe.ingredients.mapNotNull { it.water }
+    if (known.isEmpty()) return null
+    val lost = (recipe.rawGrams - recipe.totalGrams).coerceAtLeast(0.0)
+    return (known.sum() - lost).coerceAtLeast(0.0)
+}
+
+/** Water in an eaten [entry], in ml: as logged, else from its [food] (entries logged before foods had water). */
+fun entryWaterMl(entry: FoodEntry, food: Food?): Double =
+    entry.water ?: food?.takeIf { it.key == entry.foodKey }?.waterIn(entry.grams) ?: 0.0
 
 /**
  * The food a recipe is logged as: nutrition per 100 g of the finished dish, with "1 serving" and "Whole recipe"
@@ -144,7 +166,7 @@ fun recipeFood(name: String, recipe: Recipe, customId: String? = null): Food {
         customId = customId, name = name, source = Food.SOURCE_RECIPE,
         kcal = per100(m.kcal), protein = per100(m.protein), carbs = per100(m.carbs), fat = per100(m.fat),
         fiber = x.fiber?.let(::per100), sugar = x.sugar?.let(::per100), salt = x.salt?.let(::per100),
-        portions = portions.ifEmpty { null }, recipe = recipe,
+        portions = portions.ifEmpty { null }, recipe = recipe, water = recipeWater(recipe)?.let(::per100),
     )
 }
 
@@ -232,6 +254,8 @@ data class FoodEntry(
     val fiber: Double? = null,
     val sugar: Double? = null,
     val salt: Double? = null,
+    /** Water in the food eaten, in ml (g); null for quick adds and foods that don't say. */
+    val water: Double? = null,
 ) {
     val macros: Macros get() = Macros(kcal, protein, carbs, fat)
     val extras: Extras get() = Extras(fiber, sugar, salt)
@@ -253,6 +277,8 @@ data class NutritionGoals(
     val fat: Int = 70,
     /** Daily water goal in ml; 0 for no goal (it's optional). */
     val waterMl: Int = 2500,
+    /** Whether the water in food counts toward hydration, besides what you drink. */
+    val foodWater: Boolean = true,
 )
 
 data class BodyProfile(
@@ -569,7 +595,7 @@ object NutritionRepo {
         return FoodEntry(
             id = id, date = date, foodKey = food.key, name = food.name, grams = grams,
             amountLabel = amountLabel, kcal = m.kcal, protein = m.protein, carbs = m.carbs, fat = m.fat,
-            createdAt = time, fiber = x.fiber, sugar = x.sugar, salt = x.salt,
+            createdAt = time, fiber = x.fiber, sugar = x.sugar, salt = x.salt, water = food.waterIn(grams),
         )
     }
 
@@ -674,6 +700,12 @@ object NutritionRepo {
 
     fun waterTotal(date: String): Int = water.filter { it.date == date }.sumOf { it.ml }
 
+    /** Water in the food eaten on [date], in ml. */
+    fun foodWaterMl(date: String): Int = entriesFor(date).sumOf { e -> entryWaterMl(e, e.foodKey?.let { food(it) }) }.roundToInt()
+
+    /** Hydration on [date] in ml: what you drank, plus the water in food when that counts (goals.foodWater). */
+    fun hydrationMl(date: String): Int = waterTotal(date) + if (goals.foodWater) foodWaterMl(date) else 0
+
     fun addWater(ml: Int, date: String = selectedDate) {
         if (ml <= 0) return
         water.add(WaterEntry(date = date, ml = ml, createdAt = timeOn(date)))
@@ -715,7 +747,7 @@ object NutritionRepo {
     /** Sets the calorie and macro goals; the water goal is kept (see updateWaterGoal). */
     fun updateGoals(g: NutritionGoals) {
         recordKcalGoal(g.kcal)
-        goals = g.copy(waterMl = goals.waterMl)
+        goals = g.copy(waterMl = goals.waterMl, foodWater = goals.foodWater)
         save()
     }
 
@@ -748,6 +780,12 @@ object NutritionRepo {
 
     fun updateWaterGoal(ml: Int) {
         goals = goals.copy(waterMl = ml)
+        save()
+    }
+
+    /** Counts the water in food toward hydration, or not. */
+    fun updateFoodWater(on: Boolean) {
+        goals = goals.copy(foodWater = on)
         save()
     }
 
@@ -794,7 +832,7 @@ object NutritionRepo {
         checkIns.removeAll { it.date == p.date }
         checkIns.add(p.toCheckIn())
         checkIns.sortBy { it.date }
-        goals = p.goals.copy(waterMl = goals.waterMl)
+        goals = p.goals.copy(waterMl = goals.waterMl, foodWater = goals.foodWater)
         save()
     }
 
