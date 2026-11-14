@@ -12,6 +12,10 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.32.1", "2026-11-14",
+            listOf("Adding a food starts in grams (100 g) instead of the food's first portion; portions are still a tap away."),
+        ),
+        ChangelogEntry(
             "1.32.0", "2026-11-13",
             listOf(
                 "Water in food counts toward hydration: milk, soup, fruit and so on add what they contain, shown " +

@@ -84,11 +84,9 @@ private fun amountNumText(v: Double): String =
 
 private class AmountInit(val unitIndex: Int, val quantity: String)
 
-/** unitIndex -1 means grams, otherwise an index into [portions]. */
+/** unitIndex -1 means grams, otherwise an index into [portions]. A new entry starts at 100 g. */
 private fun amountInit(portions: List<Portion>, entry: FoodEntry?): AmountInit {
-    if (entry == null) {
-        return if (portions.isNotEmpty()) AmountInit(0, "1") else AmountInit(-1, "100")
-    }
+    if (entry == null) return AmountInit(-1, "100")
     val label = entry.amountLabel
     if (label.endsWith(" g")) return AmountInit(-1, amountNumText(entry.grams))
     val whole = portions.indexOfFirst { it.label == label }
