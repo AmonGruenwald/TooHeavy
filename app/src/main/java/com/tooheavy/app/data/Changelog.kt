@@ -12,6 +12,16 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.33.0", "2026-11-14",
+            listOf(
+                "The food search also searches Open Food Facts, the product database barcode scans use, once you " +
+                    "stop typing: products found that way show under \"Products\" and are saved to your foods when " +
+                    "you pick one.",
+                "Searching your foods and the bundled ones ignores case, accents and plurals: \"creme fraiche\" " +
+                    "finds \"Crème fraîche\", \"eggs\" finds \"Egg\".",
+            ),
+        ),
+        ChangelogEntry(
             "1.32.1", "2026-11-14",
             listOf("Adding a food starts in grams (100 g) instead of the food's first portion; portions are still a tap away."),
         ),

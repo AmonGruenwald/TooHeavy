@@ -2,6 +2,7 @@ package com.tooheavy.app.data
 
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -98,6 +99,29 @@ class NutritionFeaturesTest {
         // Old data without water still reads.
         assertNull(Gson().fromJson("{\"n\":\"Oats\"}", Food::class.java).water)
         assertTrue(Gson().fromJson("{}", NutritionGoals::class.java).foodWater)
+    }
+
+    @Test
+    fun foodSearchForgivesAccentsCaseAndPlurals() {
+        fun finds(query: String, name: String) = FoodMatch.matches(FoodMatch.normalize(name), FoodMatch.words(query))
+        assertEquals("creme fraiche 30%", FoodMatch.normalize("Crème-Fraîche, 30%"))
+        assertEquals("strasse", FoodMatch.normalize("Straße"))
+        assertTrue(finds("creme fraiche", "Crème fraîche"))
+        assertTrue(finds("MÜSLI", "Musli, crunchy"))
+        assertTrue(finds("eggs", "Egg, whole, raw"))
+        assertTrue(finds("tomatoes", "Tomato, red, raw"))
+        assertTrue(finds("berries", "Berry pie"))
+        assertTrue(finds("chicken breast", "Chicken, broilers or fryers, breast, meat only"))
+        assertFalse(finds("chicken thigh", "Chicken, broilers or fryers, breast, meat only"))
+        assertFalse(finds("", "Egg"))
+        // Glass doesn't lose its s; "oat" still finds "Oats".
+        assertEquals(setOf("glass"), FoodMatch.words("glass").single())
+        assertTrue(finds("oat", "Oats, rolled"))
+        // The name starting with the first word ranks first.
+        val words = FoodMatch.words("egg")
+        assertEquals(0, FoodMatch.rank(FoodMatch.normalize("Egg, whole"), words))
+        assertEquals(1, FoodMatch.rank(FoodMatch.normalize("Bread, egg"), words))
+        assertEquals(2, FoodMatch.rank(FoodMatch.normalize("Eggnog-free"), FoodMatch.words("nog")))
     }
 
     @Test
