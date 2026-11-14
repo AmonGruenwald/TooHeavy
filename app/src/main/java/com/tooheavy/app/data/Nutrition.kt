@@ -479,7 +479,7 @@ object NutritionRepo {
                     gson.fromJson<List<Food>>(it, object : TypeToken<List<Food>>() {}.type)
                 }
             }.getOrDefault(emptyList())
-            val names = list.map { it.name.lowercase(Locale.US) }
+            val names = list.map { FoodMatch.normalize(it.name) }
             val byId = list.associateBy { it.fdcId }
             Handler(Looper.getMainLooper()).post {
                 foods = list
@@ -518,24 +518,21 @@ object NutritionRepo {
      * Ranked search over custom + bundled foods. Every whitespace-separated token must appear in the name.
      * Custom foods first, then names starting with the query, then word-start matches, then shorter names.
      */
+    /**
+     * Your foods (name or brand, or the barcode typed) and then the bundled foods whose names match [query]
+     * (see FoodMatch: case, accents and plurals don't matter), best matches first.
+     */
     fun search(query: String, limit: Int = 100): List<Food> {
-        val tokens = query.lowercase(Locale.US).split(Regex("[\\s,]+")).filter { it.isNotBlank() }
-        if (tokens.isEmpty()) return emptyList()
-        val first = tokens.first()
-        fun score(name: String): Int = when {
-            name.startsWith(first) -> 0
-            name.contains(" $first") || name.contains(",$first") -> 1
-            else -> 2
-        }
+        val words = FoodMatch.words(query)
+        if (words.isEmpty()) return emptyList()
         val q = query.trim()
         val custom = customFoods.filter { f ->
-            val n = (f.name + " " + f.brand.orEmpty()).lowercase(Locale.US)
-            f.barcode == q || tokens.all { n.contains(it) }
+            f.barcode == q || FoodMatch.matches(FoodMatch.normalize(f.name + " " + f.brand.orEmpty()), words)
         }
         val hits = ArrayList<Pair<Int, Int>>()
         for (i in lowerNames.indices) {
             val n = lowerNames[i]
-            if (tokens.all { n.contains(it) }) hits.add(i to score(n))
+            if (FoodMatch.matches(n, words)) hits.add(i to FoodMatch.rank(n, words))
         }
         hits.sortWith(compareBy<Pair<Int, Int>> { it.second }.thenBy { lowerNames[it.first].length })
         return (custom + hits.take(limit).map { foods[it.first] }).take(limit)

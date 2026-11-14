@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -63,6 +64,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import com.tooheavy.app.data.Food
 import com.tooheavy.app.data.FoodEntry
 import com.tooheavy.app.data.NutritionRepo
+import com.tooheavy.app.data.OpenFoodFacts
 import com.tooheavy.app.data.formatNutrient
 import com.tooheavy.app.data.friendlyDate
 import com.tooheavy.app.data.sortedByUse
@@ -130,6 +132,31 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
         }
         delay(150)
         value = withContext(Dispatchers.Default) { NutritionRepo.search(trimmed) }
+    }
+
+    // Products on Open Food Facts too (what a barcode scan finds), once typing pauses: its search allows only a few
+    // calls a minute. Not for barcodes typed in, which go to the barcode lookup.
+    var onlineRetry by remember { mutableIntStateOf(0) }
+    val online by produceState<OnlineSearch>(OnlineSearch.Idle, trimmed, onlineRetry) {
+        if (trimmed.length < 3 || trimmed.all { it.isDigit() }) {
+            value = OnlineSearch.Idle
+            return@produceState
+        }
+        delay(700)
+        value = OnlineSearch.Loading
+        value = when (val r = OpenFoodFacts.search(trimmed)) {
+            is OpenFoodFacts.SearchResult.Found -> OnlineSearch.Done(r.foods)
+            is OpenFoodFacts.SearchResult.Error -> OnlineSearch.Failed
+        }
+    }
+    // Products already saved show among your foods.
+    val savedBarcodes = NutritionRepo.customFoods.mapNotNull { it.barcode }.toSet()
+    val onlineFoods = (online as? OnlineSearch.Done)?.foods.orEmpty().filter { it.barcode !in savedBarcodes }
+
+    /** Saves a product from the online search to your foods (as a barcode scan does), then adds it. */
+    fun pickOnline(food: Food, quick: Boolean) {
+        val saved = food.barcode?.let { NutritionRepo.foodByBarcode(it) } ?: NutritionRepo.saveCustomFood(food)
+        if (quick) searchQuickLog(context, saved, mode) else nav.navigate(Routes.foodAmount(saved.key, mode))
     }
 
     // A recipe can't contain itself.
@@ -223,7 +250,7 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
                             SearchBarcodeHintRow(trimmed, onClick = { nav.navigate(Routes.barcode(trimmed, mode)) })
                         }
                     }
-                    if (shown.isEmpty() && loaded) {
+                    if (shown.isEmpty() && loaded && online != OnlineSearch.Loading && onlineFoods.isEmpty()) {
                         item(key = "no_results") {
                             Column(
                                 Modifier.fillMaxWidth().padding(top = 24.dp),
@@ -236,7 +263,7 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 Text(
-                                    "Try another search term or create your own food.",
+                                    "Try another search term, scan its barcode or create your own food.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -255,6 +282,42 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
                             onQuickAdd = { searchQuickLog(context, food, mode) },
                             onEdit = null,
                         )
+                    }
+                    when (online) {
+                        OnlineSearch.Loading -> item(key = "online_loading") {
+                            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "Searching Open Food Facts…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        OnlineSearch.Failed -> item(key = "online_error") {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Couldn't search Open Food Facts (offline?)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(onClick = { onlineRetry++ }) { Text("Retry") }
+                            }
+                        }
+                        else -> {}
+                    }
+                    if (onlineFoods.isNotEmpty()) {
+                        item(key = "online_header") { SearchSectionHeader("Products · Open Food Facts") }
+                        items(onlineFoods, key = { "off:${it.barcode}" }) { food ->
+                            SearchFoodRow(
+                                food = food,
+                                onClick = { pickOnline(food, quick = false) },
+                                onQuickAdd = { pickOnline(food, quick = true) },
+                                onEdit = null,
+                            )
+                        }
                     }
                 } else {
                     item(key = "actions") {
@@ -387,6 +450,14 @@ fun FoodSearchScreen(nav: NavController, mode: String) {
             },
         )
     }
+}
+
+/** The Open Food Facts part of a search. */
+private sealed interface OnlineSearch {
+    data object Idle : OnlineSearch
+    data object Loading : OnlineSearch
+    data class Done(val foods: List<Food>) : OnlineSearch
+    data object Failed : OnlineSearch
 }
 
 @Composable
