@@ -3,6 +3,7 @@ package com.tooheavy.app.ui.workout
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -29,9 +32,11 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,6 +67,10 @@ import com.tooheavy.app.data.supersetLetters
 import com.tooheavy.app.data.unlink
 import com.tooheavy.app.data.Routine
 import com.tooheavy.app.data.RoutineExercise
+import com.tooheavy.app.data.RoutineSet
+import com.tooheavy.app.data.SetType
+import com.tooheavy.app.data.planFor
+import com.tooheavy.app.data.withSetPlan
 import com.tooheavy.app.data.distanceUnit
 import com.tooheavy.app.data.formatClock
 import com.tooheavy.app.data.formatDistanceValue
@@ -73,6 +83,7 @@ import com.tooheavy.app.ui.common.AppTopBar
 import com.tooheavy.app.ui.common.ExerciseThumbnail
 import com.tooheavy.app.ui.common.GlassCard
 import com.tooheavy.app.ui.common.SelectAllOutlinedTextField
+import com.tooheavy.app.ui.theme.Accent
 import com.tooheavy.app.ui.theme.Danger
 import com.tooheavy.app.ui.theme.Warmup
 
@@ -314,7 +325,12 @@ private fun RoutineExerciseCard(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                 SetsStepper(
                     value = re.sets,
-                    onChange = { v -> updateExercise(index) { it.copy(sets = v) } },
+                    // Fewer sets drop the plans of the ones taken away.
+                    onChange = { v ->
+                        updateExercise(index) {
+                            it.copy(sets = v, setPlan = it.setPlan?.take(v)?.takeIf { list -> list.any { p -> p != RoutineSet() } })
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 if (timed) {
@@ -347,6 +363,8 @@ private fun RoutineExerciseCard(
                     )
                 }
             }
+
+            SetPlanRow(re, timed) { i, plan -> updateExercise(index) { it.withSetPlan(i, plan) } }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                 if (ex?.tracksDistance == true) {
@@ -392,6 +410,113 @@ private fun RoutineExerciseCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * The sets of [re] as chips (1, 2, 3, W for a warm-up, D for a drop set, F for a failure set, "+½" with half
+ * reps); tapping one picks its type or half reps. Timed exercises only have normal and warm-up sets.
+ */
+@Composable
+private fun SetPlanRow(re: RoutineExercise, timed: Boolean, onChange: (Int, RoutineSet) -> Unit) {
+    var halfFor by remember { mutableStateOf<Int?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            var number = 0
+            repeat(re.sets) { i ->
+                val plan = re.planFor(i)
+                if (plan.type != SetType.WARMUP) number++
+                val (label, color) = when (plan.type) {
+                    SetType.WARMUP -> "W" to Warmup
+                    SetType.DROP -> "D" to Accent
+                    SetType.FAILURE -> "F" to Danger
+                    else -> "$number" to MaterialTheme.colorScheme.onSurface
+                }
+                var menu by remember { mutableStateOf(false) }
+                Box {
+                    Box(
+                        Modifier
+                            .height(32.dp)
+                            .widthIn(min = 36.dp)
+                            .border(1.dp, if (plan == RoutineSet()) MaterialTheme.colorScheme.outline else color, RoundedCornerShape(8.dp))
+                            .clickable { menu = true }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label + if ((plan.halfReps ?: 0) > 0) " +${plan.halfReps}½" else "",
+                            color = color,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        @Composable
+                        fun Type(text: String, type: String, tint: Color) = DropdownMenuItem(
+                            text = { Text(text, color = tint) },
+                            onClick = {
+                                menu = false
+                                // Warm-ups have no half reps.
+                                onChange(i, plan.copy(type = type, halfReps = plan.halfReps.takeIf { type != SetType.WARMUP }))
+                            },
+                        )
+                        Type("Normal set", SetType.NORMAL, MaterialTheme.colorScheme.onSurface)
+                        Type("Warm-up set", SetType.WARMUP, Warmup)
+                        if (!timed) {
+                            Type("Drop set", SetType.DROP, Accent)
+                            Type("Failure set", SetType.FAILURE, Danger)
+                            if (plan.type != SetType.WARMUP) {
+                                DropdownMenuItem(
+                                    text = { Text(if ((plan.halfReps ?: 0) > 0) "Half reps: ${plan.halfReps}" else "Add half reps") },
+                                    onClick = {
+                                        menu = false
+                                        halfFor = i
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            "Tap a set to make it a warm-up, drop or failure set" + if (timed) "" else ", or add half reps",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    halfFor?.let { i ->
+        val plan = re.planFor(i)
+        var n by remember(i) { mutableIntStateOf(plan.halfReps ?: 0) }
+        AlertDialog(
+            onDismissRequest = { halfFor = null },
+            title = { Text("Half reps") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Partial reps after the full ones, planned for this set. Each counts as half a rep in your volume.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        FilledTonalButton(onClick = { n = (n - 1).coerceAtLeast(0) }) { Text("−") }
+                        Text("$n", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        FilledTonalButton(onClick = { n = (n + 1).coerceAtMost(30) }) { Text("+") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(i, plan.copy(halfReps = n.takeIf { it > 0 }))
+                    halfFor = null
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { halfFor = null }) { Text("Cancel") } },
+        )
     }
 }
 

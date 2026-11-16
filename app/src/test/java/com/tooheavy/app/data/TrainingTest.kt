@@ -625,4 +625,26 @@ class TrainingTest {
         val warmup = Exercise(id = "warm", name = "General Warmup", category = "cardio", tracking = Tracking.TIME)
         assertEquals(listOf("row"), similarExercises(run, listOf(run, row, warmup, squat), emptySet()).map { it.id })
     }
+
+    @Test
+    fun routinesPlanTheTypeOfEachSet() {
+        val re = RoutineExercise(exerciseId = "Barbell_Squat", sets = 4, reps = 5, weight = 100.0)
+        assertEquals(RoutineSet(), re.planFor(2))
+        val planned = re.withSetPlan(0, RoutineSet(SetType.WARMUP)).withSetPlan(3, RoutineSet(SetType.FAILURE, halfReps = 3))
+        assertEquals(listOf(SetType.WARMUP, SetType.NORMAL, SetType.NORMAL, SetType.FAILURE), planned.setPlan!!.map { it.type })
+        // Back to all normal: no plan stored.
+        assertNull(planned.withSetPlan(0, RoutineSet()).withSetPlan(3, RoutineSet()).setPlan)
+        // Starting it: warm-ups without the working weight, half reps carried over.
+        val sets = routineSets(planned)
+        assertEquals(listOf(SetType.WARMUP, SetType.NORMAL, SetType.NORMAL, SetType.FAILURE), sets.map { it.type })
+        assertEquals(listOf(null, 100.0, 100.0, 100.0), sets.map { it.weight })
+        assertEquals(listOf(null, 5, 5, 5), sets.map { it.reps })
+        assertEquals(3, sets[3].halfReps)
+        assertNull(sets[1].halfReps)
+        // Without a plan, and with a plan shorter than the sets: normal sets.
+        assertTrue(routineSets(re).all { it.type == SetType.NORMAL && it.weight == 100.0 })
+        assertEquals(SetType.NORMAL, routineSets(planned.copy(sets = 6))[5].type)
+        // Old routines without plans still read.
+        assertNull(Gson().fromJson("{\"exerciseId\":\"x\",\"sets\":3}", RoutineExercise::class.java).setPlan)
+    }
 }

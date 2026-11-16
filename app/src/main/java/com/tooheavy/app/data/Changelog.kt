@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.34.0", "2026-11-16",
+            listOf(
+                "Routines plan each set: tap a set in the routine editor to make it a warm-up, drop or failure set or " +
+                    "to add half reps. Workouts started from the routine begin with those sets (warm-ups without the " +
+                    "working weight). Routines saved from a workout keep its drop and failure sets and half reps.",
+            ),
+        ),
+        ChangelogEntry(
             "1.33.0", "2026-11-14",
             listOf(
                 "The food search also searches Open Food Facts, the product database barcode scans use, once you " +
