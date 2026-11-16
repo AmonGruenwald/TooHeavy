@@ -12,6 +12,14 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.35.0", "2026-11-16",
+            listOf(
+                "The rest timer beeps in your headphones when a rest is over, also with the phone on silent (at media " +
+                    "volume, ducking your music for a moment). Only with headphones connected; can be switched off in " +
+                    "Profile → Settings.",
+            ),
+        ),
+        ChangelogEntry(
             "1.34.0", "2026-11-16",
             listOf(
                 "Routines plan each set: tap a set in the routine editor to make it a warm-up, drop or failure set or " +

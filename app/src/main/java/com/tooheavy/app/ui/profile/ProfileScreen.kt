@@ -249,6 +249,13 @@ fun ProfileScreen(nav: NavController) {
                 }
                 Spacer(Modifier.height(8.dp))
                 SettingSwitch(
+                    "Rest timer beep in headphones",
+                    "Three short beeps in your headphones when a rest is over, also with the phone on silent. " +
+                        "Plays at media volume and only with headphones connected.",
+                    Repo.settings.restSound,
+                ) { Repo.updateSettings(Repo.settings.copy(restSound = it)) }
+                Spacer(Modifier.height(8.dp))
+                SettingSwitch(
                     "Automatic warm-up sets",
                     "Ramp-up sets before the first exercise for each muscle group in a workout.",
                     Repo.settings.autoWarmups,

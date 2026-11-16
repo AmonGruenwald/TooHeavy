@@ -179,6 +179,8 @@ data class Settings(
     val batteryPromptShown: Boolean = false,
     /** While a run is recorded, the app shows over the lock screen, so waking the phone shows the run. */
     val runOverLockScreen: Boolean = true,
+    /** Beep in connected headphones when a rest is over, also with the phone on silent (RestSound). */
+    val restSound: Boolean = true,
 )
 
 /** Everything persisted to filesDir/data.json. */
