@@ -146,9 +146,7 @@ object Repo {
                 WorkoutExercise(
                     exerciseId = re.exerciseId,
                     restSeconds = re.restSeconds,
-                    sets = List(re.sets.coerceAtLeast(1)) {
-                        SetEntry(weight = re.weight, reps = re.reps, seconds = re.seconds, distanceKm = re.distanceKm)
-                    },
+                    sets = routineSets(re),
                     supersetId = re.supersetId,
                 )
             },
@@ -342,6 +340,8 @@ object Repo {
             RoutineExercise(
                 we.exerciseId, sets = working.size, reps = last?.reps, weight = last?.weight,
                 restSeconds = we.restSeconds, supersetId = we.supersetId, seconds = last?.seconds, distanceKm = last?.distanceKm,
+                // Drop and failure sets and half reps stay as they were (warm-ups are added again when it starts).
+                setPlan = working.map { RoutineSet(it.type, it.halfReps) }.takeIf { list -> list.any { it != RoutineSet() } },
             )
         },
     )

@@ -116,7 +116,36 @@ data class RoutineExercise(
     val seconds: Int? = null,
     /** Distance per set in km, for distance exercises. */
     val distanceKm: Double? = null,
+    /** Type and half reps of each set, in order; null (or a shorter list) means normal sets. See planFor. */
+    val setPlan: List<RoutineSet>? = null,
 )
+
+/** How one set of a routine is planned: its SetType and any half reps after the full ones. */
+data class RoutineSet(
+    val type: String = SetType.NORMAL,
+    val halfReps: Int? = null,
+)
+
+/** The plan of set [i] (from 0): as set, else a normal set. */
+fun RoutineExercise.planFor(i: Int): RoutineSet = setPlan?.getOrNull(i) ?: RoutineSet()
+
+/** [this] with set [i] planned as [plan]; the plan list covers [sets] sets and is null when every set is a plain normal set. */
+fun RoutineExercise.withSetPlan(i: Int, plan: RoutineSet): RoutineExercise =
+    copy(setPlan = List(sets) { if (it == i) plan else planFor(it) }.takeIf { list -> list.any { it != RoutineSet() } })
+
+/** The sets a workout starts with for [re]: its weight and reps on the working sets, none on warm-ups. */
+fun routineSets(re: RoutineExercise): List<SetEntry> = List(re.sets.coerceAtLeast(1)) { i ->
+    val plan = re.planFor(i)
+    val warmup = plan.type == SetType.WARMUP
+    SetEntry(
+        weight = if (warmup) null else re.weight,
+        reps = if (warmup) null else re.reps,
+        seconds = re.seconds,
+        distanceKm = re.distanceKm,
+        type = plan.type,
+        halfReps = plan.halfReps?.takeIf { it > 0 },
+    )
+}
 
 data class Routine(
     val id: String = newId(),
