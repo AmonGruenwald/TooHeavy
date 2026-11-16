@@ -16,7 +16,8 @@ import android.os.Looper
 import com.tooheavy.app.R
 
 /**
- * Tells you when a rest is over while you're out of the app (in the app the rest bar vibrates). An exact alarm
+ * Tells you when a rest is over while you're out of the app (in the app the rest bar vibrates), and beeps in
+ * headphones either way (RestSound). An exact alarm
  * goes off at the end of the rest, so it comes on time even with the phone locked or the app closed; while the
  * app is running, a timer does the same and whichever comes first shows the notification. Skipping the rest or
  * ending the workout calls it off; changing the rest moves it.
@@ -25,6 +26,7 @@ object RestAlarm {
     const val ACTION_REST_OVER = "com.tooheavy.app.action.REST_OVER"
     private const val EXTRA_ENDS_AT = "endsAt"
     private const val CHANNEL_ID = "rest"
+    private const val QUIET_CHANNEL_ID = "rest_quiet"
     /** Clear of the app's other notification ids (1001 updates, 4201 run recording, 10000+ habits). */
     private const val NOTIFICATION_ID = 4301
 
@@ -76,28 +78,41 @@ object RestAlarm {
         context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
     }
 
-    /** The rest ending at [endsAt] is over: notify, unless the app is on screen or this rest was already notified. */
+    /**
+     * The rest ending at [endsAt] is over (once per rest): a beep in headphones (RestSound), and a notification
+     * unless the app is on screen (there the rest bar vibrates).
+     */
     fun restOver(context: Context, endsAt: Long) {
-        if (Updater.appVisible || endsAt == notifiedFor) return
+        if (endsAt == notifiedFor) return
         notifiedFor = endsAt
-        notify(context)
+        val beeped = RestSound.playIfHeadphones(context)
+        if (!Updater.appVisible) notify(context, silent = beeped)
     }
 
-    private fun notify(context: Context) {
+    /** [silent]: the headphones beeped already, so the notification only shows. */
+    private fun notify(context: Context, silent: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        // High importance: it pops up, sounds and vibrates like a timer.
+        // High importance: it pops up, sounds and vibrates like a timer. After a beep in the headphones, a twin
+        // channel without its own sound, so it doesn't ring twice.
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Rest timer", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "When a rest between sets is over and you're not in the app"
                 enableVibration(true)
             },
         )
+        manager.createNotificationChannel(
+            NotificationChannel(QUIET_CHANNEL_ID, "Rest timer (after the headphone beep)", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "When a rest is over and your headphones already beeped: pops up and vibrates, no sound"
+                enableVibration(true)
+                setSound(null, null)
+            },
+        )
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
         val open = launch?.let { PendingIntent.getActivity(context, 3, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT) }
-        val notification = Notification.Builder(context, CHANNEL_ID)
+        val notification = Notification.Builder(context, if (silent) QUIET_CHANNEL_ID else CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rest)
             .setContentTitle("Rest is over")
             .setContentText(nextSetText() ?: "Time for your next set.")
