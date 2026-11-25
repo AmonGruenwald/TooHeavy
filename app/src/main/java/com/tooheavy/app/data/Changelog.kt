@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.36.0", "2026-11-25",
+            listOf(
+                "Removing sets during a workout: swipe a set to the left, or tap \"Remove Set\" next to \"Add Set\" " +
+                    "to take off the last set not done yet, e.g. when a routine has one more than you'll do today.",
+            ),
+        ),
+        ChangelogEntry(
             "1.35.0", "2026-11-16",
             listOf(
                 "The rest timer beeps in your headphones when a rest is over, also with the phone on silent (at media " +
