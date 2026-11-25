@@ -4,6 +4,8 @@
 
 - **Release without asking.** When a change is done, merge it to `main` and release it straight away; the owner
   doesn't want to be asked first.
+- **One release per request.** When a message asks for several changes, put them all in one pull request and one
+  release, not a release each.
 - Release by merging the pull request with a merge commit message containing a line `Release: X.Y.Z` (see
   `.github/workflows/release.yml`). The workflow tags `vX.Y.Z`, builds the APK and publishes the GitHub release,
   which the app updates itself from.
