@@ -676,7 +676,7 @@ private val candidates: Map<String, List<Candidate>> = run {
         ),
         Pattern.LUNGE to listOf(
             d("Split_Squat_with_Dumbbells"), d("Bulgarian_Split_Squat"), d("Dumbbell_Lunges"), d("Dumbbell_Rear_Lunge"),
-            b("Barbell_Lunge"), d("Dumbbell_Step_Ups"), bw("Bodyweight_Walking_Lunge"),
+            b("Barbell_Lunge"), d("Dumbbell_Step_Ups"), bw("Bodyweight_Walking_Lunge"), c("Cable_Step-Up"),
         ),
         Pattern.LEG_CURL to listOf(m("Lying_Leg_Curls"), m("Seated_Leg_Curl"), bw("Nordic_Hamstring_Curl")),
         Pattern.LEG_EXTENSION to listOf(m("Leg_Extensions"), m("Single-Leg_Leg_Extension"), bw("Reverse_Nordic")),

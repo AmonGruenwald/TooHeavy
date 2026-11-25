@@ -538,5 +538,23 @@
     ],
     "category": "strength",
     "images": []
+  },
+  {
+    "id": "Cable_Step-Up",
+    "name": "Cable Step-Up",
+    "force": "push",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "cable",
+    "primaryMuscles": ["quadriceps"],
+    "secondaryMuscles": ["glutes", "hamstrings", "calves"],
+    "instructions": [
+      "Set a box or bench about knee height right next to a low cable pulley and attach a single handle.",
+      "Hold the handle in the hand nearest the pulley, arm straight at your side, and put the foot of your working leg flat on the box.",
+      "Drive through that heel to stand up on the box, keeping your chest up and the cable close to your body; bring the other knee up or set that foot down next to the working one.",
+      "Step back down slowly with the other leg, keeping the working foot on the box. Do all reps on one side, then move the box to the other side and switch hands."
+    ],
+    "category": "strength",
+    "images": ["exercises/Cable_Step-Up/0.webp", "exercises/Cable_Step-Up/1.webp"]
   }
 ]
