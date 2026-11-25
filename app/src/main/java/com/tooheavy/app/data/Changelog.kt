@@ -12,6 +12,10 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.38.1", "2026-11-25",
+            listOf("Cable Step-Up is back to holding the cable's handle at your side; pictures and instructions updated."),
+        ),
+        ChangelogEntry(
             "1.38.0", "2026-11-25",
             listOf(
                 "New exercise: Assisted Chest Dip (counterweighted dip machine), with pictures.",
