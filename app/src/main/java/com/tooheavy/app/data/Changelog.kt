@@ -12,6 +12,16 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.38.0", "2026-11-25",
+            listOf(
+                "New exercise: Assisted Chest Dip (counterweighted dip machine), with pictures.",
+                "The weight of assisted exercises (assisted pull-ups and dips, band-assisted pull-ups, your own " +
+                    "exercises named \"assisted ...\") is help, not load, so it no longer counts toward a workout's volume.",
+                "Cable Step-Up now uses an ankle strap on the trailing leg (knee drive against the cable); pictures and " +
+                    "instructions updated.",
+            ),
+        ),
+        ChangelogEntry(
             "1.37.0", "2026-11-25",
             listOf(
                 "New exercise: Cable Step-Up, a step-up holding a low cable pulley's handle at your side, with pictures " +

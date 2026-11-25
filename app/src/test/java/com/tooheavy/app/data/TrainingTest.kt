@@ -648,4 +648,32 @@ class TrainingTest {
         // Old routines without plans still read.
         assertNull(Gson().fromJson("{\"exerciseId\":\"x\",\"sets\":3}", RoutineExercise::class.java).setPlan)
     }
+
+    @Test
+    fun assistedWeightIsNotVolume() {
+        fun done(weight: Double, reps: Int) = SetEntry(weight = weight, reps = reps, completed = true)
+        val w = Workout(
+            exercises = listOf(
+                WorkoutExercise(exerciseId = "Barbell_Bench_Press_-_Medium_Grip", sets = listOf(done(100.0, 5), done(100.0, 5))),
+                WorkoutExercise(exerciseId = "Assisted_Pull-Up", sets = listOf(done(40.0, 8))),
+                WorkoutExercise(exerciseId = "Assisted_Chest_Dip", sets = listOf(done(30.0, 10))),
+                WorkoutExercise(exerciseId = "Band_Assisted_Pull-Up", sets = listOf(done(20.0, 10))),
+            ),
+        )
+        assertEquals(1000.0, w.volume(), 1e-9)
+        assertEquals(listOf("Barbell_Bench_Press_-_Medium_Grip"), w.volumeByExercise().map { it.first })
+        // Your own exercises count as assisted by name.
+        val custom = Exercise(id = Exercise.newCustomId(), name = "Assisted Nordic Curl")
+        assertTrue(custom.isAssisted)
+        val before = AssistedExercises.customIds
+        AssistedExercises.customIds = setOf(custom.id)
+        try {
+            assertEquals(0.0, Workout(exercises = listOf(WorkoutExercise(exerciseId = custom.id, sets = listOf(done(20.0, 5))))).volume(), 1e-9)
+        } finally {
+            AssistedExercises.customIds = before
+        }
+        val byId = library.associateBy { it.id }
+        assertEquals(listOf("chest"), byId["Assisted_Chest_Dip"]!!.primaryMuscles)
+        assertEquals(2, byId["Cable_Step-Up"]!!.images.size)
+    }
 }
