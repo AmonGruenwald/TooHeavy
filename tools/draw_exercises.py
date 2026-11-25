@@ -72,7 +72,7 @@ def done(img, path):
     img.resize((W, H), Image.LANCZOS).save(path, "WEBP", quality=86)
 
 
-# ---------- Cable Step-Up: ankle strap on the trailing leg, low pulley behind ----------
+# ---------- Cable Step-Up: the low pulley's handle held at your side ----------
 
 def step_up(f):
     img, d = room()
@@ -91,18 +91,18 @@ def step_up(f):
     d.rectangle([P(200, 220), P(320, 282)], fill=WOOD)
     d.rectangle([P(200, 220), P(320, 226)], fill=WOOD_D)
     d.rectangle([P(200, 220), P(205, 282)], fill=WOOD_D)
-    ax, ay = f["back_ankle"]
-    # cable to the strap on the trailing ankle, drawn before the leg so the strap sits on top
-    d.line([P(px, py), P(ax - 2, ay - 6)], fill=CABLE, width=int(2.2 * S))
+    hx, hy = f["hand"]
+    # cable from the pulley to the handle in the hand
+    d.line([P(px, py), P(hx, hy + 8)], fill=CABLE, width=int(2.2 * S))
     figure(d, f)
-    # ankle strap
-    d.rounded_rectangle([P(ax - 8, ay - 11), P(ax + 8, ay - 3)], radius=2 * S, fill=DARK)
+    # D-handle
+    d.rounded_rectangle([P(hx - 7, hy + 2), P(hx + 7, hy + 9)], radius=2 * S, outline=DARK, width=int(2.5 * S))
     return img
 
 
-STEP_START = dict(hip=(190, 178), shoulder=(197, 112), head=(201, 86), elbow=(204, 146), hand=(212, 176),
+STEP_START = dict(hip=(190, 178), shoulder=(197, 112), head=(201, 86), elbow=(193, 146), hand=(190, 180),
                   back_knee=(181, 229), back_ankle=(174, 275), front_knee=(236, 170), front_ankle=(234, 215))
-STEP_END = dict(hip=(244, 118), shoulder=(248, 52), head=(251, 26), elbow=(240, 86), hand=(250, 112),
+STEP_END = dict(hip=(244, 118), shoulder=(248, 52), head=(251, 26), elbow=(245, 86), hand=(242, 118),
                 back_knee=(288, 122), back_ankle=(282, 170), front_knee=(246, 166), front_ankle=(244, 215))
 
 
