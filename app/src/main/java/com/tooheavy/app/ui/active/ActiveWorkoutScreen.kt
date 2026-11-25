@@ -35,23 +35,30 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -144,6 +151,38 @@ private const val TimeWeight = 1.62f
 private const val DistWeight = 0.78f
 
 // ---------- state update helpers ----------
+
+/** Takes set [setId] out of exercise [weId] of the workout. */
+private fun removeSet(weId: String, setId: String) =
+    updateExercise(weId) { e -> e.copy(sets = e.sets.filter { it.id != setId }) }
+
+/** [content] that can be swiped to the left to [onRemove] it, showing a red bin while swiped. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToRemove(onRemove: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { v ->
+            if (v == SwipeToDismissBoxValue.EndToStart) onRemove()
+            v == SwipeToDismissBoxValue.EndToStart
+        },
+        positionalThreshold = { total -> total * 0.4f },
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            // Only while swiping: the set rows are see-through.
+            if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                Box(
+                    Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)).background(Danger).padding(end = 16.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Remove set", tint = Color.White)
+                }
+            }
+        },
+    ) { content() }
+}
 
 private fun updateExercise(weId: String, transform: (WorkoutExercise) -> WorkoutExercise) {
     Repo.updateActive { w ->
@@ -740,39 +779,56 @@ private fun ExerciseCard(nav: NavController, workout: Workout, we: WorkoutExerci
                         val w = Repo.activeWorkout ?: workout
                         RestTimes.after(w, w.exercises.indexOfFirst { it.id == we.id }, entry.id)
                     }
-                    if (timed) {
-                        TimedSetRow(
-                            weId = we.id, entry = entry, setNumber = number, previous = previousSet,
-                            distUnit = distUnit, restAfter = restAfter,
-                        )
-                    } else {
-                        SetRow(
-                            weId = we.id,
-                            entry = entry,
-                            setNumber = number,
-                            previous = previousSet,
-                            unit = unit,
-                            targetRir = we.target?.rir,
-                            restAfter = restAfter,
-                        )
+                    // Swipe a set to the left to remove it (also in the menu on its number).
+                    SwipeToRemove(onRemove = { removeSet(we.id, entry.id) }) {
+                        if (timed) {
+                            TimedSetRow(
+                                weId = we.id, entry = entry, setNumber = number, previous = previousSet,
+                                distUnit = distUnit, restAfter = restAfter,
+                            )
+                        } else {
+                            SetRow(
+                                weId = we.id,
+                                entry = entry,
+                                setNumber = number,
+                                previous = previousSet,
+                                unit = unit,
+                                targetRir = we.target?.rir,
+                                restAfter = restAfter,
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(Modifier.height(8.dp))
-            FilledTonalButton(
-                onClick = {
-                    val last = we.sets.lastOrNull()
-                    updateExercise(we.id) { e ->
-                        e.copy(sets = e.sets + SetEntry(weight = last?.weight, reps = last?.reps, seconds = last?.seconds))
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Add Set")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Takes off the last set not done yet, e.g. one more than you'll do today.
+                val removable = we.sets.lastOrNull { !it.completed }
+                OutlinedButton(
+                    onClick = { removable?.let { removeSet(we.id, it.id) } },
+                    enabled = removable != null,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Remove Set")
+                }
+                FilledTonalButton(
+                    onClick = {
+                        val last = we.sets.lastOrNull()
+                        updateExercise(we.id) { e ->
+                            e.copy(sets = e.sets + SetEntry(weight = last?.weight, reps = last?.reps, seconds = last?.seconds))
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add Set")
+                }
             }
         }
     }
