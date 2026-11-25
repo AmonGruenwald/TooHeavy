@@ -168,6 +168,7 @@ class TrainingTest {
         assertTrue("Pullups" in find("pull up"))
         assertTrue("Dumbbell_Romanian_Deadlift" in find("rdl dumbbell"))
         assertTrue("Bulgarian_Split_Squat" in find("bulgarian"))
+        assertTrue("Cable_Step-Up" in find("cable step up"))
         assertTrue("Standing_Military_Press" in find("ohp"))
         assertTrue(find("").size == library.size)
     }

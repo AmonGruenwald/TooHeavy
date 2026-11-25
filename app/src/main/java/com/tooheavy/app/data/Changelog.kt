@@ -12,6 +12,13 @@ data class ChangelogEntry(val version: String, val date: String, val changes: Li
 object Changelog {
     val entries = listOf(
         ChangelogEntry(
+            "1.37.0", "2026-11-25",
+            listOf(
+                "New exercise: Cable Step-Up, a step-up holding a low cable pulley's handle at your side, with pictures " +
+                    "of the start and end position. Programs can pick it for single-leg work.",
+            ),
+        ),
+        ChangelogEntry(
             "1.36.0", "2026-11-25",
             listOf(
                 "Removing sets during a workout: swipe a set to the left, or tap \"Remove Set\" next to \"Add Set\" " +
