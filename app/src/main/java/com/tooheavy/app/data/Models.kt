@@ -204,9 +204,24 @@ val SetEntry.effectiveReps: Double get() = (reps ?: 0) + (halfReps ?: 0) * 0.5
 /** Weight × reps of one set, partials counted as half reps. */
 val SetEntry.volume: Double get() = (weight ?: 0.0) * effectiveReps
 
-/** Total volume (weight x reps) of completed sets. */
+/**
+ * Exercises where the weight helps you (a counterweight or a band) instead of being lifted, like the assisted
+ * pull-up machine: their weight isn't volume. Known by "assisted" in the id, or in the name for your own exercises.
+ */
+object AssistedExercises {
+    /** Ids of your own exercises named "assisted ...", kept up to date by Repo. */
+    @Volatile
+    var customIds: Set<String> = emptySet()
+
+    fun contains(exerciseId: String): Boolean = exerciseId.contains("assisted", ignoreCase = true) || exerciseId in customIds
+}
+
+val Exercise.isAssisted: Boolean get() = id.contains("assisted", ignoreCase = true) || name.contains("assisted", ignoreCase = true)
+
+/** Total volume (weight x reps) of completed sets; assisted exercises don't count (see AssistedExercises). */
 fun Workout.volume(): Double =
-    exercises.sumOf { we -> we.sets.filter { it.completed }.sumOf { it.volume } }
+    exercises.filterNot { AssistedExercises.contains(it.exerciseId) }
+        .sumOf { we -> we.sets.filter { it.completed }.sumOf { it.volume } }
 
 fun Workout.completedSetCount(): Int = exercises.sumOf { we -> we.sets.count { it.completed } }
 

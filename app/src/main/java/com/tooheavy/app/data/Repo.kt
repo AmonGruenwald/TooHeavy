@@ -83,6 +83,7 @@ object Repo {
     private fun rebuildLibrary() {
         exercises = (bundled + customExercises).sortedBy { it.name.lowercase() }
         byId = exercises.associateBy { it.id }
+        AssistedExercises.customIds = customExercises.filter { it.isAssisted }.map { it.id }.toSet()
     }
 
     private fun save() {
